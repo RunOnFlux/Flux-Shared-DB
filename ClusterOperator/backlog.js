@@ -20,40 +20,40 @@ class BackLog {
       if (config.dbType === 'mysql') {
           let dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
           if(dbList.length === 0){
-            log.info('backlog DB not defined yet, creating backlog DB');
+            log.info('Backlog DB not defined yet, creating backlog DB...');
             await this.BLClient.query(`CREATE DATABASE ${config.dbBacklog}`);
           }else{
-            log.info('backlog DB exists');
+            log.info('Backlog DB already exists, moving on...');
           }
           await this.BLClient.setDB(config.dbBacklog);
           let tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
           if(tableList.length === 0){
-            log.info('backlog table not defined yet, creating backlog table');
+            log.info('Backlog table not defined yet, creating backlog table...');
             await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query text, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
             MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
             ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
           }else{
-            log.info('backlog table exists');
+            log.info('Backlog table already exists, moving on...');
             this.sequenceNumber = await this.getLastSequenceNumber();
           }
           tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogBuffer}'`);
           if(tableList.length === 0){
-            log.info('backlog buffer table not defined yet, creating buffer table');
+            log.info('Backlog buffer table not defined yet, creating buffer table...');
             await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query text, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
             MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
             ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
           }else{
-            log.info('backlog buffer table exists');
+            log.info('Backlog buffer table already exists, moving on...');
           }
       }
     }catch(e){
-      log.error(e);
+      log.error(`Error creating backlog: ${e}`);
     }
   }
 
