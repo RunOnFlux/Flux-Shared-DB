@@ -46,7 +46,7 @@ class DBClient {
   async createDB(dbName) {
     if (config.dbType === 'mysql') {
       try {
-        await this.query(`CREATE DATABASE ${dbName}`);
+        await this.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
       } catch (err) {
         log.info(err);
       }
