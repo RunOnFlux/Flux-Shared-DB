@@ -8,7 +8,7 @@ class BackLog {
 
   static buffer = [];
   static sequenceNumber = 0;
-  static BufferSequenceNumber = 0;
+  static bufferSequenceNumber = 0;
   static BLClient = null;
   /**
   * [createBacklog]
@@ -29,11 +29,11 @@ class BackLog {
         WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
         if(tableList.length === 0){
           log.info('backlog table not defined yet, creating backlog table');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (sec bigint, query text, timestamp bigint);`);
+          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query text, timestamp bigint);`);
           await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
-          MODIFY COLUMN \`sec\` bigint(0) NOT NULL FIRST,
-          ADD PRIMARY KEY (\`sec\`),
-          ADD UNIQUE INDEX \`sec\`(\`sec\`);`);
+          MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
+          ADD PRIMARY KEY (\`seq\`),
+          ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
         }else{
           log.info('backlog table exists');
           this.sequenceNumber = await this.getLastSequenceNumber();
@@ -42,11 +42,11 @@ class BackLog {
         WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogBuffer}'`);
         if(tableList.length === 0){
           log.info('backlog buffer table not defined yet, creating buffer table');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (sec bigint, query text, timestamp bigint);`);
+          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query text, timestamp bigint);`);
           await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
-          MODIFY COLUMN \`sec\` bigint(0) NOT NULL FIRST,
-          ADD PRIMARY KEY (\`sec\`),
-          ADD UNIQUE INDEX \`sec\`(\`sec\`);`);
+          MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
+          ADD PRIMARY KEY (\`seq\`),
+          ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
         }else{
           log.info('backlog buffer table exists');
         }
@@ -62,7 +62,7 @@ class BackLog {
     try{
       if (config.dbType === 'mysql') {
         this.sequenceNumber +=1;
-        await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (sec, query, timestamp) VALUES (${this.sequenceNumber},'${query}',${timestamp});`);
+        await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},'${query}',${timestamp});`);
         
       }
     }catch(e){
@@ -98,8 +98,8 @@ class BackLog {
   */
   static async getLastSequenceNumber() {
     if (config.dbType === 'mysql') {
-      const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${config.dbBacklogCollection}`);
-      log.info(`Last Sec No: ${JSON.stringify(totalRecords)}`);
+      const totalRecords = await this.BLClient.query(`SELECT seq as total FROM ${config.dbBacklogCollection} ORDER BY seq DESC LIMIT 1`);
+      log.info(`Last Seq No: ${JSON.stringify(totalRecords)}`);
       return totalRecords[0].total
     }
   }
@@ -111,7 +111,18 @@ class BackLog {
     if (config.dbType === 'mysql') {
       await this.BLClient.query(`DELETE * FROM ${config.dbBacklogCollection}`);
     }
+    log.info(`All backlog data removed successfully.`);
   }
+   /**
+  * [destroyBacklog]
+  */
+    static async destroyBacklog() {
+      if(!this.BLClient) this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') {
+        await this.BLClient.query(`DROP DATABASE ${config.dbBacklog}`);
+      }
+      log.info(`${config.dbBacklog} database and all it's data erased successfully.`);
+    }
   /**
   * [clearBuffer]
   */
@@ -120,6 +131,7 @@ class BackLog {
       await this.BLClient.query(`DELETE * FROM ${config.dbBacklogBuffer}`);
     }
     this.buffer = [];
+    log.info(`All buffer data removed successfully.`);
   }
 }
 
