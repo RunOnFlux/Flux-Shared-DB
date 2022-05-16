@@ -8,6 +8,9 @@ class DBClient {
     this.connection = {};
   }
 
+  /**
+  * [init]
+  */
   async init() {
     if (config.dbType === 'mysql') {
       this.connection = await mySql.createConnection({
@@ -19,10 +22,15 @@ class DBClient {
     }
   }
 
-  async query(query) {
+  /**
+  * [query]
+  * @param {string} query [description]
+  */
+  async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
         const [rows, fields, err] = await this.connection.execute(query);
+        if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
         log.info(err);
@@ -31,6 +39,25 @@ class DBClient {
     return null;
   }
 
+  /**
+  * [createDB]
+  * @param {string} dbName [description]
+  */
+  async createDB(dbName) {
+    if (config.dbType === 'mysql') {
+      try {
+        await this.query(`CREATE DATABASE ${dbName}`);
+      } catch (err) {
+        log.info(err);
+      }
+    }
+    return null;
+  }
+
+  /**
+  * [setDB]
+  * @param {string} dbName [description]
+  */
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
       this.connection = await mySql.createConnection({
@@ -46,7 +73,11 @@ class DBClient {
 
 // eslint-disable-next-line func-names
 exports.createClient = async function () {
-  const cl = new DBClient();
-  await cl.init();
-  return cl;
+  try {
+    const cl = new DBClient();
+    await cl.init();
+    return cl;
+  } catch (e) {
+    return null;
+  }
 };

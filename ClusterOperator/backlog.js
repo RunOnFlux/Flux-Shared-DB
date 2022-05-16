@@ -21,7 +21,7 @@ class BackLog {
           let dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
           if(dbList.length === 0){
             log.info('Backlog DB not defined yet, creating backlog DB...');
-            await this.BLClient.query(`CREATE DATABASE ${config.dbBacklog}`);
+            await this.BLClient.createDB(config.dbBacklog);
           }else{
             log.info('Backlog DB already exists, moving on...');
           }
@@ -129,7 +129,10 @@ class BackLog {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT seq as total FROM ${config.dbBacklogCollection} ORDER BY seq DESC LIMIT 1`);
         log.info(`Last Seq No: ${JSON.stringify(totalRecords)}`);
-        return totalRecords[0].total
+        if(totalRecords.length)
+          return totalRecords[0].total;
+        else 
+          return 0;
       }
     }catch(e){
       log.error(e);
@@ -146,7 +149,7 @@ class BackLog {
     }
     try{
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE * FROM ${config.dbBacklogCollection}`);
+        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
       }
     }catch(e){
       log.error(e);
@@ -177,7 +180,7 @@ class BackLog {
     }
     try{
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE * FROM ${config.dbBacklogBuffer}`);
+        await this.BLClient.query(`DELETE FROM ${config.dbBacklogBuffer}`);
       }
     }catch(e){
       log.error(e);
@@ -188,6 +191,4 @@ class BackLog {
 }
 
 // eslint-disable-next-line func-names
-module.exports = {
-  BackLog,
-};
+module.exports = BackLog;
