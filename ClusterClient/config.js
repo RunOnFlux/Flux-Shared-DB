@@ -1,4 +1,4 @@
 module.exports = {
-    dbType: 'mysql',
-    localDBPort: 3306,
-  };
+  dbType: 'mysql',
+  localDBPort: 3306,
+};
