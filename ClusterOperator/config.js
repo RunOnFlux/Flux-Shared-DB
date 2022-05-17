@@ -8,5 +8,6 @@ module.exports = {
   dbBacklogBuffer: 'backlog_buffer',
   dbInitDB: 'test_db',
   connectionServer: 'mysql',
+  externalDBPort: 3306,
   clusterList: [], // Temporary
 };

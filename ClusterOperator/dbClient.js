@@ -29,7 +29,7 @@ class DBClient {
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
-        const [rows, fields, err] = await this.connection.execute(query);
+        const [rows, fields, err] = await this.connection.query(query);
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
