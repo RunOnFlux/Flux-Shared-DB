@@ -1,4 +1,4 @@
-const client = require('../ClusterOperator/dbClient');
+const client = require('../ClusterOperator/DBClient');
 
 async function test() {
   const mySqlClient = await client.createClient();

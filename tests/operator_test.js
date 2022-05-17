@@ -1,3 +1,3 @@
-const Operator = require('../ClusterOperator/operator');
+const Operator = require('../ClusterOperator/Operator');
 
 Operator.init();

@@ -1,4 +1,4 @@
-const BackLog = require('../ClusterOperator/backlog');
+const BackLog = require('../ClusterOperator/Backlog');
 
 async function test() {
   await BackLog.pushQuery('SELECT * FROM TEST', 1);
