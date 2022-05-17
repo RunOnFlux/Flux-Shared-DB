@@ -76,8 +76,10 @@ class Operator {
           }
           //console.log(finalResult);
           this.sendRows(finalResult);
-        } else{
-          this.sendRequestHeader({ message: '' });
+        } else if(result[0]){
+          this.sendOK({ message: 'OK' });
+        }else{
+          this.sendError({ message: result[3] });
         }
         
         break;

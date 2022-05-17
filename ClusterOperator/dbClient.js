@@ -34,6 +34,7 @@ class DBClient {
         return rows;
       } catch (err) {
         log.info(err);
+        return [null,null,err];
       }
     }
     return null;
