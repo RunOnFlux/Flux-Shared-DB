@@ -1,6 +1,6 @@
 /* eslint-disable no-empty-function */
 /* eslint-disable no-unused-vars */
-const dbClient = require('./DBClient);
+const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
 
