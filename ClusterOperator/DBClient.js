@@ -14,7 +14,7 @@ class DBClient {
   async init() {
     if (config.dbType === 'mysql') {
       this.connection = await mySql.createConnection({
-        host: 'localhost',
+        host: config.dbHost,
         user: config.dbUser,
         password: config.dbPass,
         port: config.dbPort,
@@ -62,7 +62,7 @@ class DBClient {
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
       this.connection = await mySql.createConnection({
-        host: 'localhost',
+        host: config.dbHost,
         user: config.dbUser,
         password: config.dbPass,
         port: config.dbPort,
@@ -78,7 +78,8 @@ exports.createClient = async function () {
     const cl = new DBClient();
     await cl.init();
     return cl;
-  } catch (e) {
+  } catch (err) {
+    log.info(err);
     return null;
   }
 };
