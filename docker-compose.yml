@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  app-tier:
+  fluxdb:
     driver: bridge
 
 services: 
@@ -16,11 +16,10 @@ services:
     ports:
       - 3306:3306
     networks:
-      - app-tier 
+      - fluxdb 
     volumes: 
       - db-config:/etc/mysql
       - db-data:/var/lib/mysql
-      - ./db/backup/files/:/data_backup/data
   operator:
     build:
       context: .
@@ -33,7 +32,7 @@ services:
     ports:
       - 3307:3307
     networks:
-      - app-tier 
+      - fluxdb 
 volumes: 
   db-config:
   db-data:
