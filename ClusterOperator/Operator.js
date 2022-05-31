@@ -4,6 +4,7 @@ const timer = require('timers/promises');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
+const fluxAPI = require('../lib/fluxAPI');
 const config = require('./config');
 const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
@@ -117,7 +118,10 @@ class Operator {
   /**
   * [getMaster]
   */
-  static async findMaster() {}
+  static async findMaster() {
+    //get appspecs
+    
+  }
 
   /**
   * [ConnectLocalDB]
