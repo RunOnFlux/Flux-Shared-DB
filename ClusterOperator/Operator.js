@@ -46,13 +46,13 @@ class Operator {
         });
       }).listen(config.externalDBPort);
       
-      console.log(`Started mysql server on port ${config.externalDBPort}`);
+      log.info(`Started mysql server on port ${config.externalDBPort}`);
     }
   }
 
   static handleAuthorize(param) {
-    console.log('Auth Info:');
-    console.log(param);
+    log.info('Auth Info:');
+    log.info(param);
     // Yup you are authorized
     return true;
   }
@@ -79,7 +79,7 @@ class Operator {
             }
             finalResult.push(newRow);
           }
-          //console.log(finalResult);
+
           this.sendRows(finalResult);
         } else if(result[0]){
           this.sendOK({ message: 'OK' });
@@ -94,16 +94,16 @@ class Operator {
       case null:
       case undefined:
       case mySQLConsts.COM_QUIT:
-        console.log('Disconnecting');
+        log.info('Disconnecting');
         this.end();
         break;
       case mySQLConsts.COM_INIT_DB:
         var result = await this.localDB.query(`use ${extra}`);
-        console.log(`extra is ${extra}`)
+        log.info(`extra is ${extra}`)
         this.sendOK({ message: 'OK' });
         break;
       default:
-        console.log(`Unknown Command: ${command}`);
+        log.info(`Unknown Command: ${command}`);
         this.sendError({ message: 'Unknown Command' });
         break;
     }
@@ -166,8 +166,8 @@ class Operator {
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
+    //await this.ConnectLocalDB();
+    //await this.initLocalDB();
     this.initInBoundConnections(config.dbType);
   }
 }

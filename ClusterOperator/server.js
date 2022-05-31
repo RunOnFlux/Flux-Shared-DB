@@ -3,6 +3,7 @@ const { WebSocketServer } = require('ws');
 const log = require('../lib/log');
 const config = require('./config');
 
+
 //Operator.init();
 
 
@@ -11,6 +12,20 @@ const config = require('./config');
 
 const wss = new WebSocketServer({ port: config.apiPort });
 let clients = [];
+
+function handleAPICommand(ws, command, message){
+  switch (command) {
+    case 'GET_MASTER':
+      break;
+    case 'GET_BACKLOG':
+      break;
+    case 'QUERY':
+      break;
+    default:
+      log.info(`Unknown Command: ${command}`);
+      break;
+  }
+}
 
 function auth(ip){
   let idx = clients.findIndex(item => item.ip==ip);
@@ -29,7 +44,8 @@ wss.on('connection', function connection(ws, req) {
     ws.on('message', function message(data) {
       log.info(`received: ${data}`);
       try{
-        let commands = JSON.parse(data);
+        let jsonData = JSON.parse(data);
+        handleAPICommand(ws, jsonData.command, jsonData.message);
       }catch(err){
         log.info('Unrecognized command.');
       }
