@@ -14,7 +14,7 @@ const md5 = require('md5');
 class Operator {
 
   static localDB = null;
-  static dbNodes = [];
+  static OpNodes = [];
   static clientNodes = [];
   static nodeInstances = 0;
   static masterNode = null;
@@ -134,12 +134,12 @@ class Operator {
         await timer.setTimeout(2000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       }
-      this.nodeInstances = [];
+      this.OpNodes = [];
       for(let i=0; i<this.nodeInstances; i++){
-        this.nodeInstances.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
+        this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
-      this.nodeInstances.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
-      log.info(`Master is ${this.nodeInstances[0]}, second candidate is ${this.nodeInstances[1]}, checking with second candidate for confirmation...`);
+      this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
+      log.info(`Master is ${this.OpNodes[0]}, second candidate is ${this.OpNodes[1]}, checking with second candidate for confirmation...`);
 
 
 

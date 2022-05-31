@@ -4,11 +4,7 @@ const log = require('../lib/log');
 const config = require('./config');
 
 
-//Operator.init();
-
-
-
-
+Operator.init();
 
 const wss = new WebSocketServer({ port: config.apiPort });
 let clients = [];
@@ -28,7 +24,11 @@ function handleAPICommand(ws, command, message){
 }
 
 function auth(ip){
-  let idx = clients.findIndex(item => item.ip==ip);
+  //only operator nodes can connect
+  let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
+  if(idx === -1) return false;
+  //only one connection per ip allowed
+  idx = clients.findIndex(item => item.ip==ip);
   if(idx === -1) return true; else return false;
 }
 
