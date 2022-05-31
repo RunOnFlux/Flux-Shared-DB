@@ -10,6 +10,7 @@ module.exports = {
   dbInitDB: 'test_db',
   connectionServer: 'mysql',
   externalDBPort: 3307,
+  apiPort: 7071,
   DBAppName: process.env.DB_APPNAME,
   AppName: process.env.APPNAME,
   clusterList: [], // Temporary

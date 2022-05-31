@@ -9,12 +9,16 @@ const config = require('./config');
 const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
+const md5 = require('md5');
 
 class Operator {
 
   static localDB = null;
   static dbNodes = [];
   static clientNodes = [];
+  static nodeInstances = 0;
+  static masterNode = null;
+  static apiKey = null;
   /**
   * [initLocalDB]
   */
@@ -119,8 +123,29 @@ class Operator {
   * [getMaster]
   */
   static async findMaster() {
-    //get appspecs
-    
+    //get dbappspecs
+    if(config.DBAppName){
+      const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
+      this.nodeInstances = Specifications.instances;
+      // wait for all nodes to spawn
+      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      while (ipList.length < this.nodeInstances) {
+        log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+        await timer.setTimeout(2000);
+        ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      }
+      this.nodeInstances = [];
+      for(let i=0; i<this.nodeInstances; i++){
+        this.nodeInstances.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
+      }
+      this.nodeInstances.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
+      log.info(`Master is ${this.nodeInstances[0]}, second candidate is ${this.nodeInstances[1]}, checking with second candidate for confirmation...`);
+
+
+
+    }else{
+      log.info(`DB_APPNAME environment variabele not defined.`)
+    }
   }
 
   /**
