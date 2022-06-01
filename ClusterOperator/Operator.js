@@ -18,7 +18,9 @@ class Operator {
   static clientNodes = [];
   static nodeInstances = 0;
   static masterNode = null;
+  static IamMaster = false;
   static apiKey = null;
+  static myIP = null;
   /**
   * [initLocalDB]
   */
@@ -120,7 +122,7 @@ class Operator {
   static async getSyncStatus() {}
 
   /**
-  * [getMaster]
+  * [findMaster]
   */
   static async findMaster() {
     //get dbappspecs
@@ -138,15 +140,76 @@ class Operator {
       for(let i=0; i<this.nodeInstances; i++){
         this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
+      await getMyIp();
       this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
-      log.info(`Master is ${this.OpNodes[0]}, second candidate is ${this.OpNodes[1]}, checking with second candidate for confirmation...`);
-
-
-
+      
+      if(this.myIP === this.OpNodes[0]){
+        //I could be the master, ask second candidate for confirmation.
+        let MasterIP = await fluxAPI.getMaster(this.OpNodes[1],config.apiPort);
+        //try next node if not responding
+        let tries = 0;
+        while(MasterIP === null) {
+          MasterIP = await fluxAPI.getMaster(this.OpNodes[2],config.apiPort);
+          await timer.setTimeout(2000);
+          tries ++;
+          log.info(`Node ${this.OpNodes[2]} not responding.`);
+          if(tries>5) return this.findMaster();
+        }
+        if(MasterIP === this.myIP) {
+          //I am the master node
+          this.masterNode = MasterIP;
+          this.IamMaster = true;
+        }
+      }else{
+        //ask first node who the master is
+        let MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
+        let tries = 0;
+        while(MasterIP === null) {
+          await timer.setTimeout(2000);
+          MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
+          tries ++;
+          log.info(`Node ${this.OpNodes[0]} not responding.`);
+          if(tries>5) return this.findMaster();
+        }
+        this.masterNode = MasterIP;
+      }
+      log.info(`Master node is ${this.masterNode}`);
+      
     }else{
       log.info(`DB_APPNAME environment variabele not defined.`)
     }
   }
+  /**
+  * [getMaster]
+  */
+  static getMaster() {
+    if(this.masterNode === null){
+      if(this.OpNodes.length > 2){
+        return this.OpNodes[0];
+      }
+    }else{
+      return this.masterNode;
+    }
+    return null;
+  }
+
+  /**
+  * [getMyIp]
+  */
+    static async getMyIp() {
+      if(this.myIP === null){
+        return this.myIP
+      }else{
+        let ipList = [];
+        for(let i=0; i < this.OpNodes.length || i < 3; i++){
+          ipList.push(await fluxAPI.getMyIp(this.OpNodes[i]));
+        }
+        //find the highest occurrence in the array 
+        const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
+        this.myIP = myIP;
+        return myIP;
+      }
+    }
 
   /**
   * [ConnectLocalDB]

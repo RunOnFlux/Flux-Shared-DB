@@ -12,6 +12,9 @@ let clients = [];
 function handleAPICommand(ws, command, message){
   switch (command) {
     case 'GET_MASTER':
+      ws.send(`{"status":"success","message":"${Operator.getMaster}"}`);
+      break;
+    case 'GET_MYIP':
       break;
     case 'GET_BACKLOG':
       break;
@@ -25,8 +28,8 @@ function handleAPICommand(ws, command, message){
 
 function auth(ip){
   //only operator nodes can connect
-  let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
-  if(idx === -1) return false;
+  //let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
+  //if(idx === -1) return false;
   //only one connection per ip allowed
   idx = clients.findIndex(item => item.ip==ip);
   if(idx === -1) return true; else return false;
@@ -56,6 +59,7 @@ wss.on('connection', function connection(ws, req) {
       clients = clients.splice(idx,0); 
     });
     log.info(`socket connected from ${ip}`);
+    ws.send(`{"status":"connected","from":"${ip}"}`);
   }else{
     log.info(`socket connection rejected from ${ip}`);
     ws.terminate();
@@ -81,5 +85,7 @@ wss.on('close', function close() {
 });
 
 log.info(`Api Server started on port ${config.apiPort}`);
+
+Operator.findMaster();
 
 
