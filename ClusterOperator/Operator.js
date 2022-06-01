@@ -229,8 +229,8 @@ class Operator {
   * [init]
   */
   static async init() {
-    //await this.ConnectLocalDB();
-    //await this.initLocalDB();
+    await this.ConnectLocalDB();
+    await this.initLocalDB();
     this.initInBoundConnections(config.dbType);
   }
 }
