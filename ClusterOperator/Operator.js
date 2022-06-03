@@ -148,7 +148,7 @@ class Operator {
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[1],config.apiPort);
         //try next node if not responding
         let tries = 0;
-        while(MasterIP === null) {
+        while(MasterIP === "null") {
           MasterIP = await fluxAPI.getMaster(this.OpNodes[2],config.apiPort);
           await timer.setTimeout(2000);
           tries ++;
@@ -164,7 +164,7 @@ class Operator {
         //ask first node who the master is
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
         let tries = 0;
-        while(MasterIP === null) {
+        while(MasterIP === "null") {
           await timer.setTimeout(2000);
           MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
           tries ++;
@@ -176,7 +176,7 @@ class Operator {
       log.info(`Master node is ${this.masterNode}`);
       
     }else{
-      log.info(`DB_APPNAME environment variabele not defined.`)
+      log.info(`DB_APPNAME environment variabele is not defined.`)
     }
   }
   /**
