@@ -26,4 +26,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/fluxdb:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/fluxdb:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/simplewhale:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/simplewhale:buildcache,mode=max
