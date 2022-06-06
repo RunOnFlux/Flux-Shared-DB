@@ -41,7 +41,7 @@ function auth(ip){
 
 
 async function initServer(){
-  //await Operator.init();
+  await Operator.init();
 
   wss.on('connection', function connection(ws, req) {
     const ip = req.socket.remoteAddress;
@@ -92,7 +92,7 @@ async function initServer(){
     clearInterval(interval);
   });
   log.info(`Api Server started on port ${config.apiPort}`);
-  //await Operator.findMaster();
+  await Operator.findMaster();
 }
 
 initServer();
