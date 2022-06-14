@@ -14,7 +14,7 @@ module.exports = {
   debugUIPort: 8008,
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.13',
+  version: '0.9.14',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary
 };
