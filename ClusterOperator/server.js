@@ -17,7 +17,7 @@ const app = express();
 fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
 app.get('/', (req, res) => {
-  const remoteIp = req.ipsplit(';');
+  const remoteIp = req.ip.split(';');
   const whiteList = config.whiteListedIps.split(',');
   //if(whiteList.length){
     //if(whiteList.includes(remoteIp))
