@@ -17,13 +17,13 @@ const app = express();
 fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
 app.get('/', (req, res) => {
-  const remoteIp = req.ip;
+  const remoteIp = req.ipsplit(';');
   const whiteList = config.whiteListedIps.split(',');
   //if(whiteList.length){
     //if(whiteList.includes(remoteIp))
       res.send(`<html><body onload="scrollDown()"><script>setTimeout(function(){window.location.reload(1);}, 5000);scrollDown = function() {
         document.body.scrollTop = document.body.scrollHeight;
-     } </script>${JSON.stringify(remoteIp)}<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
+     } </script>${remoteIp[1]}<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
   //}
 })
 
