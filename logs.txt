@@ -1,0 +1,11 @@
+version: 0.9.12
+2022-06-14T10:38:15.416Z          ["Started mysql server on port 3307"]
+2022-06-14T10:38:15.417Z          ["starting debug interface on port 8008"]
+2022-06-14T10:38:15.419Z          ["Api Server started on port 7071"]
+2022-06-14T10:38:15.420Z          ["DB_APPNAME environment variabele is not defined."]
+2022-06-14T10:38:45.251Z          ["Auth Info:"]
+2022-06-14T10:38:45.255Z          [{"clientFlags":{"type":"Buffer","data":[133,166,127,0]},"maxPacketSize":{"type":"Buffer","data":[0,0,0,64]},"username":"root","remoteIP":{"address":"::1","family":"IPv6","port":3307}}]
+2022-06-14T10:38:45.258Z          ["Disconnecting"]
+2022-06-14T10:41:50.945Z          [{"clientFlags":{"type":"Buffer","data":[133,166,127,0]},"maxPacketSize":{"type":"Buffer","data":[0,0,0,64]},"username":"root","remoteIP":{"address":"::1","family":"IPv6","port":3307}}]
+2022-06-14T10:41:50.943Z          ["Auth Info:"]
+2022-06-14T10:41:50.947Z          ["Disconnecting"]

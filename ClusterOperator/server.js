@@ -2,8 +2,32 @@ const Operator = require('./Operator');
 const { WebSocketServer } = require('ws');
 const log = require('../lib/log');
 const config = require('./config');
+const express = require('express');
+const fs = require('fs');
 
+function htmlEscape(text) {
+  return text.replace(/&/g, '&amp;').
+    replace(/</g, '&lt;').
+    replace(/"/g, '&quot;').
+    replace(/'/g, '&#039;').
+    replace(/\n/g, '</br>');
+}
 
+const app = express();
+fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
+
+app.get('/', (req, res) => {
+  const remoteIp = req.ip;
+  const whiteList = config.whiteListedIps.split(',');
+  if(whiteList.length){
+    if(whiteList.includes(remoteIp))
+      res.send(`<html><body><script>setTimeout(function(){window.location.reload(1);}, 5000);</script>${remoteIp}<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
+  }
+})
+
+app.listen(config.debugUIPort, () => {
+  log.info(`starting debug interface on port ${config.debugUIPort}`);
+})
 
 
 const wss = new WebSocketServer({ port: config.apiPort });
