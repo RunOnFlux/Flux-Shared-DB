@@ -19,10 +19,10 @@ fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 app.get('/', (req, res) => {
   const remoteIp = req.ip;
   const whiteList = config.whiteListedIps.split(',');
-  //if(whiteList.length){
-    //if(whiteList.includes(remoteIp))
+  if(whiteList.length){
+    if(whiteList.includes(remoteIp))
       res.send(`<html><body><script>setTimeout(function(){window.location.reload(1);}, 5000);</script>${remoteIp}<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
-  //}
+  }
 })
 
 app.listen(config.debugUIPort, () => {
