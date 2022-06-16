@@ -146,7 +146,7 @@ class Operator {
       for(let i=0; i<this.nodeInstances; i++){
         this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
-      await getMyIp();
+      await this.getMyIp();
       this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
       
       if(this.myIP === this.OpNodes[0]){
