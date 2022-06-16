@@ -211,7 +211,7 @@ class Operator {
         var tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
         var j=0;
         while(tempIp===null && j < 5){
-          log.info(`node ${i} not responding, retrying connection...${j}`);
+          log.info(`node ${i} not responding to api port ${config.containerApiPort}, retrying...${j}`);
           await timer.setTimeout(2000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
           j++;
@@ -219,9 +219,14 @@ class Operator {
         if(tempIp!==null) ipList.push(tempIp);
       }
       //find the highest occurrence in the array 
-      const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
-      this.myIP = myIP;
-      return myIP;
+      if(ipList.length>2){
+        const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
+        this.myIP = myIP;
+        return myIP;
+      }else{
+        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
+        return this.getMyIp();
+      }
     }
   }
 
