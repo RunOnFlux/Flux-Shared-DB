@@ -202,28 +202,28 @@ class Operator {
   /**
   * [getMyIp]
   */
-    static async getMyIp() {
-      if(this.myIP !== null){
-        return this.myIP
-      }else{
-        let ipList = [];
-        for(let i=0; i < this.OpNodes.length || i < 3; i++){
-          var tempIp = await fluxAPI.getMyIp(this.OpNodes[i])
-          var j=0;
-          while(tempIp===null && j < 5){
-            log.info(`node ${i} not responding, retrying connection...${j}`);
-            await timer.setTimeout(2000);
-            tempIp = await fluxAPI.getMyIp(this.OpNodes[i]);
-            j++;
-          }
-          if(tempIp!==null) ipList.push(await fluxAPI.getMyIp(tempIp));
+  static async getMyIp() {
+    if(this.myIP !== null){
+      return this.myIP
+    }else{
+      let ipList = [];
+      for(let i=0; i < this.OpNodes.length || i < 3; i++){
+        var tempIp = await fluxAPI.getMyIp(this.OpNodes[i])
+        var j=0;
+        while(tempIp===null && j < 5){
+          log.info(`node ${i} not responding, retrying connection...${j}`);
+          await timer.setTimeout(2000);
+          tempIp = await fluxAPI.getMyIp(this.OpNodes[i]);
+          j++;
         }
-        //find the highest occurrence in the array 
-        const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
-        this.myIP = myIP;
-        return myIP;
+        if(tempIp!==null) ipList.push(await fluxAPI.getMyIp(tempIp));
       }
+      //find the highest occurrence in the array 
+      const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
+      this.myIP = myIP;
+      return myIP;
     }
+  }
 
   /**
   * [ConnectLocalDB]
