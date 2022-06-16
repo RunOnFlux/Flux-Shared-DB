@@ -151,11 +151,11 @@ class Operator {
       
       if(this.myIP === this.OpNodes[0]){
         //I could be the master, ask second candidate for confirmation.
-        let MasterIP = await fluxAPI.getMaster(this.OpNodes[1],config.apiPort);
+        let MasterIP = await fluxAPI.getMaster(this.OpNodes[1],config.containerApiPort);
         //try next node if not responding
         let tries = 0;
         while(MasterIP === "null") {
-          MasterIP = await fluxAPI.getMaster(this.OpNodes[2],config.apiPort);
+          MasterIP = await fluxAPI.getMaster(this.OpNodes[2],config.containerApiPort);
           await timer.setTimeout(2000);
           tries ++;
           log.info(`Node ${this.OpNodes[2]} not responding.`);
@@ -168,11 +168,11 @@ class Operator {
         }
       }else{
         //ask first node who the master is
-        let MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
+        let MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.containerApiPort);
         let tries = 0;
         while(MasterIP === "null") {
           await timer.setTimeout(2000);
-          MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.apiPort);
+          MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.containerApiPort);
           tries ++;
           log.info(`Node ${this.OpNodes[0]} not responding.`);
           if(tries>5) return this.findMaster();
@@ -208,15 +208,15 @@ class Operator {
     }else{
       let ipList = [];
       for(let i=0; i < this.OpNodes.length || i < 3; i++){
-        var tempIp = await fluxAPI.getMyIp(this.OpNodes[i])
+        var tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
         var j=0;
         while(tempIp===null && j < 5){
           log.info(`node ${i} not responding, retrying connection...${j}`);
           await timer.setTimeout(2000);
-          tempIp = await fluxAPI.getMyIp(this.OpNodes[i]);
+          tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
           j++;
         }
-        if(tempIp!==null) ipList.push(await fluxAPI.getMyIp(tempIp));
+        if(tempIp!==null) ipList.push(tempIp);
       }
       //find the highest occurrence in the array 
       const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();

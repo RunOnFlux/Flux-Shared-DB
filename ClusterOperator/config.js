@@ -12,6 +12,8 @@ module.exports = {
   externalDBPort: 3307,
   apiPort: 7071,
   debugUIPort: 8008,
+  containerDBPort: process.env.DB_PORT || externalDBPort,
+  containerApiPort: process.env.API_PORT || apiPort,
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
   version: '0.9.16',
