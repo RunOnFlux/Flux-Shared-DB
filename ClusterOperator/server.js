@@ -36,9 +36,11 @@ let clients = [];
 function handleAPICommand(ws, command, message){
   switch (command) {
     case 'GET_MASTER':
-      ws.send(`{"status":"success","message":"${JSON.stringify(Operator.getMaster())}"}`);
+      ws.send(`{"status":"success","message":${JSON.stringify(Operator.getMaster())}}`);
       break;
     case 'GET_MYIP':
+      let idx = clients.findIndex(item => item.ws==ws);
+      ws.send(`{"status":"success","message":"${clients[idx].ip}"`);
       break;
     case 'GET_BACKLOG':
       break;

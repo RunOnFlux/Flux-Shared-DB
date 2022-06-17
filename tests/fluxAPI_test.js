@@ -20,7 +20,33 @@ async function testFluxAPI(){
   }
   console.log(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
 
-  ip = await fluxAPI.getMyIp('65.108.109.25'.ip,33950);
+  ip = await getMyIp(OpNodes);
   console.log(ip);
+}
+async function getMyIp(OpNodes,retries=1) {
+
+    let ipList = [];
+    for(let i=0; i < OpNodes.length && i < 5; i++){
+
+      let tempIp = await fluxAPI.getMyIp(OpNodes[i].ip, 33950);
+      let j=1;
+      while(tempIp===null && j < 6){
+        log.info(`node ${OpNodes[i].ip} not responding to api port ${33950}, retrying ${j}/5...`);
+        await timer.setTimeout(2000);
+        tempIp = await fluxAPI.getMyIp(OpNodes[i].ip, 33950);
+        j++;
+      }
+      if(tempIp!==null) ipList.push(tempIp);
+    }
+    //find the highest occurrence in the array 
+    if(ipList.length>2){
+      const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
+      return myIP;
+    }else{
+      log.info(`other nodes are not responding to api port ${33950}, retriying again...`);
+      await timer.setTimeout(5000 * retries);
+      return getMyIp(OpNodes, retries+1);
+    }
+
 }
 testFluxAPI();
