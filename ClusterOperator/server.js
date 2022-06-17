@@ -1,6 +1,7 @@
 const Operator = require('./Operator');
 const { WebSocketServer } = require('ws');
 const log = require('../lib/log');
+const utill = require('../lib/utill');
 const config = require('./config');
 const express = require('express');
 const fs = require('fs');
@@ -17,7 +18,7 @@ const app = express();
 fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
 app.get('/', (req, res) => {
-  const remoteIp = req.ip;
+  const remoteIp = utill.convertIP(req.ip);
   //const whiteList = config.whiteListedIps.split(',');
   //if(whiteList.length){
     //if(whiteList.includes(remoteIp))
@@ -70,9 +71,8 @@ async function initServer(){
   await Operator.init();
 
   wss.on('connection', function connection(ws, req) {
-    var ip = req.socket.remoteAddress;
-    //to be fixed for ipv6
-    if(ip.includes(':')) ip = ip.split(':')[3];
+    var ip = utill.convertIP(req.socket.remoteAddress);
+
     if(auth(ip)){
       clients.push({ws:ws, ip:ip});
       ws.isAlive = true;
