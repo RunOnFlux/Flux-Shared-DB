@@ -139,7 +139,7 @@ class Operator {
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       while (ipList.length < this.nodeInstances) {
         log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-        await timer.setTimeout(2000);
+        await timer.setTimeout(5000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       }
       this.OpNodes = [];
@@ -182,7 +182,7 @@ class Operator {
         }
         this.masterNode = MasterIP;
       }
-      log.info(`Master node is ${this.masterNode}`);
+      log.info(`Master node is ${JSON.stringify(this.masterNode)}`);
       
     }else{
       log.info(`DB_APPNAME environment variabele is not defined.`)
@@ -226,6 +226,7 @@ class Operator {
       if(ipList.length>2){
         const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
         this.myIP = myIP;
+        log.info(`My ip is ${JSON.stringify(myIP)}`);
         return myIP;
       }else{
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
