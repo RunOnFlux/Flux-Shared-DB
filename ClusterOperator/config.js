@@ -16,7 +16,7 @@ module.exports = {
   containerApiPort: process.env.API_PORT || apiPort,
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.16',
+  version: '0.9.17',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary
 };

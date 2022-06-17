@@ -209,10 +209,11 @@ class Operator {
     }else{
       let ipList = [];
       for(let i=0; i < this.OpNodes.length || i < 3; i++){
+
         var tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
         var j=0;
         while(tempIp===null && j < 5){
-          log.info(`node ${i} not responding to api port ${config.containerApiPort}, retrying...${j}`);
+          log.info(`node ${this.OpNodes[i]} not responding to api port ${config.containerApiPort}, retrying...${j}`);
           await timer.setTimeout(2000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
           j++;
