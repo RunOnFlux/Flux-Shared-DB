@@ -36,7 +36,7 @@ let clients = [];
 function handleAPICommand(ws, command, message){
   switch (command) {
     case 'GET_MASTER':
-      ws.send(`{"status":"success","message":"${Operator.getMaster()}"}`);
+      ws.send(`{"status":"success","message":"${JSON.stringify(Operator.getMaster())}"}`);
       break;
     case 'GET_MYIP':
       break;
@@ -68,8 +68,9 @@ async function initServer(){
   await Operator.init();
 
   wss.on('connection', function connection(ws, req) {
-    const ip = req.socket.remoteAddress;
-    
+    var ip = req.socket.remoteAddress;
+    //to be fixed for ipv6
+    if(ip.includes(':')) ip = ip.split(':')[3];
     if(auth(ip)){
       clients.push({ws:ws, ip:ip});
       ws.isAlive = true;

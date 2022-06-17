@@ -146,6 +146,7 @@ class Operator {
       for(let i=0; i<this.nodeInstances; i++){
         this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
+      log.info(`cluster ip's: ${this.OpNodes}`);
       await this.getMyIp();
       this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
       
@@ -202,7 +203,7 @@ class Operator {
   /**
   * [getMyIp]
   */
-  static async getMyIp() {
+  static async getMyIp(retries=1) {
     if(this.myIP !== null){
       return this.myIP
     }else{
@@ -225,7 +226,8 @@ class Operator {
         return myIP;
       }else{
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
-        return this.getMyIp();
+        await timer.setTimeout(5000 * retries);
+        return this.getMyIp(retries+1);
       }
     }
   }
