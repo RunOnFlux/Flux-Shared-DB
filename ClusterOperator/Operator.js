@@ -55,11 +55,9 @@ class Operator {
   static handleAuthorize(param) {
     log.info('Auth Info:');
     log.info(param);
-    const remoteIp = param.remoteIP.address;
+    const remoteIp = param.remoteIP;
     const whiteList = config.whiteListedIps.split(',');
-    if(whiteList.length){
-      if(whiteList.includes(remoteIp))
-        // Yup you are authorized
+    if(whiteList.length && whiteList.includes(remoteIp)){
         return true;  
     }
     return false; 
