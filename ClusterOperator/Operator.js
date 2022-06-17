@@ -146,7 +146,7 @@ class Operator {
       for(let i=0; i<this.nodeInstances; i++){
         this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
-      log.info(`cluster ip's: ${this.OpNodes}`);
+      log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
       await this.getMyIp();
       this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
       
@@ -159,7 +159,7 @@ class Operator {
           MasterIP = await fluxAPI.getMaster(this.OpNodes[2],config.containerApiPort);
           await timer.setTimeout(2000);
           tries ++;
-          log.info(`Node ${this.OpNodes[2]} not responding.`);
+          log.info(`Node ${JSON.stringify(this.OpNodes[2])} not responding.`);
           if(tries>5) return this.findMaster();
         }
         if(MasterIP === this.myIP) {
@@ -175,7 +175,7 @@ class Operator {
           await timer.setTimeout(2000);
           MasterIP = await fluxAPI.getMaster(this.OpNodes[0],config.containerApiPort);
           tries ++;
-          log.info(`Node ${this.OpNodes[0]} not responding.`);
+          log.info(`Node ${JSON.stringify(this.OpNodes[0])} not responding.`);
           if(tries>5) return this.findMaster();
         }
         this.masterNode = MasterIP;
@@ -213,7 +213,7 @@ class Operator {
         var tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
         var j=0;
         while(tempIp===null && j < 5){
-          log.info(`node ${this.OpNodes[i]} not responding to api port ${config.containerApiPort}, retrying...${j}`);
+          log.info(`node ${JSON.stringify(this.OpNodes[i])} not responding to api port ${config.containerApiPort}, retrying...${j}`);
           await timer.setTimeout(2000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i], config.containerApiPort);
           j++;
