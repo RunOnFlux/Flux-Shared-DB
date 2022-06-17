@@ -15,17 +15,12 @@ async function testFluxAPI(){
   }
   this.OpNodes = [];
   for(let i=0; i<this.nodeInstances; i++){
+    if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
     this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
   }
   console.log(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
 
-  var ip = await fluxAPI.getMaster("38.242.243.3","33950");
-  console.log(ip);
-  ip = "::ffff:80.239.140.67";
-  if(ip.includes(':')) ip = ip.split(':')[3];
-  console.log(ip);
-
-  ip = await fluxAPI.getMyIp("38.242.243.3","33950");
+  ip = await fluxAPI.getMyIp('65.108.109.25'.ip,33950);
   console.log(ip);
 }
 testFluxAPI();

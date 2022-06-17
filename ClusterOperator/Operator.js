@@ -144,6 +144,8 @@ class Operator {
       }
       this.OpNodes = [];
       for(let i=0; i<this.nodeInstances; i++){
+        //extraxt ip from upnp nodes
+        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
         this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
       }
       log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
@@ -211,9 +213,9 @@ class Operator {
       for(let i=0; i < this.OpNodes.length || i < 3; i++){
 
         var tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-        var j=0;
-        while(tempIp===null && j < 5){
-          log.info(`node ${JSON.stringify(this.OpNodes[i].ip)} not responding to api port ${config.containerApiPort}, retrying...${j}`);
+        var j=1;
+        while(tempIp===null && j < 6){
+          log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
           await timer.setTimeout(2000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
           j++;
