@@ -41,7 +41,8 @@ function handleAPICommand(ws, command, message){
       break;
     case 'GET_MYIP':
       let idx = clients.findIndex(item => item.ws==ws);
-      ws.send(`{"status":"success","message":"${clients[idx].ip}"`);
+      log.info(`sending remoteIp: ${clients[idx].ip}`);
+      ws.send(`{"status":"success","message":"${clients[idx].ip}"}`);
       break;
     case 'GET_BACKLOG':
       break;
