@@ -124,6 +124,28 @@ class Operator {
   * [getSyncStatus]
   */
   static async getSyncStatus() {}
+  /**
+  * [getSyncStatus]
+  */
+   static async updateAppInfo() {
+    const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
+    this.nodeInstances = Specifications.instances;
+    // wait for all nodes to spawn
+    let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+    while (ipList.length < this.nodeInstances) {
+      log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+      await timer.setTimeout(5000);
+      ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+    }
+    this.OpNodes = [];
+    for(let i=0; i<this.nodeInstances; i++){
+      //extraxt ip from upnp nodes
+      if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+      this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
+    }
+    log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
+   }
 
   /**
   * [findMaster]
@@ -131,25 +153,9 @@ class Operator {
   static async findMaster() {
     //get dbappspecs
     if(config.DBAppName){
-      const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
-      this.nodeInstances = Specifications.instances;
-      // wait for all nodes to spawn
-      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      while (ipList.length < this.nodeInstances) {
-        log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-        await timer.setTimeout(5000);
-        ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      }
-      this.OpNodes = [];
-      for(let i=0; i<this.nodeInstances; i++){
-        //extraxt ip from upnp nodes
-        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
-      }
-      log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+      await this.updateAppInfo();
       await this.getMyIp();
-      this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
-      
+
       if(this.myIP === this.OpNodes[0].ip){
         //I could be the master, ask second candidate for confirmation.
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[1].ip,config.containerApiPort);
@@ -237,7 +243,8 @@ class Operator {
         return myIP;
       }else{
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
-        await timer.setTimeout(5000 * retries);
+        await this.updateAppInfo();
+        await timer.setTimeout(10000 * retries);
         return this.getMyIp(retries+1);
       }
     }
