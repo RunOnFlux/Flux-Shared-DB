@@ -229,7 +229,7 @@ class Operator {
         let j=1;
         while(tempIp===null && j < 6){
           log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
-          await timer.setTimeout(2000);
+          await timer.setTimeout(5000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
           j++;
         }
@@ -244,7 +244,7 @@ class Operator {
       }else{
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
         await this.updateAppInfo();
-        await timer.setTimeout(10000 * retries);
+        await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
       }
     }
