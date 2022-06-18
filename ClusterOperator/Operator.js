@@ -178,9 +178,18 @@ class Operator {
           log.info(`Node ${JSON.stringify(this.OpNodes[0].ip)} not responding.`);
           if(tries>5) return this.findMaster();
         }
-        this.masterNode = MasterIP;
+        //test master api connection
+        log.info(`testing master api @ ${MasterIP}:${config.containerApiPort}`);
+        let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
+        if(MasterIP2===MasterIP){
+          this.masterNode = MasterIP;
+        }else{
+          log.info(`master node not responding, retrying...`);
+          return this.findMaster();
+        }
       }
-      log.info(`Master node is ${JSON.stringify(this.masterNode)}`);
+      log.info(`Master node is ${this.masterNode}`);
+      return this.masterNode;
       
     }else{
       log.info(`DB_APPNAME environment variabele is not defined.`)

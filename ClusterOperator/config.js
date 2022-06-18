@@ -12,11 +12,11 @@ module.exports = {
   externalDBPort: 3307,
   apiPort: 7071,
   debugUIPort: 8008,
-  containerDBPort: process.env.DB_PORT || externalDBPort,
-  containerApiPort: process.env.API_PORT || apiPort,
-  DBAppName: process.env.DB_APPNAME || '',
+  containerDBPort: process.env.DB_PORT || 33950,
+  containerApiPort: process.env.API_PORT || 33951,
+  DBAppName: process.env.DB_APPNAME || 'dbfluxtest4',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.23',
+  version: '0.9.24',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary
 };

@@ -68,7 +68,7 @@ function auth(ip){
 
 
 async function initServer(){
-  await Operator.init();
+  //await Operator.init();
 
   wss.on('connection', function connection(ws, req) {
     var ip = utill.convertIP(req.socket.remoteAddress);
