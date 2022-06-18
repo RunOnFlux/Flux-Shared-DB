@@ -93,6 +93,11 @@ async function initServer(){
         log.info(`socket from ${clients[idx].ip} closed.`);
         clients = clients.splice(idx,0); 
       });
+      ws.on('error', (error) => {
+        log.info(`error in ws`);
+        log.error(error);
+        ws.terminate();
+      })
       log.info(`socket connected from ${ip}`);
       ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
@@ -100,6 +105,10 @@ async function initServer(){
       ws.terminate();
     }
   });
+  wss.on('error', (error) => {
+    log.info(`error in wss`);
+    log.error(error);
+  })
   
   const interval = setInterval(function ping() {
     wss.clients.forEach(function each(ws) {
