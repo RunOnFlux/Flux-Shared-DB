@@ -226,13 +226,13 @@ class Operator {
       for(let i=0; i < this.OpNodes.length && i < 5; i++){
 
         let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-        let j=1;
+        /*let j=1;
         while(tempIp===null && j < 6){
           log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
           await timer.setTimeout(5000);
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
           j++;
-        }
+        }*/
         if(tempIp!==null) ipList.push(tempIp);
       }
       //find the highest occurrence in the array 
@@ -242,7 +242,7 @@ class Operator {
         log.info(`My ip is ${JSON.stringify(myIP)}`);
         return myIP;
       }else{
-        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again...`);
+        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
         await this.updateAppInfo();
         await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
