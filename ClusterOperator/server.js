@@ -92,8 +92,11 @@ async function initServer(){
       });
       ws.on('close', function close() {    
         let idx = clients.findIndex(item => item.ws==ws);
-        log.info(`socket from ${clients[idx].ip} closed.`);
-        clients = clients.splice(idx,0); 
+        log.info(`socket closed id:${idx}`);
+        if(idx>=0){
+          log.info(`socket from ${clients[idx].ip} closed.`);
+          clients = clients.splice(idx,0); 
+        }
       });
       ws.on('error', (error) => {
         log.info(`error in ws`);
