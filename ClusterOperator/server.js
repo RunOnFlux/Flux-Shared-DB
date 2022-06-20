@@ -87,7 +87,7 @@ async function initServer(){
           let jsonData = JSON.parse(data);
           handleAPICommand(ws, jsonData.command, jsonData.message);
         }catch(err){
-          log.info('Unrecognized command.');
+          log.info(`Unrecognized command:${data}, ${err}`);
         }
       });
       ws.on('close', function close() {    
