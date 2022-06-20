@@ -31,7 +31,7 @@ async function getMyIp(OpNodes,retries=1) {
       let tempIp = await fluxAPI.getMyIp(OpNodes[i].ip, 33950);
       let j=1;
       while(tempIp===null && j < 6){
-        log.info(`node ${OpNodes[i].ip} not responding to api port ${33950}, retrying ${j}/5...`);
+        console.log(`node ${OpNodes[i].ip} not responding to api port ${33950}, retrying ${j}/5...`);
         await timer.setTimeout(2000);
         tempIp = await fluxAPI.getMyIp(OpNodes[i].ip, 33950);
         j++;
@@ -43,7 +43,7 @@ async function getMyIp(OpNodes,retries=1) {
       const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
       return myIP;
     }else{
-      log.info(`other nodes are not responding to api port ${33950}, retriying again...`);
+      console.log(`other nodes are not responding to api port ${33950}, retriying again...`);
       await timer.setTimeout(5000 * retries);
       return getMyIp(OpNodes, retries+1);
     }
