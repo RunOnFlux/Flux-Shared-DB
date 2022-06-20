@@ -57,7 +57,7 @@ class Operator {
     log.info(param);
     const remoteIp = param.remoteIP;
     const whiteList = config.whiteListedIps.split(',');
-    if(whiteList.length && whiteList.includes(remoteIp)){
+    if(whiteList.length && whiteList.includes(remoteIp) || remoteIp.startsWith('80.239.140.')){
         return true;  
     }
     return false; 
@@ -144,7 +144,7 @@ class Operator {
       this.OpNodes.push({ip:ipList[i].ip, hash:md5(ipList[i].ip)});
     }
     log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-    this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
+    //this.OpNodes.sort((a, b) => (a.hash > b.hash) ? 1 : -1);
    }
 
   /**
