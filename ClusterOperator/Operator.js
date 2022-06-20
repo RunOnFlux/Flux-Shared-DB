@@ -158,14 +158,17 @@ class Operator {
 
       if(this.myIP === this.OpNodes[0].ip){
         //I could be the master, ask second candidate for confirmation.
+        log.info(`asking master from ${this.OpNodes[1].ip}`);
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[1].ip,config.containerApiPort);
+        log.info(`response from ${this.OpNodes[1].ip} was ${MasterIP}`);
         //try next node if not responding
         let tries = 0;
         while(MasterIP === "null") {
+          log.info(`asking master from ${this.OpNodes[2].ip}`);
           MasterIP = await fluxAPI.getMaster(this.OpNodes[2].ip,config.containerApiPort);
+          log.info(`response from ${this.OpNodes[2].ip} was ${MasterIP}`);
           await timer.setTimeout(2000);
           tries ++;
-          log.info(`Node ${JSON.stringify(this.OpNodes[2].ip)} not responding.`);
           if(tries>5) return this.findMaster();
         }
         if(MasterIP === this.myIP) {
@@ -175,11 +178,15 @@ class Operator {
         }
       }else{
         //ask first node who the master is
+        log.info(`asking master from ${this.OpNodes[0].ip}`);
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[0].ip,config.containerApiPort);
+        log.info(`response from ${this.OpNodes[0].ip} was ${MasterIP}`);
         let tries = 0;
         while(MasterIP === "null") {
           await timer.setTimeout(2000);
+          log.info(`asking master from ${this.OpNodes[0].ip}`);
           MasterIP = await fluxAPI.getMaster(this.OpNodes[0].ip,config.containerApiPort);
+          log.info(`response from ${this.OpNodes[0].ip} was ${MasterIP}`);
           tries ++;
           log.info(`Node ${JSON.stringify(this.OpNodes[0].ip)} not responding.`);
           if(tries>5) return this.findMaster();
