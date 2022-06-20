@@ -224,8 +224,9 @@ class Operator {
     }else{
       let ipList = [];
       for(let i=0; i < this.OpNodes.length && i < 5; i++){
-
+        log.info(`asking myip from ${this.OpNodes[i].ip}`);
         let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
+        log.info(`response from ${this.OpNodes[i].ip} was ${tempIp}`);
         /*let j=1;
         while(tempIp===null && j < 6){
           log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
@@ -235,6 +236,7 @@ class Operator {
         }*/
         if(tempIp!==null) ipList.push(tempIp);
       }
+      log.info(`all response list: ${JSON.stringify(ipList)}`);
       //find the highest occurrence in the array 
       if(ipList.length>2){
         const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();

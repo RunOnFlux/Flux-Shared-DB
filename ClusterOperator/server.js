@@ -82,7 +82,7 @@ async function initServer(){
         this.isAlive = true;
       });
       ws.on('message', function message(data) {
-        log.info(`received: ${data}`);
+        //log.info(`received: ${data}`);
         try{
           let jsonData = JSON.parse(data);
           handleAPICommand(ws, jsonData.command, jsonData.message);
@@ -92,7 +92,7 @@ async function initServer(){
       });
       ws.on('close', function close() {    
         let idx = clients.findIndex(item => item.ws==ws);
-        log.info(`socket closed id:${idx}`);
+        //log.info(`socket closed id:${idx}`);
         if(idx>=0){
           log.info(`socket from ${clients[idx].ip} closed.`);
           clients = clients.splice(idx,0); 
@@ -103,8 +103,8 @@ async function initServer(){
         log.error(error);
         ws.terminate();
       })
-      log.info(`socket connected from ${ip}`);
-      ws.send(`{"status":"connected","from":"${ip}"}`);
+      //log.info(`socket connected from ${ip}`);
+      //ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
       log.info(`socket connection rejected from ${ip}`);
       ws.terminate();
