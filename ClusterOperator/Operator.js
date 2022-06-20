@@ -245,7 +245,7 @@ class Operator {
       }
       log.info(`all response list: ${JSON.stringify(ipList)}`);
       //find the highest occurrence in the array 
-      if(ipList.length>2){
+      if(ipList.length>=2){
         const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
         this.myIP = myIP;
         log.info(`My ip is ${JSON.stringify(myIP)}`);
