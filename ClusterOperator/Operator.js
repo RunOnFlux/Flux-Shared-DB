@@ -241,9 +241,17 @@ class Operator {
           tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
           j++;
         }*/
-        if(tempIp!==null) ipList.push(tempIp);
+        if(tempIp!==null){
+          this.myIP = myIP;
+          log.info(`My ip is ${JSON.stringify(myIP)}`);
+          return myIP;
+        }
       }
-      log.info(`all response list: ${JSON.stringify(ipList)}`);
+      log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
+      await this.updateAppInfo();
+      await timer.setTimeout(15000 * retries);
+      return this.getMyIp(retries+1);
+      /*log.info(`all response list: ${JSON.stringify(ipList)}`);
       //find the highest occurrence in the array 
       if(ipList.length>=2){
         const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
@@ -255,7 +263,7 @@ class Operator {
         await this.updateAppInfo();
         await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
-      }
+      }*/
     }
   }
 
