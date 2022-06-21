@@ -182,7 +182,7 @@ class Operator {
         let MasterIP = await fluxAPI.getMaster(this.OpNodes[0].ip,config.containerApiPort);
         log.info(`response from ${this.OpNodes[0].ip} was ${MasterIP}`);
         let tries = 0;
-        while(MasterIP === "null") {
+        while(MasterIP === "null" || MasterIP === null) {
           await timer.setTimeout(2000);
           log.info(`asking master from ${this.OpNodes[0].ip}`);
           MasterIP = await fluxAPI.getMaster(this.OpNodes[0].ip,config.containerApiPort);
