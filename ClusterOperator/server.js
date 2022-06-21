@@ -22,7 +22,11 @@ app.get('/', (req, res) => {
   //const whiteList = config.whiteListedIps.split(',');
   //if(whiteList.length){
     //if(whiteList.includes(remoteIp))
-      res.send(`<html><body>${remoteIp}<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
+      res.send(`<html><body style="
+      font-family: monospace;
+      background-color: #404048;
+      color: white;
+      ">FluxDB Debug Screen<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
   //}
 })
 

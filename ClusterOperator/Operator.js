@@ -192,8 +192,9 @@ class Operator {
           if(tries>5) return this.findMaster();
         }
         //test master api connection
-        log.info(`testing master api @ ${MasterIP}:${config.containerApiPort}`);
+        log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
         let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
+        log.info(`response from ${MasterIP} was ${MasterIP2}`);
         if(MasterIP2===MasterIP){
           this.masterNode = MasterIP;
         }else{
