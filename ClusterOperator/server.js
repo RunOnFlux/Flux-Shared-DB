@@ -66,8 +66,8 @@ function handleAPICommand(ws, command, message){
 
 function auth(ip){
   //only operator nodes can connect
-  //let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
-  //if(idx === -1) return false;
+  let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
+  if(idx === -1) return false;
   //only one connection per ip allowed
   idx = clients.findIndex(item => item.ip==ip);
   if(idx === -1) return true; else return false;
