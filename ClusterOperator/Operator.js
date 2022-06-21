@@ -242,9 +242,9 @@ class Operator {
           j++;
         }*/
         if(tempIp!==null){
-          this.myIP = myIP;
-          log.info(`My ip is ${JSON.stringify(myIP)}`);
-          return myIP;
+          this.myIP = tempIp;
+          log.info(`My ip is ${JSON.stringify(tempIp)}`);
+          return tempIp;
         }
       }
       log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
