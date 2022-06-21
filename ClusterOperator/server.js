@@ -42,8 +42,13 @@ function handleAPICommand(ws, command, message){
       break;
     case 'GET_MYIP':
       let idx = clients.findIndex(item => item.ws==ws);
-      log.info(`sending remoteIp: ${clients[idx].ip}`);
-      ws.send(`{"status":"success","message":"${clients[idx].ip}"}`);
+      if(idx>=0){
+        log.info(`sending remoteIp: ${clients[idx].ip}`);
+        ws.send(`{"status":"success","message":"${clients[idx].ip}"}`);
+      }else{
+        log.info(`ws and ip not found, sending null`);
+        ws.send(`{"status":"success","message":"null"}`);
+      }
       break;
     case 'GET_BACKLOG':
       break;
@@ -63,11 +68,6 @@ function auth(ip){
   idx = clients.findIndex(item => item.ip==ip);
   if(idx === -1) return true; else return false;
 }
-
-
-
-
-
 
 async function initServer(){
   await Operator.init();
