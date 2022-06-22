@@ -147,9 +147,10 @@ class Operator {
     log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
-      var myIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
-      myIPList.push(myIp);
-      this.OpNodes[i].active = myIP;
+      
+      let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+      myIPList.push(myTempIp);
+      this.OpNodes[i].active = myTempIp;
     }
     
     
@@ -291,8 +292,8 @@ class Operator {
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
+    //await this.ConnectLocalDB();
+    //await this.initLocalDB();
     this.initInBoundConnections(config.dbType);
   }
 }
