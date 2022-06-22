@@ -156,10 +156,10 @@ class Operator {
     
     const myIP = myIPList.sort((a,b) =>myIPList.filter(v => v===a).length - myIPList.filter(v => v===b).length).pop();
     for(let i=0; i<this.OpNodes.length; i++){
-      if(this.OpNodes[i].active===myIP || this.OpNodes[i].ip===myIP) 
-      this.OpNodes[i].active = true; 
+      if((this.OpNodes[i].active === myIP || this.OpNodes[i].ip === myIP) && this.OpNodes[i].active != null) 
+        this.OpNodes[i].active = true; 
       else 
-      this.OpNodes[i].active = false;
+        this.OpNodes[i].active = false;
     }
     log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
     if(myIP!==null){
