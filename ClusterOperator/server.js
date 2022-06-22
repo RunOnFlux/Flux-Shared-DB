@@ -75,7 +75,7 @@ function auth(ip){
 }
 
 async function initServer(){
-  await Operator.init();
+  
 
   wss.on('connection', function connection(ws, req) {
     var ip = utill.convertIP(req.socket.remoteAddress);
@@ -139,7 +139,13 @@ async function initServer(){
     clearInterval(interval);
   });
   log.info(`Api Server started on port ${config.apiPort}`);
+  await Operator.init();
   await Operator.findMaster();
+  try{
+    const updateAppInterval =  setInterval(await Operator.updateAppInfo(false), 120000);
+  }catch(e){
+
+  }
 }
 
 initServer();

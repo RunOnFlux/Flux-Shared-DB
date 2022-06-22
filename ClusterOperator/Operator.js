@@ -127,14 +127,14 @@ class Operator {
   /**
   * [getSyncStatus]
   */
-   static async updateAppInfo() {
+   static async updateAppInfo(retry=true) {
     const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
     this.nodeInstances = Specifications.instances;
     // wait for all nodes to spawn
     let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
     while (ipList.length < this.nodeInstances) {
       log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-      await timer.setTimeout(5000);
+      await timer.setTimeout(10000);
       ipList = await fluxAPI.getApplicationIP(config.DBAppName);
     }
     this.OpNodes = [];
@@ -149,7 +149,7 @@ class Operator {
     
     
     const myIP = myIPList.sort((a,b) =>myIPList.filter(v => v===a).length - myIPList.filter(v => v===b).length).pop();
-    for(i=0; i<this.OpNodes.length; i++){
+    for(let i=0; i<this.OpNodes.length; i++){
       if(this.OpNodes[i].active===myIP || this.OpNodes[i].ip===myIP) 
       this.OpNodes[i].active = true; 
       else 
@@ -160,9 +160,11 @@ class Operator {
       this.myIP = myIP;
       log.info(`My ip is ${myIP}`);
     }else{
-      log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
-      await timer.setTimeout(15000);
-      await this.updateAppInfo();
+      if(retry){
+        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
+        await timer.setTimeout(15000);
+        await this.updateAppInfo();
+      }
     }
   
    }
