@@ -26,6 +26,7 @@ app.get('/', (req, res) => {
       font-family: monospace;
       background-color: #404048;
       color: white;
+      font-size: 12;
       ">FluxDB Debug Screen<br>${htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
   //}
 })
