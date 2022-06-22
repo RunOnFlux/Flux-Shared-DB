@@ -142,9 +142,14 @@ class Operator {
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
       if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+      this.OpNodes.push({ip:ipList[i].ip, active:null});
+    }
+    log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    for(let i=0; i<ipList.length; i++){
+      //extraxt ip from upnp nodes
       var myIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
       myIPList.push(myIp);
-      this.OpNodes.push({ip:ipList[i].ip, active:myIp});
+      this.OpNodes[i].active = myIP;
     }
     
     
@@ -155,7 +160,7 @@ class Operator {
       else 
       this.OpNodes[i].active = false;
     }
-    log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
     if(myIP!==null){
       this.myIP = myIP;
       log.info(`My ip is ${myIP}`);
