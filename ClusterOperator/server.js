@@ -112,6 +112,7 @@ async function initServer(){
       //ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
       log.info(`socket connection rejected from ${ip}`);
+      ws.send(`{"status":"rejected"}`);
       ws.terminate();
     }
   });
