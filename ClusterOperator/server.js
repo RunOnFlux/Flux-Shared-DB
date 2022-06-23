@@ -146,6 +146,15 @@ async function initServer(){
   }catch(e){
 
   }
+  if(Operator.IamMaster){
+
+  }else{
+    //connect to master
+
+    //sync database
+
+    //relay data
+  }
 }
 
 initServer();

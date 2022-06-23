@@ -145,6 +145,7 @@ class Operator {
       this.OpNodes.push({ip:ipList[i].ip, active:null});
     }
     log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    if(!retry) return;
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
       
@@ -166,11 +167,9 @@ class Operator {
       this.myIP = myIP;
       log.info(`My ip is ${myIP}`);
     }else{
-      if(retry){
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
         await timer.setTimeout(15000);
         await this.updateAppInfo();
-      }
     }
   
    }
