@@ -138,7 +138,6 @@ class Operator {
       ipList = await fluxAPI.getApplicationIP(config.DBAppName);
     }
     this.OpNodes = [];
-    var myIPList = [];
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
       if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
@@ -148,24 +147,19 @@ class Operator {
     if(!retry) return;
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
-      
+      log.info(`asking my ip from: ${ipList[i].ip}`);
       let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
-      myIPList.push(myTempIp);
-      this.OpNodes[i].active = myTempIp;
-    }
-    
-    
-    const myIP = myIPList.sort((a,b) =>myIPList.filter(v => v===a).length - myIPList.filter(v => v===b).length).pop();
-    for(let i=0; i<this.OpNodes.length; i++){
-      if((this.OpNodes[i].active === myIP || this.OpNodes[i].ip === myIP) && this.OpNodes[i].active != null) 
-        this.OpNodes[i].active = true; 
-      else 
+      log.info(`response was: ${myTempIp}`);
+      if(myTempIp===null || myTempIp==='null'){
         this.OpNodes[i].active = false;
+      }else{
+        this.OpNodes[i].active = false;
+        this.myIP = myTempIp;
+      }
     }
     log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-    if(myIP!==null){
-      this.myIP = myIP;
-      log.info(`My ip is ${myIP}`);
+    if(this.myIP!==null){
+      log.info(`My ip is ${this.myIP}`);
     }else{
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
         await timer.setTimeout(15000);
@@ -195,7 +189,7 @@ class Operator {
         //ask first candidate who the master is
         log.info(`asking master from ${masterCandidates[0]}`);
         let MasterIP = await fluxAPI.getMaster(masterCandidates[0],config.containerApiPort);
-        log.info(`response from ${masterCandidates[0]} was ${MasterIP}`);
+        log.info(`response was ${MasterIP}`);
         if(MasterIP !== null && MasterIP === "null"){
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
           let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);

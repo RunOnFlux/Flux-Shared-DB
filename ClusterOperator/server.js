@@ -48,10 +48,10 @@ function handleAPICommand(ws, command, message){
     case 'GET_MYIP':
       let idx = clients.findIndex(item => item.ws==ws);
       if(idx>=0){
-        log.info(`sending remoteIp: ${clients[idx].ip}`);
+        //log.info(`sending remoteIp: ${clients[idx].ip}`);
         ws.send(`{"status":"success","message":"${clients[idx].ip}"}`);
       }else{
-        log.info(`ws and ip not found, sending null`);
+        //log.info(`ws and ip not found, sending null`);
         ws.send(`{"status":"success","message":"null"}`);
       }
       break;
@@ -101,19 +101,19 @@ async function initServer(){
         let idx = clients.findIndex(item => item.ws==ws);
         //log.info(`socket closed id:${idx}`);
         if(idx>=0){
-          log.info(`socket from ${clients[idx].ip} closed.`);
+          //log.info(`socket from ${clients[idx].ip} closed.`);
           clients = clients.splice(idx,0); 
         }
       });
       ws.on('error', (error) => {
-        log.info(`error in ws`);
-        log.error(error);
+        //log.info(`error in ws`);
+        //log.error(error);
         ws.terminate();
       })
       //log.info(`socket connected from ${ip}`);
       //ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
-      log.info(`socket connection rejected from ${ip}`);
+      //log.info(`socket connection rejected from ${ip}`);
       ws.send(`{"status":"rejected"}`);
       ws.terminate();
     }
