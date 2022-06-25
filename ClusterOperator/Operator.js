@@ -147,7 +147,7 @@ class Operator {
     if(!retry) return;
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
-      log.info(`asking my ip from: ${ipList[i].ip}`);
+      log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
       let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
       log.info(`response was: ${myTempIp}`);
       if(myTempIp===null || myTempIp==='null'){
