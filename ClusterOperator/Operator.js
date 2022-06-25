@@ -153,7 +153,7 @@ class Operator {
       if(myTempIp===null || myTempIp==='null'){
         this.OpNodes[i].active = false;
       }else{
-        this.OpNodes[i].active = false;
+        this.OpNodes[i].active = true;
         this.myIP = myTempIp;
       }
     }
@@ -179,7 +179,7 @@ class Operator {
       //find master candidate
       var masterCandidates=[];
       for(let i=0; i<this.OpNodes.length; i++){
-        if(this.OpNodes[i].active) masterCandidates.push(this.OpNodes[i].ip);
+        if(this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
       }
       //if first candidate is me i'm the master
       if(masterCandidates[0]===this.myIP){
