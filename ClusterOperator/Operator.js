@@ -178,7 +178,7 @@ class Operator {
       //await this.getMyIp();
       //find master candidate
       var masterCandidates=[];
-      for(i=0; i<this.OpNodes.length; i++){
+      for(let i=0; i<this.OpNodes.length; i++){
         if(this.OpNodes[i].active) masterCandidates.push(this.OpNodes[i].ip);
       }
       //if first candidate is me i'm the master
