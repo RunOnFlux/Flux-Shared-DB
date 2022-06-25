@@ -190,7 +190,10 @@ class Operator {
         log.info(`asking master from ${masterCandidates[0]}`);
         let MasterIP = await fluxAPI.getMaster(masterCandidates[0],config.containerApiPort);
         log.info(`response was ${MasterIP}`);
-        if(MasterIP !== null && MasterIP === "null"){
+        if(MasterIP === null || MasterIP === "null"){
+          log.info(`retrying FindMaster...`);
+          return this.findMaster();
+        }else{
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
           let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
           log.info(`response from ${MasterIP} was ${MasterIP2}`);
