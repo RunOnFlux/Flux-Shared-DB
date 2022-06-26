@@ -110,10 +110,10 @@ async function initServer(){
         //log.error(error);
         ws.terminate();
       })
-      log.info(`socket connected from ${ip}`);
+      //log.info(`socket connected from ${ip}`);
       //ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
-      log.info(`socket connection rejected from ${ip}`);
+      //log.info(`socket connection rejected from ${ip}`);
       ws.send(`{"status":"rejected"}`);
       ws.terminate();
     }
@@ -143,11 +143,7 @@ async function initServer(){
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.init();
   await Operator.findMaster();
-  try{
-    const updateAppInterval =  setInterval(await Operator.updateAppInfo(false), 12000);
-  }catch(e){
-
-  }
+  
   if(Operator.IamMaster){
 
   }else{
@@ -160,5 +156,8 @@ async function initServer(){
 }
 
 initServer();
+const updateAppInterval =  setInterval(async function() {
+  const x = await Operator.updateAppInfo(false);
+}, 120000);
 
 

@@ -51,6 +51,7 @@ class BackLog {
           }else{
             log.info('Backlog buffer table already exists, moving on...');
           }
+          log.info(`Last Seq No: ${this.sequenceNumber}`);
       }
     }catch(e){
       log.error(`Error creating backlog: ${e}`);
@@ -128,7 +129,6 @@ class BackLog {
     try{
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT seq as total FROM ${config.dbBacklogCollection} ORDER BY seq DESC LIMIT 1`);
-        log.info(`Last Seq No: ${JSON.stringify(totalRecords)}`);
         if(totalRecords.length)
           return totalRecords[0].total;
         else 
