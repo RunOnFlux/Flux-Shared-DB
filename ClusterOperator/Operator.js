@@ -182,6 +182,7 @@ class Operator {
       this.OpNodes.push({ip:ipList[i].ip, active:null});
       if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
     }
+    log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
     if(this.masterNode && !checkMasterIp){
       //master removed from the list, should find a new master
       this.findMaster();
