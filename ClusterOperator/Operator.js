@@ -125,9 +125,9 @@ class Operator {
   */
   static async getSyncStatus() {}
   /**
-  * [getSyncStatus]
+  * [updateAppInfo]
   */
-   static async updateAppInfo(retry=true) {
+  static async updateAppInfo(retry=true) {
     const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
     this.nodeInstances = Specifications.instances;
     // wait for all nodes to spawn
@@ -143,7 +143,7 @@ class Operator {
       if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
       this.OpNodes.push({ip:ipList[i].ip, active:null});
     }
-    log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    //log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
     if(!retry) return;
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
@@ -165,8 +165,28 @@ class Operator {
         await timer.setTimeout(15000);
         await this.updateAppInfo();
     }
-  
-   }
+
+  }
+  /**
+  * [doHealthCheck]
+  */
+  static async doHealthCheck() {
+
+    let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+
+    this.OpNodes = [];
+    let checkMasterIp = false;
+    for(let i=0; i<ipList.length; i++){
+      //extraxt ip from upnp nodes
+      if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+      this.OpNodes.push({ip:ipList[i].ip, active:null});
+      if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+    }
+    if(this.masterNode && !checkMasterIp){
+      //master removed from the list, should find a new master
+      this.findMaster();
+    }
+  }
 
   /**
   * [findMaster]
