@@ -99,9 +99,9 @@ async function initServer(){
       });
       ws.on('close', function close() {    
         let idx = clients.findIndex(item => item.ws==ws);
-        //log.info(`socket closed id:${idx}`);
+        log.info(`socket closed id:${idx}`);
         if(idx>=0){
-          //log.info(`socket from ${clients[idx].ip} closed.`);
+          log.info(`socket from ${clients[idx].ip} closed.`);
           clients = clients.splice(idx,0); 
         }
       });
@@ -113,7 +113,7 @@ async function initServer(){
       //log.info(`socket connected from ${ip}`);
       //ws.send(`{"status":"connected","from":"${ip}"}`);
     }else{
-      //log.info(`socket connection rejected from ${ip}`);
+      log.info(`socket connection rejected from ${ip}`);
       ws.send(`{"status":"rejected"}`);
       ws.terminate();
     }

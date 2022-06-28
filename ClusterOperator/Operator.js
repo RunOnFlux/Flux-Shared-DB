@@ -127,7 +127,7 @@ class Operator {
   /**
   * [updateAppInfo]
   */
-  static async updateAppInfo(retry=true) {
+  static async updateAppInfo() {
     const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
     this.nodeInstances = Specifications.instances;
     // wait for all nodes to spawn
@@ -144,7 +144,7 @@ class Operator {
       this.OpNodes.push({ip:ipList[i].ip, active:null});
     }
     //log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-    if(!retry) return;
+
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
       log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
