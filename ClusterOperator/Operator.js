@@ -176,13 +176,15 @@ class Operator {
 
     this.OpNodes = [];
     let checkMasterIp = false;
+    let nodeList = [];
     for(let i=0; i<ipList.length; i++){
       //extraxt ip from upnp nodes
+      nodeList.push(ipList[i].ip);
       if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-      this.OpNodes.push({ip:ipList[i].ip, active:null});
+      this.OpNodes.push({ip:ipList[i].ip, active:null});    
       if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
     }
-    log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+    log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
     if(this.masterNode && !checkMasterIp){
       //master removed from the list, should find a new master
       this.findMaster();
