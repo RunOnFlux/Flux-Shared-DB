@@ -128,42 +128,46 @@ class Operator {
   * [updateAppInfo]
   */
   static async updateAppInfo() {
-    const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
-    this.nodeInstances = Specifications.instances;
-    // wait for all nodes to spawn
-    let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-    while (ipList.length < this.nodeInstances) {
-      log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-      await timer.setTimeout(10000);
-      ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-    }
-    this.OpNodes = [];
-    for(let i=0; i<ipList.length; i++){
-      //extraxt ip from upnp nodes
-      if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-      this.OpNodes.push({ip:ipList[i].ip, active:null});
-    }
-    //log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-
-    for(let i=0; i<ipList.length; i++){
-      //extraxt ip from upnp nodes
-      log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-      let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
-      log.info(`response was: ${myTempIp}`);
-      if(myTempIp===null || myTempIp==='null'){
-        this.OpNodes[i].active = false;
-      }else{
-        this.OpNodes[i].active = true;
-        this.myIP = myTempIp;
+    try{
+      const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
+      this.nodeInstances = Specifications.instances;
+      // wait for all nodes to spawn
+      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      while (ipList.length < this.nodeInstances) {
+        log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+        await timer.setTimeout(10000);
+        ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       }
-    }
-    log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-    if(this.myIP!==null){
-      log.info(`My ip is ${this.myIP}`);
-    }else{
-        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
-        await timer.setTimeout(15000);
-        await this.updateAppInfo();
+      this.OpNodes = [];
+      for(let i=0; i<ipList.length; i++){
+        //extraxt ip from upnp nodes
+        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+        this.OpNodes.push({ip:ipList[i].ip, active:null});
+      }
+      //log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+
+      for(let i=0; i<ipList.length; i++){
+        //extraxt ip from upnp nodes
+        log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
+        let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+        log.info(`response was: ${myTempIp}`);
+        if(myTempIp===null || myTempIp==='null'){
+          this.OpNodes[i].active = false;
+        }else{
+          this.OpNodes[i].active = true;
+          this.myIP = myTempIp;
+        }
+      }
+      log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+      if(this.myIP!==null){
+        log.info(`My ip is ${this.myIP}`);
+      }else{
+          log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
+          await timer.setTimeout(15000);
+          await this.updateAppInfo();
+      }
+    }catch(err){
+      log.error(err);
     }
 
   }
@@ -171,23 +175,26 @@ class Operator {
   * [doHealthCheck]
   */
   static async doHealthCheck() {
+    try{
+      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
 
-    let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-
-    this.OpNodes = [];
-    let checkMasterIp = false;
-    let nodeList = [];
-    for(let i=0; i<ipList.length; i++){
-      //extraxt ip from upnp nodes
-      nodeList.push(ipList[i].ip);
-      if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-      this.OpNodes.push({ip:ipList[i].ip, active:null});    
-      if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
-    }
-    log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
-    if(this.masterNode && !checkMasterIp){
-      //master removed from the list, should find a new master
-      this.findMaster();
+      this.OpNodes = [];
+      let checkMasterIp = false;
+      let nodeList = [];
+      for(let i=0; i<ipList.length; i++){
+        //extraxt ip from upnp nodes
+        nodeList.push(ipList[i].ip);
+        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+        this.OpNodes.push({ip:ipList[i].ip, active:null});    
+        if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+      }
+      log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
+      if(this.masterNode && !checkMasterIp){
+        //master removed from the list, should find a new master
+        this.findMaster();
+      }
+    }catch(err){
+      log.error(err);
     }
   }
 
@@ -195,43 +202,47 @@ class Operator {
   * [findMaster]
   */
   static async findMaster() {
-    //get dbappspecs
-    if(config.DBAppName){
-      await this.updateAppInfo();
-      //await this.getMyIp();
-      //find master candidate
-      var masterCandidates=[];
-      for(let i=0; i<this.OpNodes.length; i++){
-        if(this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
-      }
-      //if first candidate is me i'm the master
-      if(masterCandidates[0]===this.myIP){
-        this.IamMaster = true;
-        this.masterNode = this.myIP;
-      }else{
-        //ask first candidate who the master is
-        log.info(`asking master from ${masterCandidates[0]}`);
-        let MasterIP = await fluxAPI.getMaster(masterCandidates[0],config.containerApiPort);
-        log.info(`response was ${MasterIP}`);
-        if(MasterIP === null || MasterIP === "null"){
-          log.info(`retrying FindMaster...`);
-          return this.findMaster();
+    try{
+      //get dbappspecs
+      if(config.DBAppName){
+        await this.updateAppInfo();
+        //await this.getMyIp();
+        //find master candidate
+        var masterCandidates=[];
+        for(let i=0; i<this.OpNodes.length; i++){
+          if(this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
+        }
+        //if first candidate is me i'm the master
+        if(masterCandidates[0]===this.myIP){
+          this.IamMaster = true;
+          this.masterNode = this.myIP;
         }else{
-          log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
-          let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
-          log.info(`response from ${MasterIP} was ${MasterIP2}`);
-          if(MasterIP2===MasterIP){
-            this.masterNode = MasterIP;
-          }else{
-            log.info(`master node not matching, retrying...`);
+          //ask first candidate who the master is
+          log.info(`asking master from ${masterCandidates[0]}`);
+          let MasterIP = await fluxAPI.getMaster(masterCandidates[0],config.containerApiPort);
+          log.info(`response was ${MasterIP}`);
+          if(MasterIP === null || MasterIP === "null"){
+            log.info(`retrying FindMaster...`);
             return this.findMaster();
+          }else{
+            log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
+            let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
+            log.info(`response from ${MasterIP} was ${MasterIP2}`);
+            if(MasterIP2===MasterIP){
+              this.masterNode = MasterIP;
+            }else{
+              log.info(`master node not matching, retrying...`);
+              return this.findMaster();
+            }
           }
         }
+        log.info(`Master node is ${this.masterNode}`);
+        return this.masterNode;
+      }else{
+        log.info(`DB_APPNAME environment variabele is not defined.`)
       }
-      log.info(`Master node is ${this.masterNode}`);
-      return this.masterNode;
-    }else{
-      log.info(`DB_APPNAME environment variabele is not defined.`)
+    }catch(err){
+      log.error(err);
     }
   }
   /**
@@ -252,44 +263,48 @@ class Operator {
   * [getMyIp]
   */
   static async getMyIp(retries=1) {
-    if(this.myIP !== null){
-      return this.myIP
-    }else{
-      let ipList = [];
-      for(let i=0; i < this.OpNodes.length && i < 5; i++){
-        log.info(`asking myip from ${this.OpNodes[i].ip}`);
-        let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-        log.info(`response from ${this.OpNodes[i].ip} was ${tempIp}`);
-        /*let j=1;
-        while(tempIp===null && j < 6){
-          log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
-          await timer.setTimeout(5000);
-          tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-          j++;
-        }*/
-        if(tempIp!==null){
-          this.myIP = tempIp;
-          log.info(`My ip is ${JSON.stringify(tempIp)}`);
-          return tempIp;
-        }
-      }
-      log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
-      await this.updateAppInfo();
-      await timer.setTimeout(15000 * retries);
-      return this.getMyIp(retries+1);
-      /*log.info(`all response list: ${JSON.stringify(ipList)}`);
-      //find the highest occurrence in the array 
-      if(ipList.length>=2){
-        const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
-        this.myIP = myIP;
-        log.info(`My ip is ${JSON.stringify(myIP)}`);
-        return myIP;
+    try{
+      if(this.myIP !== null){
+        return this.myIP
       }else{
+        let ipList = [];
+        for(let i=0; i < this.OpNodes.length && i < 5; i++){
+          log.info(`asking myip from ${this.OpNodes[i].ip}`);
+          let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
+          log.info(`response from ${this.OpNodes[i].ip} was ${tempIp}`);
+          /*let j=1;
+          while(tempIp===null && j < 6){
+            log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
+            await timer.setTimeout(5000);
+            tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
+            j++;
+          }*/
+          if(tempIp!==null){
+            this.myIP = tempIp;
+            log.info(`My ip is ${JSON.stringify(tempIp)}`);
+            return tempIp;
+          }
+        }
         log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
         await this.updateAppInfo();
         await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
-      }*/
+        /*log.info(`all response list: ${JSON.stringify(ipList)}`);
+        //find the highest occurrence in the array 
+        if(ipList.length>=2){
+          const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
+          this.myIP = myIP;
+          log.info(`My ip is ${JSON.stringify(myIP)}`);
+          return myIP;
+        }else{
+          log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
+          await this.updateAppInfo();
+          await timer.setTimeout(15000 * retries);
+          return this.getMyIp(retries+1);
+        }*/
+      }
+    }catch(err){
+      log.error(err);
     }
   }
 

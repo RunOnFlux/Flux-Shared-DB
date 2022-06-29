@@ -143,6 +143,7 @@ async function initServer(){
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.init();
   await Operator.findMaster();
+  console.log(`find master finished, master is ${Operator.masterNode}`);
   
   if(Operator.IamMaster){
 
