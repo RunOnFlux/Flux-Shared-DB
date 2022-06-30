@@ -37,81 +37,94 @@ class Operator {
   * @param {string} serverType [description]
   */
   static initInBoundConnections(serverType) {
-    if(serverType==='mysql'){
-      //init mysql port
-      net.createServer((so) => {
-        const server = mySQLServer.createServer({
-          socket: so,
-          onAuthorize: this.handleAuthorize,
-          onCommand: this.handleCommand,
-          localDB: this.localDB,
-        });
-      }).listen(config.externalDBPort);
-      
-      log.info(`Started mysql server on port ${config.externalDBPort}`);
+    try{
+      if(serverType==='mysql'){
+        //init mysql port
+        net.createServer((so) => {
+          const server = mySQLServer.createServer({
+            socket: so,
+            onAuthorize: this.handleAuthorize,
+            onCommand: this.handleCommand,
+            localDB: this.localDB,
+          });
+        }).listen(config.externalDBPort);
+        
+        log.info(`Started mysql server on port ${config.externalDBPort}`);
+      }
+    }catch(err){
+      log.error(err);
     }
   }
 
   static handleAuthorize(param) {
-    log.info('Auth Info:');
-    log.info(param);
-    const remoteIp = param.remoteIP;
-    const whiteList = config.whiteListedIps.split(',');
-    if(whiteList.length && whiteList.includes(remoteIp) || remoteIp.startsWith('80.239.140.')){
-        return true;  
+    try{
+      log.info('Auth Info:');
+      log.info(param);
+      const remoteIp = param.remoteIP;
+      const whiteList = config.whiteListedIps.split(',');
+      if(whiteList.length && whiteList.includes(remoteIp) || remoteIp.startsWith('80.239.140.')){
+          return true;  
+      }
+      
+    }catch(err){
+      log.error(err);
     }
     return false; 
   }
   
   static async handleCommand({ command, extra }) {
+    try{
     // command is a numeric ID, extra is a Buffer
-    switch (command) {
-      case mySQLConsts.COM_QUERY:
-        const query = extra.toString(); 
-        console.log(`Got Query: ${query}`);
-        //forward the query to the server
-        var result = await this.localDB.query(query,true);
-        console.log(result);
-        // Then send it back to the user in table format
-        if(result[1]){
-          let fieldNames = [];
-          for (let definition of result[1]) fieldNames.push(definition.name);
-          this.sendDefinitions(result[1]);
-          let finalResult = [];
-          for (let row of result[0]){
-            let newRow =[];
-            for(let filed of fieldNames){
-              newRow.push(row[filed]);
+      switch (command) {
+        case mySQLConsts.COM_QUERY:
+          const query = extra.toString(); 
+          console.log(`Got Query: ${query}`);
+          //forward the query to the server
+          var result = await this.localDB.query(query,true);
+          console.log(result);
+          // Then send it back to the user in table format
+          if(result[1]){
+            let fieldNames = [];
+            for (let definition of result[1]) fieldNames.push(definition.name);
+            this.sendDefinitions(result[1]);
+            let finalResult = [];
+            for (let row of result[0]){
+              let newRow =[];
+              for(let filed of fieldNames){
+                newRow.push(row[filed]);
+              }
+              finalResult.push(newRow);
             }
-            finalResult.push(newRow);
-          }
 
-          this.sendRows(finalResult);
-        } else if(result[0]){
+            this.sendRows(finalResult);
+          } else if(result[0]){
+            this.sendOK({ message: 'OK' });
+          }else{
+            this.sendError({ message: result[3] });
+          }
+          
+          break;
+        case mySQLConsts.COM_PING:
           this.sendOK({ message: 'OK' });
-        }else{
-          this.sendError({ message: result[3] });
-        }
-        
-        break;
-      case mySQLConsts.COM_PING:
-        this.sendOK({ message: 'OK' });
-        break;
-      case null:
-      case undefined:
-      case mySQLConsts.COM_QUIT:
-        log.info('Disconnecting');
-        this.end();
-        break;
-      case mySQLConsts.COM_INIT_DB:
-        var result = await this.localDB.query(`use ${extra}`);
-        log.info(`extra is ${extra}`)
-        this.sendOK({ message: 'OK' });
-        break;
-      default:
-        log.info(`Unknown Command: ${command}`);
-        this.sendError({ message: 'Unknown Command' });
-        break;
+          break;
+        case null:
+        case undefined:
+        case mySQLConsts.COM_QUIT:
+          log.info('Disconnecting');
+          this.end();
+          break;
+        case mySQLConsts.COM_INIT_DB:
+          var result = await this.localDB.query(`use ${extra}`);
+          log.info(`extra is ${extra}`)
+          this.sendOK({ message: 'OK' });
+          break;
+        default:
+          log.info(`Unknown Command: ${command}`);
+          this.sendError({ message: 'Unknown Command' });
+          break;
+      }
+    }catch(err){
+      log.error(err);
     }
   }
 
@@ -326,9 +339,9 @@ class Operator {
   * [init]
   */
   static async init() {
-    //await this.ConnectLocalDB();
-    //await this.initLocalDB();
-    //this.initInBoundConnections(config.dbType);
+    await this.ConnectLocalDB();
+    await this.initLocalDB();
+    this.initInBoundConnections(config.dbType);
   }
 }
 module.exports = Operator;
