@@ -326,9 +326,9 @@ class Operator {
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
-    this.initInBoundConnections(config.dbType);
+    //await this.ConnectLocalDB();
+    //await this.initLocalDB();
+    //this.initInBoundConnections(config.dbType);
   }
 }
 module.exports = Operator;

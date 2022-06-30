@@ -157,8 +157,8 @@ async function initServer(){
 }
 
 initServer();
-//const updateAppInterval =  setInterval(async function() {
-//  const x = Operator.doHealthCheck();
-//}, 120000);
+const updateAppInterval =  setInterval(async function() {
+  const x = Operator.doHealthCheck();
+}, 120000);
 
 
