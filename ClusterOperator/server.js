@@ -149,6 +149,7 @@ async function initServer(){
 
   }else{
     //connect to master
+    Operator.initMasterConnection();
 
     //sync database
 

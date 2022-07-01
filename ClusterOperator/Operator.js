@@ -36,10 +36,19 @@ class Operator {
   /**
   * [initMasterConnection]
   */
-  static  initMasterConnection() {
+  static initMasterConnection() {
     if(this.masterNode && !IamMaster){ 
       try {
         this.MasterWS = new WebSocket(`ws://${this.masterNode}:${config.containerApiPort}`,{handshakeTimeout:1000});
+        this.MasterWS.on('open', function open() {
+          log.info(`connected to master`);
+        });
+        this.MasterWS.on('message', function message(data) {
+          console.log(`Received message ${data} from master`);
+        });
+        this.MasterWS.on('close', function close() {
+          console.log('connection to master dropped');
+        });
 
       } catch (e) {
         log.error(e);
