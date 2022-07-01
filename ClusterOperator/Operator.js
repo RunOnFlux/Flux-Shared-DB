@@ -9,6 +9,7 @@ const config = require('./config');
 const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
+const WebSocket = require('ws');
 const md5 = require('md5');
 
 class Operator {
@@ -21,6 +22,7 @@ class Operator {
   static IamMaster = false;
   static apiKey = null;
   static myIP = null;
+  static MasterWS = null;
   /**
   * [initLocalDB]
   */
@@ -29,6 +31,19 @@ class Operator {
     if(config.dbInitDB){ 
       await this.localDB.createDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
+    }
+  }
+  /**
+  * [initMasterConnection]
+  */
+  static  initMasterConnection() {
+    if(this.masterNode && !IamMaster){ 
+      try {
+        this.MasterWS = new WebSocket(`ws://${this.masterNode}:${config.containerApiPort}`,{handshakeTimeout:1000});
+
+      } catch (e) {
+        log.error(e);
+      }
     }
   }
 
