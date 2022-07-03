@@ -37,7 +37,7 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
-    if(this.masterNode && !IamMaster){ 
+    if(this.masterNode && !this.IamMaster){ 
       try {
         this.MasterWS = new WebSocket(`ws://${this.masterNode}:${config.containerApiPort}`,{handshakeTimeout:1000});
         this.MasterWS.on('open', function open() {
