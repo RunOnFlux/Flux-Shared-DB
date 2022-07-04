@@ -99,7 +99,7 @@ async function initServer(){
       });
       ws.on('close', function close() {    
         let idx = clients.findIndex(item => item.ws==ws);
-        log.info(`socket closed id:${idx}`);
+        //log.info(`socket closed id:${idx}`);
         if(idx>=0){
           log.info(`socket from ${clients[idx].ip} closed.`);
           clients = clients.splice(idx,0); 
@@ -125,17 +125,22 @@ async function initServer(){
   
   const interval = setInterval(function ping() {
     wss.clients.forEach(function each(ws) {
-      if (ws.isAlive === false) {
-        let idx = clients.findIndex(item => item.ws==ws);
-        log.info(`connection from ${clients[idx].ip} timed out, terminating socket.`);
-        clients = clients.splice(idx,0); 
-        return ws.terminate();
+      try{
+        if (ws.isAlive === false) {
+          let idx = clients.findIndex(item => item.ws==ws);
+          log.info(`connection from ${clients[idx].ip} timed out, terminating socket.`);
+          clients = clients.splice(idx,0); 
+          return ws.terminate();
+        }
+    
+        ws.isAlive = false;
+        ws.ping();
+        log.info(`sending ping`);
+      }catch{error}{
+        log.error(error);
       }
-  
-      ws.isAlive = false;
-      ws.ping();
     });
-  }, 3000);
+  }, 5000);
   
   wss.on('close', function close() {
     clearInterval(interval);

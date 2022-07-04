@@ -49,6 +49,12 @@ class Operator {
         this.MasterWS.on('close', function close() {
           console.log('connection to master dropped');
         });
+        this.MasterWS.on('ping', (data) => {
+          console.log(`Received ping`);
+        });
+        this.MasterWS.on('error', (error) => {
+          console.log(error);
+        });
 
       } catch (e) {
         log.error(e);
@@ -304,7 +310,7 @@ class Operator {
       if(this.myIP !== null){
         return this.myIP
       }else{
-        let ipList = [];
+        //let ipList = [];
         for(let i=0; i < this.OpNodes.length && i < 5; i++){
           log.info(`asking myip from ${this.OpNodes[i].ip}`);
           let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
@@ -363,8 +369,8 @@ class Operator {
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
+    //await this.ConnectLocalDB();
+    //await this.initLocalDB();
     this.initInBoundConnections(config.dbType);
   }
 }
