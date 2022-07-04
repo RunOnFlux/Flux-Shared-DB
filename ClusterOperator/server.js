@@ -1,6 +1,6 @@
 const Operator = require('./Operator');
 //const { WebSocketServer } = require('ws');
-const { WebSocketServer } = require("socket.io");
+const { Server } = require("socket.io");
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
@@ -80,7 +80,7 @@ function auth(ip){
 
 async function initServer(){
 
-  const io = new WebSocketServer(config.apiPort);
+  const io = new Server(config.apiPort);
   io.on("connection", (socket) => {
     var ip = utill.convertIP(socket.handshake.address);
     if(auth(ip)){
