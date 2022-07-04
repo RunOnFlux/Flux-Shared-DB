@@ -1,5 +1,6 @@
 const Operator = require('./Operator');
-const { WebSocketServer } = require('ws');
+//const { WebSocketServer } = require('ws');
+const { WebSocketServer } = require("socket.io");
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
@@ -36,9 +37,9 @@ app.listen(config.debugUIPort, () => {
 })
 
 
-const wss = new WebSocketServer({ port: config.apiPort });
+//const wss = new WebSocketServer({ port: config.apiPort });
 let clients = [];
-
+/*
 function handleAPICommand(ws, command, message){
   switch (command) {
     case 'GET_MASTER':
@@ -64,6 +65,7 @@ function handleAPICommand(ws, command, message){
       break;
   }
 }
+*/
 
 function auth(ip){
   const whiteList = config.whiteListedIps.split(',');
@@ -77,8 +79,33 @@ function auth(ip){
 }
 
 async function initServer(){
-  
 
+  const io = new WebSocketServer(config.apiPort);
+  io.on("connection", (socket) => {
+    var ip = utill.convertIP(socket.handshake.address);
+    if(auth(ip)){
+      console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
+      socket.on("disconnect", (reason) => {
+        log.info(`${utill.convertIP(socket.handshake.address)} disconnected ${reason}`);
+      });
+      socket.on("getStatus", (callback) => {
+        callback({status: "ok"});
+      });
+      socket.on("getMyIp", (callback) => {
+        log.info(`sending remoteIp: ${utill.convertIP(socket.handshake.address)}`);
+        callback({status: "success", message: utill.convertIP(socket.handshake.address)});
+      });
+      socket.on("getMaster", (callback) => {
+        log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
+        callback({status: "success", message: Operator.getMaster()});
+      });
+    }else{
+      log.info(`socket connection rejected from ${ip}`);
+      socket.disconnect();
+    }
+  });
+  
+/*
   wss.on('connection', function connection(ws, req) {
     var ip = utill.convertIP(req.socket.remoteAddress);
 
@@ -145,6 +172,7 @@ async function initServer(){
   wss.on('close', function close() {
     clearInterval(interval);
   });
+  */
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.init();
   await Operator.findMaster();
