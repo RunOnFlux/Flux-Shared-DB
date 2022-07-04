@@ -39,23 +39,13 @@ class Operator {
   static initMasterConnection() {
     if(this.masterNode && !this.IamMaster){ 
       try {
-        this.MasterWS = new WebSocket(`ws://${this.masterNode}:${config.containerApiPort}`,{handshakeTimeout:1000});
-        this.MasterWS.on('open', function open() {
+        this.MasterWS = io.connect(`http://${this.masterNode}:${config.containerApiPort}`);
+        this.MasterWS.on("connection", (socket) => {
           log.info(`connected to master`);
         });
-        this.MasterWS.on('message', function message(data) {
-          console.log(`Received message ${data} from master`);
+        this.MasterWS.on("disconnect", () => {
+          log.info(`disconnected from master`);
         });
-        this.MasterWS.on('close', function close() {
-          console.log('connection to master dropped');
-        });
-        this.MasterWS.on('ping', (data) => {
-          console.log(`Received ping`);
-        });
-        this.MasterWS.on('error', (error) => {
-          console.log(error);
-        });
-
       } catch (e) {
         log.error(e);
       }
