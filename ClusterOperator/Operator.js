@@ -10,6 +10,7 @@ const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
 const WebSocket = require('ws');
+const { io } = require("socket.io-client");
 const md5 = require('md5');
 
 class Operator {
