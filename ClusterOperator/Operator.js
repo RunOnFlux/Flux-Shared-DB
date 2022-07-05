@@ -118,7 +118,7 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
           log.info(`Got Query: ${query}`);
-          const analyzedQueries = sqlAnalyzer(queries,'mysql');
+          const analyzedQueries = sqlAnalyzer(query,'mysql');
           for(const queryItem of analyzedQueries){
             if(queryItem[1] === 'w'){
               //forward it to the master node
