@@ -233,7 +233,7 @@ class Operator {
     if(this.MasterWSConn && this.MasterWSConn.connected){
       this.status = 'syncDB';
       const index = BackLog.sequenceNumber;
-      this.MasterWSConn.emit("getBackLog", index, (response) => {
+      this.MasterWSConn.emit("getBackLog", index, async (response) => {
         log.info(JSON.stringify(response));
         for(let record of response){
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
