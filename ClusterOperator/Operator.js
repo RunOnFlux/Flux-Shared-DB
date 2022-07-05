@@ -131,7 +131,7 @@ class Operator {
     }else{
       if(this.serverSocket === undefined){
         log.info(`serverSocket not defined yet, can't send to slaves...`);
-        return;
+        return BackLog.pushQuery(query);
       }else{
         log.info(`sending query to slaves: ${query}`);
         const sockets = await this.serverSocket.fetchSockets();

@@ -50,9 +50,10 @@ function auth(ip){
 }
 
 async function initServer(){
-
+  await Operator.init();
   const io = new Server(config.apiPort);
   Operator.serverSocket = io;
+  
   io.on("connection", (socket) => {
     
     var ip = utill.convertIP(socket.handshake.address);
@@ -92,7 +93,7 @@ async function initServer(){
   
 
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.init();
+  
   await Operator.findMaster();
   console.log(`find master finished, master is ${Operator.masterNode}`);
   
