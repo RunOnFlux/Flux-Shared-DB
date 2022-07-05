@@ -77,13 +77,13 @@ async function initServer(){
         console.log(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = BackLog.getLogs(start, 100);
         console.log(`backlog records: ${JSON.stringify(records)}`);
-        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: records});
+        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: JSON.stringify(records)});
       });
       socket.on("writeQuery", (query, callback) => {
         console.log(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
         const result = BackLog.pushQuery(query);
         socket.emit("writeQuery", query);
-        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: result});
+        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: JSON.stringify(result)});
       });
     }else{
       log.info(`socket connection rejected from ${ip}`);

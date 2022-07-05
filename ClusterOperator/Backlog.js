@@ -75,8 +75,8 @@ class BackLog {
     try{
       if (config.dbType === 'mysql') {
         this.sequenceNumber +=1;
-        const result1 = await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},"${query}",${timestamp});`);
         const result2 = await this.UserDBClient.query(query);
+        const result1 = await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},"${query}",${timestamp});`);
         return result2;
         
       }
