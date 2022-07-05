@@ -41,8 +41,9 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
+    log.info(`establishing persistent connection to master node...${this.masterNode},${this.IamMaster}`);
     if(this.masterNode && !this.IamMaster){ 
-      log.info(`establishing persistent connection to master node...`);
+      
       try {
         this.MasterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
           reconnection: false
