@@ -191,12 +191,8 @@ async function initServer(){
   if(Operator.IamMaster){
 
   }else{
-    //connect to master
+
     Operator.initMasterConnection();
-
-    //sync database
-
-    //relay data
   }
 }
 

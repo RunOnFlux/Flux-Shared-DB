@@ -85,6 +85,7 @@ class Operator {
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
             localDB: this.localDB,
+            sendWriteQuery: this.sendWriteQuery
           });
         }).listen(config.externalDBPort);
         
@@ -100,6 +101,7 @@ class Operator {
       log.info('Auth Info:');
       log.info(param);
       const remoteIp = param.remoteIP;
+      if(remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
       const whiteList = config.whiteListedIps.split(',');
       if(whiteList.length && whiteList.includes(remoteIp) || remoteIp.startsWith('80.239.140.')){
           return true;  
@@ -120,8 +122,9 @@ class Operator {
           resolve(response.records);
         }); 
       });
+    }else{
+      return BackLog.pushQuery(query);
     }
-    return [];
   }
   /**
   * [handleCommand]
@@ -143,7 +146,7 @@ class Operator {
               var result = await this.localDB.query(queryItem[0], true);
             }
 
-            //console.log(result);
+            console.log(result);
             // Then send it back to the user in table format
             if(result[1]){
               let fieldNames = [];
@@ -160,6 +163,8 @@ class Operator {
 
               this.sendRows(finalResult);
             } else if(result[0]){
+              this.sendOK({ message: 'OK' });
+            }else if(result.warningStatus==0){
               this.sendOK({ message: 'OK' });
             }else{
               this.sendError({ message: result[3] });
