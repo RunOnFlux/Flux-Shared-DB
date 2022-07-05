@@ -129,13 +129,28 @@ class Operator {
         }); 
       });
     }else{
-      log.info(`sending query to slaves: ${query}`);
+      if(this.serverSocket === undefined){
+        log.info(`serverSocket not defined yet, can't send to slaves...`);
+        return;
+      }else{
+        log.info(`sending query to slaves: ${query}`);
+        const sockets = await this.serverSocket.fetchSockets();
+        for (const socket of sockets) {
+          socket.emit("query", query);
+        }
+        return BackLog.pushQuery(query);
+      }
+    }
+  }
+
+  static async testSocket() {
+
       const sockets = await this.serverSocket.fetchSockets();
+      console.log(sockets.length);
       for (const socket of sockets) {
         socket.emit("query", query);
       }
-      return BackLog.pushQuery(query);
-    }
+    
   }
   /**
   * [handleCommand]
