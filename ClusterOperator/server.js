@@ -44,8 +44,8 @@ function auth(ip){
   let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
   if(idx === -1) return false;
   //only one connection per ip allowed
-  idx = clients.findIndex(item => item.ip==ip);
-  if(idx === -1) return true; else return false;
+  //idx = clients.findIndex(item => item.ip==ip);
+  //if(idx === -1) return true; else return false;
 }
 
 async function initServer(){
