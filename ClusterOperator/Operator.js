@@ -114,7 +114,7 @@ class Operator {
     return false; 
   }
   /**
-  * [syncLocalDB]
+  * [sendWriteQuery]
   */
   static async sendWriteQuery(query) {
     if(this.MasterWSConn && this.MasterWSConn.connected){
@@ -205,8 +205,7 @@ class Operator {
       this.status = 'syncDB';
       const index = BackLog.sequenceNumber;
       this.MasterWSConn.emit("getBackLog", index, (response) => {
-        log.info(response.lastSequencenumber);
-        log.info(response.records);
+        log.info(JSON.stringify(response));
       });
     }
   }
