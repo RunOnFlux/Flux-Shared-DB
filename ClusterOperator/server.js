@@ -52,7 +52,7 @@ function auth(ip){
 async function initServer(){
   await Operator.init();
   const io = new Server(config.apiPort);
-  Operator.serverSocket = io;
+  Operator.setServerSocket(io);
   
   io.on("connection", (socket) => {
     

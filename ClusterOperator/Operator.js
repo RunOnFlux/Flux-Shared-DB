@@ -143,6 +143,10 @@ class Operator {
     }
   }
 
+  static setServerSocket(socket) {
+    this.serverSocket = socket;;
+  } 
+  
   static async testSocket() {
 
       const sockets = await this.serverSocket.fetchSockets();
