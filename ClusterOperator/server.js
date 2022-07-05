@@ -75,15 +75,15 @@ async function initServer(){
       });
       socket.on("getBackLog", (start, callback) => {
         console.log(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
-        const records = BackLog.getLogs(start, 100);
+        const records = await BackLog.getLogs(start, 100);
         console.log(`backlog records: ${JSON.stringify(records)}`);
-        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: JSON.stringify(records)});
+        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: records});
       });
       socket.on("writeQuery", (query, callback) => {
         console.log(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
-        const result = BackLog.pushQuery(query);
+        const result = await BackLog.pushQuery(query);
         socket.emit("writeQuery", query);
-        callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: JSON.stringify(result)});
+        callback({status: "success", sequenceNumber: BackLog.sequenceNumber, result});
       });
     }else{
       log.info(`socket connection rejected from ${ip}`);

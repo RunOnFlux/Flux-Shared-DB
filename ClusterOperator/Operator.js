@@ -69,7 +69,7 @@ class Operator {
         });
         this.MasterWSConn.on("query", (query) => {
           log.info(`query from master:${query}`);
-          BackLog.pushQuery(query);
+          await BackLog.pushQuery(query);
         });
       } catch (e) {
         log.error(e);
@@ -131,14 +131,14 @@ class Operator {
     }else{
       if(this.serverSocket === undefined){
         log.info(`serverSocket not defined yet, can't send to slaves...`);
-        return BackLog.pushQuery(query);
+        return await BackLog.pushQuery(query);
       }else{
         log.info(`sending query to slaves: ${query}`);
         const sockets = await this.serverSocket.fetchSockets();
         for (const socket of sockets) {
           socket.emit("query", query);
         }
-        return BackLog.pushQuery(query);
+        return await BackLog.pushQuery(query);
       }
     }
   }
@@ -146,7 +146,7 @@ class Operator {
   static setServerSocket(socket) {
     this.serverSocket = socket;;
   } 
-  
+
   static async testSocket() {
 
       const sockets = await this.serverSocket.fetchSockets();
