@@ -66,7 +66,7 @@ class BackLog {
   * @param {string} query [description]
   * @param {int} timestamp [description]
   */
-  static async pushQuery(query, timestamp) {
+  static async pushQuery(query, seq=0, timestamp) {
     if(timestamp===undefined) timestamp = Date.now();
     if(!this.BLClient) {
       log.error(`Backlog not created yet. Call createBacklog() first.`)
@@ -74,7 +74,10 @@ class BackLog {
     }
     try{
       if (config.dbType === 'mysql') {
-        this.sequenceNumber +=1;
+        if(seq===0) 
+          this.sequenceNumber +=1;
+        else 
+          this.sequenceNumber = seq;
         const result2 = await this.UserDBClient.query(query);
         const result1 = await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},"${query}",${timestamp});`);
         return result2;
