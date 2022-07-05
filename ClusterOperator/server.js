@@ -100,11 +100,11 @@ async function initServer(){
         log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
         callback({status: "success", message: Operator.getMaster()});
       });
-      socket.on("getBackLog", start, (callback) => {
+      socket.on("getBackLog", (start, callback) => {
         const records = BackLog.getLogs(start, 100);
         callback({status: "success", lastSequencenumber: BackLog.lastSequencenumber,  records: records});
       });
-      socket.on("writeQuery", query, (callback) => {
+      socket.on("writeQuery", (query, callback) => {
         const result = BackLog.pushQuery(query);
         socket.emit("writeQuery", query);
         callback({status: "success", lastSequencenumber: BackLog.lastSequencenumber,  records: result});
