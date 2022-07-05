@@ -46,6 +46,7 @@ function auth(ip){
   //only one connection per ip allowed
   //idx = clients.findIndex(item => item.ip==ip);
   //if(idx === -1) return true; else return false;
+  return true;
 }
 
 async function initServer(){
