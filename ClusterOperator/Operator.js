@@ -12,6 +12,7 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const WebSocket = require('ws');
 const { io } = require("socket.io-client");
 const md5 = require('md5');
+const sqlAnalyzer = require('../lib/sqlAnalyzer');
 
 class Operator {
 
@@ -23,7 +24,9 @@ class Operator {
   static IamMaster = false;
   static apiKey = null;
   static myIP = null;
-  static MasterWS = null;
+  static MasterWSConn = null;
+  static status = 'initializing';
+
   /**
   * [initLocalDB]
   */
@@ -39,13 +42,28 @@ class Operator {
   */
   static initMasterConnection() {
     if(this.masterNode && !this.IamMaster){ 
+      log.info(`establishing persistent connection to master node...`);
       try {
-        this.MasterWS = io.connect(`http://${this.masterNode}:${config.containerApiPort}`);
-        this.MasterWS.on("connection", (socket) => {
-          log.info(`connected to master`);
+        this.MasterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
+          reconnection: false
+        } );
+        this.MasterWSConn.on("connect", (socket) => {
+          const engine = this.MasterWSConn.io.engine;
+          log.info(`connected to master...`);
+          this.syncLocalDB();
+          engine.once("upgrade", () => {
+            log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
+          });
         });
-        this.MasterWS.on("disconnect", () => {
-          log.info(`disconnected from master`);
+        this.MasterWSConn.on("connect_error", async (reason) => {
+          log.info(`connection error: ${reason}`);
+          await this.findMaster();
+          this.initMasterConnection();
+        });
+        this.MasterWSConn.on("disconnect", async () => {
+          log.info(`disconnected from master...`);
+          await this.findMaster();
+          this.initMasterConnection();
         });
       } catch (e) {
         log.error(e);
@@ -99,31 +117,40 @@ class Operator {
       switch (command) {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
-          console.log(`Got Query: ${query}`);
-          //forward the query to the server
-          var result = await this.localDB.query(query,true);
-          console.log(result);
-          // Then send it back to the user in table format
-          if(result[1]){
-            let fieldNames = [];
-            for (let definition of result[1]) fieldNames.push(definition.name);
-            this.sendDefinitions(result[1]);
-            let finalResult = [];
-            for (let row of result[0]){
-              let newRow =[];
-              for(let filed of fieldNames){
-                newRow.push(row[filed]);
-              }
-              finalResult.push(newRow);
+          log.info(`Got Query: ${query}`);
+          const analyzedQueries = sqlAnalyzer(queries,'mysql');
+          for(const queryItem of analyzedQueries){
+            if(queryItem[1] === 'w'){
+              //forward it to the master node
+              var result = await this.sendWriteQuery(queryItem[0]);
+            }else{
+              //forward the query to the server
+              var result = await this.localDB.query(queryItem[0],true);
             }
 
-            this.sendRows(finalResult);
-          } else if(result[0]){
-            this.sendOK({ message: 'OK' });
-          }else{
-            this.sendError({ message: result[3] });
+            //console.log(result);
+            // Then send it back to the user in table format
+            if(result[1]){
+              let fieldNames = [];
+              for (let definition of result[1]) fieldNames.push(definition.name);
+              this.sendDefinitions(result[1]);
+              let finalResult = [];
+              for (let row of result[0]){
+                let newRow =[];
+                for(let filed of fieldNames){
+                  newRow.push(row[filed]);
+                }
+                finalResult.push(newRow);
+              }
+
+              this.sendRows(finalResult);
+            } else if(result[0]){
+              this.sendOK({ message: 'OK' });
+            }else{
+              this.sendError({ message: result[3] });
+            }
           }
-          
+
           break;
         case mySQLConsts.COM_PING:
           this.sendOK({ message: 'OK' });
@@ -152,7 +179,30 @@ class Operator {
   /**
   * [syncLocalDB]
   */
-  static async syncLocalDB() {}
+  static async syncLocalDB() {
+    if(this.MasterWSConn && this.MasterWSConn.connected){
+      this.status = 'syncDB';
+      const index = BackLog.sequenceNumber;
+      this.MasterWSConn.emit("getBackLog", index, (response) => {
+        log.info(response.lastSequencenumber);
+        log.info(response.records);
+      });
+    }
+  }
+
+  /**
+  * [syncLocalDB]
+  */
+     static async sendWriteQuery(query) {
+      if(this.MasterWSConn && this.MasterWSConn.connected){
+        return new Promise(function (resolve) {
+          this.MasterWSConn.emit("writeQuery", query, (response) => {
+            resolve(response.records);
+          }); 
+        });
+      }
+      return [];
+    }
 
   /**
   * [getSyncStatus]

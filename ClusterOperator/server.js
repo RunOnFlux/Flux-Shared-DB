@@ -1,6 +1,7 @@
 const Operator = require('./Operator');
 //const { WebSocketServer } = require('ws');
 const { Server } = require("socket.io");
+const BackLog = require('./Backlog');
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
@@ -98,6 +99,15 @@ async function initServer(){
       socket.on("getMaster", (callback) => {
         log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
         callback({status: "success", message: Operator.getMaster()});
+      });
+      socket.on("getBackLog", start, (callback) => {
+        const records = BackLog.getLogs(start, 100);
+        callback({status: "success", lastSequencenumber: BackLog.lastSequencenumber,  records: records});
+      });
+      socket.on("writeQuery", query, (callback) => {
+        const result = BackLog.pushQuery(query);
+        socket.emit("writeQuery", query);
+        callback({status: "success", lastSequencenumber: BackLog.lastSequencenumber,  records: result});
       });
     }else{
       log.info(`socket connection rejected from ${ip}`);
