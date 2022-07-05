@@ -10,12 +10,14 @@ class BackLog {
   static sequenceNumber = 0;
   static bufferSequenceNumber = 0;
   static BLClient = null;
+  static UserDBClient = null;
   /**
   * [createBacklog]
   * @param {object} params [description]
   */
   static async createBacklog(params) {
     this.BLClient = await dbClient.createClient();
+    this.UserDBClient = await dbClient.createClient();
     try{
       if (config.dbType === 'mysql') {
           let dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
@@ -26,6 +28,7 @@ class BackLog {
             log.info('Backlog DB already exists, moving on...');
           }
           await this.BLClient.setDB(config.dbBacklog);
+          await this.UserDBClient.setDB(config.dbInitDB);
           let tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
           if(tableList.length === 0){
@@ -72,7 +75,7 @@ class BackLog {
       if (config.dbType === 'mysql') {
         this.sequenceNumber +=1;
         await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},'${query}',${timestamp});`);
-        const result = await dbClient.query(query);
+        const result = await UserDBClient.query(query);
         return result;
         
       }
