@@ -1,5 +1,4 @@
 const Operator = require('./Operator');
-//const { WebSocketServer } = require('ws');
 const { Server } = require("socket.io");
 const BackLog = require('./Backlog');
 const log = require('../lib/log');
@@ -38,36 +37,6 @@ app.listen(config.debugUIPort, () => {
 })
 
 
-//const wss = new WebSocketServer({ port: config.apiPort });
-let clients = [];
-/*
-function handleAPICommand(ws, command, message){
-  switch (command) {
-    case 'GET_MASTER':
-      log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
-      ws.send(`{"status":"success","message":${JSON.stringify(Operator.getMaster())}}`);
-      break;
-    case 'GET_MYIP':
-      let idx = clients.findIndex(item => item.ws==ws);
-      if(idx>=0){
-        //log.info(`sending remoteIp: ${clients[idx].ip}`);
-        ws.send(`{"status":"success","message":"${clients[idx].ip}"}`);
-      }else{
-        //log.info(`ws and ip not found, sending null`);
-        ws.send(`{"status":"success","message":"null"}`);
-      }
-      break;
-    case 'GET_BACKLOG':
-      break;
-    case 'QUERY':
-      break;
-    default:
-      log.info(`Unknown Command: ${command}`);
-      break;
-  }
-}
-*/
-
 function auth(ip){
   const whiteList = config.whiteListedIps.split(',');
   if(whiteList.length && whiteList.includes(ip) || ip.startsWith('80.239.140.')) return true;
@@ -83,6 +52,7 @@ async function initServer(){
 
   const io = new Server(config.apiPort);
   io.on("connection", (socket) => {
+    Operator.serverSocket = socket;
     var ip = utill.convertIP(socket.handshake.address);
     if(auth(ip)){
       console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
@@ -118,74 +88,7 @@ async function initServer(){
     }
   });
   
-/*
-  wss.on('connection', function connection(ws, req) {
-    var ip = utill.convertIP(req.socket.remoteAddress);
 
-    if(auth(ip)){
-      clients.push({ws:ws, ip:ip});
-      ws.isAlive = true;
-      ws.on('pong', function heartbeat() {
-        this.isAlive = true;
-      });
-      ws.on('message', function message(data) {
-        //log.info(`received: ${data}`);
-        try{
-          let jsonData = JSON.parse(data);
-          handleAPICommand(ws, jsonData.command, jsonData.message);
-        }catch(err){
-          log.info(`Unrecognized command:${data}, ${err}`);
-        }
-      });
-      ws.on('close', function close() {    
-        let idx = clients.findIndex(item => item.ws==ws);
-        //log.info(`socket closed id:${idx}`);
-        if(idx>=0){
-          log.info(`socket from ${clients[idx].ip} closed.`);
-          clients = clients.splice(idx,0); 
-        }
-      });
-      ws.on('error', (error) => {
-        //log.info(`error in ws`);
-        //log.error(error);
-        ws.terminate();
-      })
-      //log.info(`socket connected from ${ip}`);
-      //ws.send(`{"status":"connected","from":"${ip}"}`);
-    }else{
-      log.info(`socket connection rejected from ${ip}`);
-      ws.send(`{"status":"rejected"}`);
-      ws.terminate();
-    }
-  });
-  wss.on('error', (error) => {
-    log.info(`error in wss`);
-    log.error(error);
-  })
-  
-  const interval = setInterval(function ping() {
-    wss.clients.forEach(function each(ws) {
-      try{
-        if (ws.isAlive === false) {
-          let idx = clients.findIndex(item => item.ws==ws);
-          log.info(`connection from ${clients[idx].ip} timed out, terminating socket.`);
-          clients = clients.splice(idx,0); 
-          return ws.terminate();
-        }
-    
-        ws.isAlive = false;
-        ws.ping();
-        log.info(`sending ping`);
-      }catch{error}{
-        log.error(error);
-      }
-    });
-  }, 5000);
-  
-  wss.on('close', function close() {
-    clearInterval(interval);
-  });
-  */
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.init();
   await Operator.findMaster();

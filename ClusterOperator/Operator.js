@@ -26,6 +26,7 @@ class Operator {
   static myIP = null;
   static MasterWSConn = null;
   static status = 'initializing';
+  static serverSocket;
 
   /**
   * [initLocalDB]
@@ -65,6 +66,10 @@ class Operator {
           log.info(`disconnected from master...`);
           await this.findMaster();
           this.initMasterConnection();
+        });
+        this.MasterWSConn.on("query", (query) => {
+          log.info(`query from master:${query}`);
+          BackLog.pushQuery(query);
         });
       } catch (e) {
         log.error(e);
@@ -124,6 +129,8 @@ class Operator {
         }); 
       });
     }else{
+      log.info(`sending query to slaves: ${query}`);
+      this.serverSocket.emit("query", query);
       return BackLog.pushQuery(query);
     }
   }
