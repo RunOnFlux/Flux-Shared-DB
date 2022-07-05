@@ -110,7 +110,22 @@ class Operator {
     }
     return false; 
   }
-  
+  /**
+  * [syncLocalDB]
+  */
+  static async sendWriteQuery(query) {
+    if(this.MasterWSConn && this.MasterWSConn.connected){
+      return new Promise(function (resolve) {
+        this.MasterWSConn.emit("writeQuery", query, (response) => {
+          resolve(response.records);
+        }); 
+      });
+    }
+    return [];
+  }
+  /**
+  * [handleCommand]
+  */
   static async handleCommand({ command, extra }) {
     try{
     // command is a numeric ID, extra is a Buffer
@@ -118,14 +133,14 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
           log.info(`Got Query: ${query}`);
-          const analyzedQueries = sqlAnalyzer(query,'mysql');
+          const analyzedQueries = sqlAnalyzer(query, 'mysql');
           for(const queryItem of analyzedQueries){
             if(queryItem[1] === 'w'){
               //forward it to the master node
               var result = await this.sendWriteQuery(queryItem[0]);
             }else{
               //forward the query to the server
-              var result = await this.localDB.query(queryItem[0],true);
+              var result = await this.localDB.query(queryItem[0], true);
             }
 
             //console.log(result);
@@ -190,19 +205,7 @@ class Operator {
     }
   }
 
-  /**
-  * [syncLocalDB]
-  */
-     static async sendWriteQuery(query) {
-      if(this.MasterWSConn && this.MasterWSConn.connected){
-        return new Promise(function (resolve) {
-          this.MasterWSConn.emit("writeQuery", query, (response) => {
-            resolve(response.records);
-          }); 
-        });
-      }
-      return [];
-    }
+
 
   /**
   * [getSyncStatus]
