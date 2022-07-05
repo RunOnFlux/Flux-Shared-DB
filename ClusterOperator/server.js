@@ -51,8 +51,9 @@ function auth(ip){
 async function initServer(){
 
   const io = new Server(config.apiPort);
+  Operator.serverSocket = io;
   io.on("connection", (socket) => {
-    Operator.serverSocket = socket;
+    
     var ip = utill.convertIP(socket.handshake.address);
     if(auth(ip)){
       console.info(`Client connected [id=${socket.id}, ip=${ip}]`);

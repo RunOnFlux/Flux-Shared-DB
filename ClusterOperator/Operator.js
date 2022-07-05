@@ -130,7 +130,10 @@ class Operator {
       });
     }else{
       log.info(`sending query to slaves: ${query}`);
-      this.serverSocket.emit("query", query);
+      const sockets = await this.serverSocket.fetchSockets();
+      for (const socket of sockets) {
+        socket.emit("query", query);
+      }
       return BackLog.pushQuery(query);
     }
   }
