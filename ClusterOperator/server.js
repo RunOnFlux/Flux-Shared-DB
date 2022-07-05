@@ -73,13 +73,13 @@ async function initServer(){
         log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
         callback({status: "success", message: Operator.getMaster()});
       });
-      socket.on("getBackLog", (start, callback) => {
+      socket.on("getBackLog", async (start, callback) => {
         console.log(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
         console.log(`backlog records: ${JSON.stringify(records)}`);
         callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: records});
       });
-      socket.on("writeQuery", (query, callback) => {
+      socket.on("writeQuery", async (query, callback) => {
         console.log(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
         const result = await BackLog.pushQuery(query);
         socket.emit("writeQuery", query);

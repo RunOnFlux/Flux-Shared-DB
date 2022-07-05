@@ -67,7 +67,7 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.MasterWSConn.on("query", (query) => {
+        this.MasterWSConn.on("query", async (query) => {
           log.info(`query from master:${query}`);
           await BackLog.pushQuery(query);
         });
