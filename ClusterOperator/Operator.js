@@ -24,7 +24,7 @@ class Operator {
   static IamMaster = false;
   static apiKey = null;
   static myIP = null;
-  static MasterWSConn = null;
+  static masterWSConn;
   static status = 'initializing';
   static serverSocket;
 
@@ -46,38 +46,38 @@ class Operator {
     if(this.masterNode && !this.IamMaster){ 
       
       try {
-        this.MasterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
+        this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
           transports: ["websocket"], 
           reconnection: false, 
           timeout:2000
         } );
-        this.MasterWSConn.on("connect", (socket) => {
-          const engine = this.MasterWSConn.io.engine;
+        this.masterWSConn.on("connect", (socket) => {
+          const engine = this.masterWSConn.io.engine;
           log.info(`connected to master...`);
           this.syncLocalDB();
           engine.once("upgrade", () => {
             log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
           });
         });
-        this.MasterWSConn.on("connect_error", async (reason) => {
+        this.masterWSConn.on("connect_error", async (reason) => {
           log.info(`connection error: ${reason}`);
-          this.MasterWSConn.removeAllListeners();
+          this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.MasterWSConn.on("disconnect", async () => {
+        this.masterWSConn.on("disconnect", async () => {
           log.info(`disconnected from master...`);
-          this.MasterWSConn.removeAllListeners();
+          this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.MasterWSConn.on("query", async (query) => {
+        this.masterWSConn.on("query", async (query) => {
           log.info(`query from master:${query}`);
           await BackLog.pushQuery(query);
         });
       } catch (e) {
         log.error(e);
-        this.MasterWSConn.removeAllListeners();
+        this.masterWSConn.removeAllListeners();
       }
     }
   }
@@ -97,8 +97,9 @@ class Operator {
             onCommand: this.handleCommand,
             localDB: this.localDB,
             serverSocket: this.serverSocket,
-            MasterWSConn: this.MasterWSConn,
+            masterWSConn: this.masterWSConn,
             BACKLOG_DB: config.dbBacklog,
+            IamMaster: this.IamMaster,
             isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery
           });
@@ -132,10 +133,12 @@ class Operator {
   */
   static async sendWriteQuery(query) {
 
-    if(this.MasterWSConn && this.MasterWSConn.connected){
+    if(!this.IamMaster){
+      const masterWSConn = this.masterWSConn;
       return new Promise(function (resolve) {
-        this.MasterWSConn.emit("writeQuery", query, (response) => {
-          resolve(response.records);
+        masterWSConn.emit("writeQuery", query, (response) => {
+          console.log(response);
+          resolve(response.result);
         }); 
       });
     }else{
@@ -238,10 +241,10 @@ class Operator {
   * [syncLocalDB]
   */
   static async syncLocalDB() {
-    if(this.MasterWSConn && this.MasterWSConn.connected){
+    if(this.masterWSConn && this.masterWSConn.connected){
       this.status = 'syncDB';
       const index = BackLog.sequenceNumber;
-      this.MasterWSConn.emit("getBackLog", index, async (response) => {
+      this.masterWSConn.emit("getBackLog", index, async (response) => {
         log.info(JSON.stringify(response));
         for(let record of response.records){
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
