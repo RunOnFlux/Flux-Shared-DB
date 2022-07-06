@@ -66,11 +66,11 @@ async function initServer(){
         callback({status: "ok"});
       });
       socket.on("getMyIp", (callback) => {
-        log.info(`sending remoteIp: ${utill.convertIP(socket.handshake.address)}`);
+        //log.info(`sending remoteIp: ${utill.convertIP(socket.handshake.address)}`);
         callback({status: "success", message: utill.convertIP(socket.handshake.address)});
       });
       socket.on("getMaster", (callback) => {
-        log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
+        //log.info(`sending masterIP: ${JSON.stringify(Operator.getMaster())}`);
         callback({status: "success", message: Operator.getMaster()});
       });
       socket.on("getBackLog", async (start, callback) => {
@@ -87,7 +87,7 @@ async function initServer(){
         callback({status: "success", sequenceNumber: BackLog.sequenceNumber, result});
       });
     }else{
-      log.info(`socket connection rejected from ${ip}`);
+      //log.info(`socket connection rejected from ${ip}`);
       socket.disconnect();
     }
   });
