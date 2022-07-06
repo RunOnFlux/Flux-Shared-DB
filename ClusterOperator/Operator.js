@@ -93,6 +93,8 @@ class Operator {
             localDB: this.localDB,
             serverSocket: this.serverSocket,
             MasterWSConn: this.MasterWSConn,
+            BACKLOG_DB: config.dbBacklog,
+            isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery
           });
         }).listen(config.externalDBPort);
@@ -154,6 +156,9 @@ class Operator {
       }
     
   }
+  static isNotBacklogQuery(query, BACKLOG_DB) {
+    return !query.includes(BACKLOG_DB);
+  }
   /**
   * [handleCommand]
   */
@@ -166,11 +171,11 @@ class Operator {
           log.info(`Got Query: ${query}`);
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           for(const queryItem of analyzedQueries){
-            if(queryItem[1] === 'w'){
+            if(queryItem[1] === 'w' && isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
               //forward it to the master node
               var result = await this.sendWriteQuery(queryItem[0]);
             }else{
-              //forward the query to the server
+              //forward it to the local DB
               var result = await this.localDB.query(queryItem[0], true);
             }
 
