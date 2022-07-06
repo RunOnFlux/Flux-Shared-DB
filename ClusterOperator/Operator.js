@@ -91,6 +91,7 @@ class Operator {
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
             localDB: this.localDB,
+            serverSocket: this.serverSocket,
             sendWriteQuery: this.sendWriteQuery
           });
         }).listen(config.externalDBPort);
@@ -122,6 +123,7 @@ class Operator {
   * [sendWriteQuery]
   */
   static async sendWriteQuery(query) {
+
     if(this.MasterWSConn && this.MasterWSConn.connected){
       return new Promise(function (resolve) {
         this.MasterWSConn.emit("writeQuery", query, (response) => {
@@ -129,22 +131,17 @@ class Operator {
         }); 
       });
     }else{
-      if(this.serverSocket === undefined){
-        log.info(`serverSocket not defined yet, can't send to slaves...`);
-        return await BackLog.pushQuery(query);
-      }else{
-        log.info(`sending query to slaves: ${query}`);
-        const sockets = await this.serverSocket.fetchSockets();
-        for (const socket of sockets) {
-          socket.emit("query", query);
-        }
-        return await BackLog.pushQuery(query);
-      }
+      log.info(`sending query to slaves: ${query}`);
+      this.serverSocket.emit("query", query);
+      return await BackLog.pushQuery(query);
     }
+
   }
 
-  static setServerSocket(socket) {
-    this.serverSocket = socket;;
+  static async setServerSocket(socket) {
+    this.serverSocket = socket;
+    const sockets = await this.serverSocket.fetchSockets();
+    console.log(sockets);
   } 
 
   static async testSocket() {

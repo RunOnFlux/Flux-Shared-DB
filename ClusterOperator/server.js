@@ -82,7 +82,8 @@ async function initServer(){
       socket.on("writeQuery", async (query, callback) => {
         console.log(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
         const result = await BackLog.pushQuery(query);
-        socket.emit("writeQuery", query);
+        log.info(`forwarding query to slaves: ${query}`);
+        io.emit("query", query);
         callback({status: "success", sequenceNumber: BackLog.sequenceNumber, result});
       });
     }else{
