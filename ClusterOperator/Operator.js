@@ -47,7 +47,9 @@ class Operator {
       
       try {
         this.MasterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
-          reconnection: false
+          transports: ["websocket"], 
+          reconnection: false, 
+          timeout:2000
         } );
         this.MasterWSConn.on("connect", (socket) => {
           const engine = this.MasterWSConn.io.engine;
@@ -59,11 +61,13 @@ class Operator {
         });
         this.MasterWSConn.on("connect_error", async (reason) => {
           log.info(`connection error: ${reason}`);
+          this.MasterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
         this.MasterWSConn.on("disconnect", async () => {
           log.info(`disconnected from master...`);
+          this.MasterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
@@ -73,6 +77,7 @@ class Operator {
         });
       } catch (e) {
         log.error(e);
+        this.MasterWSConn.removeAllListeners();
       }
     }
   }
