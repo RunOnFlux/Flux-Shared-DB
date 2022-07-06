@@ -171,7 +171,7 @@ class Operator {
           log.info(`Got Query: ${query}`);
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           for(const queryItem of analyzedQueries){
-            if(queryItem[1] === 'w' && isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
+            if(queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
               //forward it to the master node
               var result = await this.sendWriteQuery(queryItem[0]);
             }else{
