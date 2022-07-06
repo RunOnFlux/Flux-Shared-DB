@@ -235,7 +235,7 @@ class Operator {
       const index = BackLog.sequenceNumber;
       this.MasterWSConn.emit("getBackLog", index, async (response) => {
         log.info(JSON.stringify(response));
-        for(let record of response){
+        for(let record of response.records){
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
       });
