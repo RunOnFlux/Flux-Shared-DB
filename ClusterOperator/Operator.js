@@ -92,6 +92,7 @@ class Operator {
             onCommand: this.handleCommand,
             localDB: this.localDB,
             serverSocket: this.serverSocket,
+            MasterWSConn: this.MasterWSConn,
             sendWriteQuery: this.sendWriteQuery
           });
         }).listen(config.externalDBPort);
