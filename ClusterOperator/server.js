@@ -60,7 +60,7 @@ async function initServer(){
     if(auth(ip)){
       console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
       socket.on("disconnect", (reason) => {
-        log.info(`${utill.convertIP(socket.handshake.address)} disconnected ${reason}`);
+        //log.info(`${utill.convertIP(socket.handshake.address)} disconnected ${reason}`);
       });
       socket.on("getStatus", (callback) => {
         callback({status: "ok"});
@@ -74,13 +74,13 @@ async function initServer(){
         callback({status: "success", message: Operator.getMaster()});
       });
       socket.on("getBackLog", async (start, callback) => {
-        console.log(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
+        log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
-        console.log(`backlog records: ${JSON.stringify(records)}`);
+        log.info(`backlog records: ${JSON.stringify(records)}`);
         callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: records});
       });
       socket.on("writeQuery", async (query, callback) => {
-        console.log(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
+        log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
         const result = await BackLog.pushQuery(query);
         log.info(`forwarding query to slaves: ${query}`);
         io.emit("query", query);
@@ -96,7 +96,7 @@ async function initServer(){
   log.info(`Api Server started on port ${config.apiPort}`);
   
   await Operator.findMaster();
-  console.log(`find master finished, master is ${Operator.masterNode}`);
+  log.info(`find master finished, master is ${Operator.masterNode}`);
   
   if(Operator.IamMaster){
 
