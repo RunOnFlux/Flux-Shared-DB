@@ -34,6 +34,7 @@ class Operator {
     await BackLog.createBacklog();
     if(config.dbInitDB){ 
       await this.localDB.createDB(config.dbInitDB);
+      BackLog.UserDBClient.setDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
     }
   }

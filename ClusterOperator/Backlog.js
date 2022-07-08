@@ -27,8 +27,7 @@ class BackLog {
           }else{
             log.info('Backlog DB already exists, moving on...');
           }
-          await this.BLClient.setDB(config.dbBacklog);
-          await this.UserDBClient.setDB(config.dbInitDB);
+          await this.BLClient.setDB(config.dbBacklog); 
           let tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
           if(tableList.length === 0){
