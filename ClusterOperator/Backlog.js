@@ -33,7 +33,7 @@ class BackLog {
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
           if(tableList.length === 0){
             log.info('Backlog table not defined yet, creating backlog table...');
-            await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query text, timestamp bigint) ENGINE=MyISAM;`);
+            await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
             MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
@@ -46,7 +46,7 @@ class BackLog {
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogBuffer}'`);
           if(tableList.length === 0){
             log.info('Backlog buffer table not defined yet, creating buffer table...');
-            await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query text, timestamp bigint) ENGINE=MyISAM;`);
+            await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
             MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
@@ -79,11 +79,14 @@ class BackLog {
         else 
           this.sequenceNumber = seq;
         const result2 = await this.UserDBClient.query(query);
-        const result1 = await this.BLClient.query(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (${this.sequenceNumber},"${query}",${timestamp});`);
+        console.log(result2);
+        const result1 = await this.BLClient.execute(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+         [this.sequenceNumber, query, timestamp]);
         return result2;
         
       }
     }catch(e){
+      log.error(`error executing query`);
       log.error(e);
     }
   }

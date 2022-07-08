@@ -9,7 +9,6 @@ const config = require('./config');
 const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
-const WebSocket = require('ws');
 const { io } = require("socket.io-client");
 const md5 = require('md5');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
@@ -132,7 +131,6 @@ class Operator {
   * [sendWriteQuery]
   */
   static async sendWriteQuery(query) {
-
     if(!this.IamMaster){
       const masterWSConn = this.masterWSConn;
       return new Promise(function (resolve) {
@@ -165,8 +163,10 @@ class Operator {
       switch (command) {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
-          log.info(`Got Query: ${query}`);
+          //log.info(`Got Query: ${query}`);
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
+          //console.log(`analyzed queries: ${JSON.stringify(analyzedQueries)}`);
+          
           for(const queryItem of analyzedQueries){
             if(queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
               //forward it to the master node
@@ -176,6 +176,7 @@ class Operator {
               var result = await this.localDB.query(queryItem[0], true);
             }
             // Then send it back to the user in table format
+            //console.log(`result is: ${JSON.stringify(result)}`);
             if(result[1]){
               let fieldNames = [];
               for (let definition of result[1]) fieldNames.push(definition.name);
@@ -190,15 +191,20 @@ class Operator {
               }
 
               this.sendRows(finalResult);
+              break;
             } else if(result[0]){
               this.sendOK({ message: 'OK' });
+              break;
             }else if(result.warningStatus==0){
               this.sendOK({ message: 'OK' });
+              break;
             }else{
-              this.sendError({ message: result[3] });
+              //this.sendError({ message: result[3] });
+              //break;
             }
           }
-
+         
+          this.sendOK({ message: 'OK' });
           break;
         case mySQLConsts.COM_PING:
           this.sendOK({ message: 'OK' });

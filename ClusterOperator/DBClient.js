@@ -39,6 +39,24 @@ class DBClient {
     }
     return null;
   }
+    /**
+  * [execute]
+  * @param {string} query [description]
+  * @param {array} params [description]
+  */
+     async execute(query, params, rawResult = false) {
+      if (config.dbType === 'mysql') {
+        try {
+          const [rows, fields, err] = await this.connection.execute(query, params);
+          if (rawResult) return [rows, fields, err];
+          return rows;
+        } catch (err) {
+          log.info(err);
+          return [null,null,err];
+        }
+      }
+      return null;
+    }
 
   /**
   * [createDB]
