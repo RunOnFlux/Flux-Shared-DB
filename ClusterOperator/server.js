@@ -30,7 +30,17 @@ app.listen(config.debugUIPort, () => {
   log.info(`starting debug interface on port ${config.debugUIPort}`);
 })
 
-
+function auth(ip){
+  const whiteList = config.whiteListedIps.split(',');
+  if(whiteList.length && whiteList.includes(ip) || ip.startsWith('80.239.140.')) return true;
+  //only operator nodes can connect
+  let idx = Operator.OpNodes.findIndex(item => item.ip==ip);
+  if(idx === -1) return false;
+  //only one connection per ip allowed
+  //idx = clients.findIndex(item => item.ip==ip);
+  //if(idx === -1) return true; else return false;
+  return true;
+}
 async function initServer(){
   await Operator.init();
   const io = new Server(config.apiPort);
@@ -39,7 +49,7 @@ async function initServer(){
   io.on("connection", (socket) => {
     
     var ip = utill.convertIP(socket.handshake.address);
-    if(utill.auth(ip)){
+    if(auth(ip)){
       console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
       socket.on("disconnect", (reason) => {
       });
