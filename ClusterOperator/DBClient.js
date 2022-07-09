@@ -6,6 +6,7 @@ const log = require('../lib/log');
 class DBClient {
   constructor() {
     this.connection = {};
+    this.connected = false;
   }
 
   /**
@@ -19,6 +20,11 @@ class DBClient {
         password: config.dbPass,
         port: config.dbPort,
       });
+      this.connection.once('error', () => {
+        this.connected = false;
+        console.log(`mysql connected: ${this.connected }`);
+      });
+      this.connected = true;
     }
   }
 
@@ -28,7 +34,11 @@ class DBClient {
   */
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
+      
       try {
+        if(!this.connected){
+          await this.init();
+        }
         const [rows, fields, err] = await this.connection.query(query);
         if (rawResult) return [rows, fields, err];
         return rows;
@@ -39,26 +49,29 @@ class DBClient {
     }
     return null;
   }
-    /**
+  /**
   * [execute]
   * @param {string} query [description]
   * @param {array} params [description]
   */
-     async execute(query, params, rawResult = false) {
-      if (config.dbType === 'mysql') {
-        try {
-          const [rows, fields, err] = await this.connection.execute(query, params);
-          if (rawResult) return [rows, fields, err];
-          return rows;
-        } catch (err) {
-          log.info(err);
-          return [null,null,err];
+  async execute(query, params, rawResult = false) {
+    if (config.dbType === 'mysql') {
+      try {
+        if(!this.connected){
+          await this.init();
         }
+        const [rows, fields, err] = await this.connection.execute(query, params);
+        if (rawResult) return [rows, fields, err];
+        return rows;
+      } catch (err) {
+        log.info(err);
+        return [null,null,err];
       }
-      return null;
     }
+    return null;
+  }
 
-  /**
+  /** 
   * [createDB]
   * @param {string} dbName [description]
   */
