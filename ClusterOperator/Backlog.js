@@ -34,7 +34,7 @@ class BackLog {
             log.info('Backlog table not defined yet, creating backlog table...');
             await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
-            MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
+            MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
             ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
           }else{
@@ -47,7 +47,7 @@ class BackLog {
             log.info('Backlog buffer table not defined yet, creating buffer table...');
             await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
             await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
-            MODIFY COLUMN \`seq\` bigint(0) NOT NULL FIRST,
+            MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
             ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
           }else{
