@@ -73,15 +73,16 @@ class BackLog {
     }
     try{
       if (config.dbType === 'mysql') {
+        
+        const result2 = await this.UserDBClient.query(query);
+        console.log(result2);
         if(seq===0) 
           this.sequenceNumber +=1;
         else 
           this.sequenceNumber = seq;
-        const result2 = await this.UserDBClient.query(query);
-        console.log(result2);
         const result1 = await this.BLClient.execute(`INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
          [this.sequenceNumber, query, timestamp]);
-        return result2;
+        return [result2, this.sequenceNumber, timestamp];
         
       }
     }catch(e){

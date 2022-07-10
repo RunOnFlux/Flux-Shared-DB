@@ -71,9 +71,9 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.masterWSConn.on("query", async (query) => {
-          log.info(`query from master:${query}`);
-          await BackLog.pushQuery(query);
+        this.masterWSConn.on("query", async (query, sequenceNumber, timestamp) => {
+          log.info(`query from master:${query},${sequenceNumber},${timestamp}`);
+          await BackLog.pushQuery(query, sequenceNumber, timestamp);
         });
       } catch (e) {
         log.error(e);
@@ -141,8 +141,9 @@ class Operator {
       });
     }else{
       log.info(`sending query to slaves: ${query}`);
-      this.serverSocket.emit("query", query);
-      return await BackLog.pushQuery(query);
+      const result = await BackLog.pushQuery(query);
+      this.serverSocket.emit("query", query, result[1], result[2]);
+      return result[0];
     }
 
   }
@@ -164,9 +165,7 @@ class Operator {
       switch (command) {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
-          //log.info(`Got Query: ${query}`);
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          //console.log(`analyzed queries: ${JSON.stringify(analyzedQueries)}`);
           
           for(const queryItem of analyzedQueries){
             if(queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
@@ -177,7 +176,6 @@ class Operator {
               var result = await this.localDB.query(queryItem[0], true);
             }
             // Then send it back to the user in table format
-            //console.log(`result is: ${JSON.stringify(result)}`);
             if(result[1]){
               let fieldNames = [];
               for (let definition of result[1]) fieldNames.push(definition.name);
