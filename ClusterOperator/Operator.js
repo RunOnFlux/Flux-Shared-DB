@@ -175,6 +175,7 @@ class Operator {
               //forward it to the local DB
               var result = await this.localDB.query(queryItem[0], true);
             }
+            log.info(result);
             // Then send it back to the user in table format
             if(result[1]){
               let fieldNames = [];

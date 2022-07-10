@@ -65,7 +65,7 @@ async function initServer(){
       socket.on("getBackLog", async (start, callback) => {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
-        log.info(`backlog records: ${JSON.stringify(records)}`);
+        //log.info(`backlog records: ${JSON.stringify(records)}`);
         callback({status: "success", sequenceNumber: BackLog.sequenceNumber,  records: records});
       });
       socket.on("writeQuery", async (query, callback) => {
