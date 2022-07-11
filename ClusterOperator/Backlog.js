@@ -64,6 +64,7 @@ class BackLog {
   * [pushQuery]
   * @param {string} query [description]
   * @param {int} timestamp [description]
+  * @return {Array}
   */
   static async pushQuery(query, seq=0, timestamp) {
     if(timestamp===undefined) timestamp = Date.now();
@@ -95,6 +96,7 @@ class BackLog {
   * [getLogs]
   * @param {int} startFrom [description]
   * @param {int} pageSize [description]
+  * @return {Array}
   */
   static async getLogs(startFrom, pageSize) {
     if(!this.BLClient) {
@@ -114,6 +116,7 @@ class BackLog {
 
   /**
   * [getTotalLogsCount]
+  * @return {int}
   */
   static async getTotalLogsCount() {
     if(!this.BLClient) {
@@ -133,6 +136,7 @@ class BackLog {
 
   /**
   * [getLastSequenceNumber]
+  * @return {int}
   */
   static async getLastSequenceNumber() {
     if(!this.BLClient) {
@@ -169,7 +173,7 @@ class BackLog {
     }
     log.info(`All backlog data removed successfully.`);
   }
-   /**
+  /**
   * [destroyBacklog]
   */
     static async destroyBacklog() {

@@ -29,7 +29,10 @@ app.get('/', (req, res) => {
 app.listen(config.debugUIPort, () => {
   log.info(`starting debug interface on port ${config.debugUIPort}`);
 })
-
+/**
+* [auth]
+* @param {string} ip [description]
+*/
 function auth(ip){
   const whiteList = config.whiteListedIps.split(',');
   if(whiteList.length && whiteList.includes(ip) || ip.startsWith('80.239.140.')) return true;
@@ -41,6 +44,9 @@ function auth(ip){
   //if(idx === -1) return true; else return false;
   return true;
 }
+/**
+* [initServer]
+*/
 async function initServer(){
   await Operator.init();
   const io = new Server(config.apiPort);

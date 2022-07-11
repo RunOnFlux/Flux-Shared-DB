@@ -111,7 +111,10 @@ class Operator {
       log.error(err);
     }
   }
-
+  /**
+  * [handleAuthorize]
+  * @param {object} param [description]
+  */
   static handleAuthorize(param) {
     try{
       log.info('Auth Info:');
@@ -130,6 +133,7 @@ class Operator {
   }
   /**
   * [sendWriteQuery]
+  * @param {string} query [description]
   */
   static async sendWriteQuery(query) {
     if(!this.IamMaster){
@@ -147,17 +151,26 @@ class Operator {
     }
 
   }
-
+  /**
+  * [setServerSocket]
+  * @param {socket} socket [description]
+  */
   static async setServerSocket(socket) {
     this.serverSocket = socket;
     const sockets = await this.serverSocket.fetchSockets();
   } 
-
+  /**
+  * [isNotBacklogQuery]
+  * @param {string} query [description]
+  * @param {string} BACKLOG_DB [description]
+  */
   static isNotBacklogQuery(query, BACKLOG_DB) {
     return !query.includes(BACKLOG_DB);
   }
   /**
   * [handleCommand]
+  * @param {int} command [description]
+  * @param {string} extra [description]
   */
   static async handleCommand({ command, extra }) {
     try{
@@ -175,7 +188,7 @@ class Operator {
               //forward it to the local DB
               var result = await this.localDB.query(queryItem[0], true);
             }
-            log.info(result);
+            //log.info(result);
             // Then send it back to the user in table format
             if(result[1]){
               let fieldNames = [];
