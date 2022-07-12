@@ -8,27 +8,31 @@ const express = require('express');
 const fs = require('fs');
 
 
+/**
+* Starts UI service
+*/
+function startUI(){
+  const app = express();
+  fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
-const app = express();
-fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
+  app.get('/', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    //const whiteList = config.whiteListedIps.split(',');
+    //if(whiteList.length){
+      //if(whiteList.includes(remoteIp))
+        res.send(`<html><body style="
+        font-family: monospace;
+        background-color: #404048;
+        color: white;
+        font-size: 12;
+        ">FluxDB Debug Screen<br>${utill.htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
+    //}
+  })
 
-app.get('/', (req, res) => {
-  const remoteIp = utill.convertIP(req.ip);
-  //const whiteList = config.whiteListedIps.split(',');
-  //if(whiteList.length){
-    //if(whiteList.includes(remoteIp))
-      res.send(`<html><body style="
-      font-family: monospace;
-      background-color: #404048;
-      color: white;
-      font-size: 12;
-      ">FluxDB Debug Screen<br>${utill.htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
-  //}
-})
-
-app.listen(config.debugUIPort, () => {
-  log.info(`starting debug interface on port ${config.debugUIPort}`);
-})
+  app.listen(config.debugUIPort, () => {
+    log.info(`starting debug interface on port ${config.debugUIPort}`);
+  })
+}
 /**
 * [auth]
 * @param {string} ip [description]
@@ -48,6 +52,7 @@ function auth(ip){
 * [initServer]
 */
 async function initServer(){
+  startUI();
   await Operator.init();
   const io = new Server(config.apiPort);
   Operator.setServerSocket(io);

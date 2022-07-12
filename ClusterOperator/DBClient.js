@@ -7,6 +7,7 @@ class DBClient {
   constructor() {
     this.connection = {};
     this.connected = false;
+    this.InitDB = '';
   }
 
   /**
@@ -14,12 +15,22 @@ class DBClient {
   */
   async init() {
     if (config.dbType === 'mysql') {
-      this.connection = await mySql.createConnection({
-        host: config.dbHost,
-        user: config.dbUser,
-        password: config.dbPass,
-        port: config.dbPort,
-      });
+      if(this.InitDB){
+        this.connection = await mySql.createConnection({
+          host: config.dbHost,
+          user: config.dbUser,
+          password: config.dbPass,
+          port: config.dbPort,
+        });
+      }else{
+        this.connection = await mySql.createConnection({
+          host: config.dbHost,
+          user: config.dbUser,
+          password: config.dbPass,
+          port: config.dbPort,
+          database: this.InitDB,
+        });
+      }
       this.connection.once('error', () => {
         this.connected = false;
         console.log(`mysql connected: ${this.connected }`);
@@ -92,12 +103,13 @@ class DBClient {
   */
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
+      this.InitDB = dbName;
       this.connection = await mySql.createConnection({
         host: config.dbHost,
         user: config.dbUser,
         password: config.dbPass,
         port: config.dbPort,
-        database: dbName,
+        database: this.InitDB,
       });
     }
   }
