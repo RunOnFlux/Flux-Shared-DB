@@ -7,7 +7,7 @@ module.exports = {
   dbBacklog: 'flux_backlog',
   dbBacklogCollection: 'backlog',
   dbBacklogBuffer: 'backlog_buffer',
-  dbInitDB: 'test_db',
+  dbInitDB: process.env.INIT_DB_NAME || 'test_db',
   connectionServer: 'mysql',
   externalDBPort: 3307,
   apiPort: 7071,
@@ -16,7 +16,7 @@ module.exports = {
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || 'dbfluxtest4',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.52',
+  version: '0.9.53',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary
 };
