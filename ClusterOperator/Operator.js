@@ -352,7 +352,6 @@ class Operator {
       //get dbappspecs
       if(config.DBAppName){
         await this.updateAppInfo();
-        //await this.getMyIp();
         //find master candidate
         var masterCandidates=[];
         for(let i=0; i<this.OpNodes.length; i++){
@@ -408,6 +407,7 @@ class Operator {
   /**
   * [getMyIp]
   */
+ /*
   static async getMyIp(retries=1) {
     try{
       if(this.myIP !== null){
@@ -418,13 +418,8 @@ class Operator {
           log.info(`asking myip from ${this.OpNodes[i].ip}`);
           let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
           log.info(`response from ${this.OpNodes[i].ip} was ${tempIp}`);
-          /*let j=1;
-          while(tempIp===null && j < 6){
-            log.info(`node ${this.OpNodes[i].ip} not responding to api port ${config.containerApiPort}, retrying ${j}/5...`);
-            await timer.setTimeout(5000);
-            tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-            j++;
-          }*/
+          let j=1;
+
           if(tempIp!==null){
             this.myIP = tempIp;
             log.info(`My ip is ${JSON.stringify(tempIp)}`);
@@ -435,7 +430,7 @@ class Operator {
         await this.updateAppInfo();
         await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
-        /*log.info(`all response list: ${JSON.stringify(ipList)}`);
+        log.info(`all response list: ${JSON.stringify(ipList)}`);
         //find the highest occurrence in the array 
         if(ipList.length>=2){
           const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
@@ -447,12 +442,14 @@ class Operator {
           await this.updateAppInfo();
           await timer.setTimeout(15000 * retries);
           return this.getMyIp(retries+1);
-        }*/
+        }
       }
     }catch(err){
       log.error(err);
     }
   }
+  */
+
 
   /**
   * [ConnectLocalDB]

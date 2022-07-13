@@ -15,22 +15,12 @@ class DBClient {
   */
   async init() {
     if (config.dbType === 'mysql') {
-      if(this.InitDB){
-        this.connection = await mySql.createConnection({
-          host: config.dbHost,
-          user: config.dbUser,
-          password: config.dbPass,
-          port: config.dbPort,
-        });
-      }else{
-        this.connection = await mySql.createConnection({
-          host: config.dbHost,
-          user: config.dbUser,
-          password: config.dbPass,
-          port: config.dbPort,
-          database: this.InitDB,
-        });
-      }
+      this.connection = await mySql.createConnection({
+        host: config.dbHost,
+        user: config.dbUser,
+        password: config.dbPass,
+        port: config.dbPort,
+      });
       this.connection.once('error', () => {
         this.connected = false;
         console.log(`mysql connected: ${this.connected }`);
@@ -48,7 +38,9 @@ class DBClient {
       
       try {
         if(!this.connected){
+          log.info(`DB connecten was lost, reconnecting...`);
           await this.init();
+          this.setDB(this.InitDB);
         }
         const [rows, fields, err] = await this.connection.query(query);
         if (rawResult) return [rows, fields, err];
@@ -104,13 +96,14 @@ class DBClient {
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
-      this.connection = await mySql.createConnection({
-        host: config.dbHost,
-        user: config.dbUser,
-        password: config.dbPass,
-        port: config.dbPort,
-        database: this.InitDB,
-      });
+      this.connection.changeUser({
+        database : dbName
+      }, (err) => {
+          if (err) {
+            console.log('Error in changing database', err);
+            return;
+          }
+      })
     }
   }
 }
