@@ -42,9 +42,9 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
-    log.info(`establishing persistent connection to master node...${this.masterNode},${this.IamMaster}`);
+    
     if(this.masterNode && !this.IamMaster){ 
-      
+      log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
         this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
           transports: ["websocket"], 
