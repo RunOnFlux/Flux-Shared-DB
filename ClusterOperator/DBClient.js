@@ -10,6 +10,7 @@ class DBClient {
     this.connected = false;
     this.InitDB = '';
     this.stream = null;
+    this.socketCallBack = null;
   }
    /**
   * [init]
@@ -33,11 +34,28 @@ class DBClient {
     });
   }
   /**
+  * [rawCallback]
+  */
+  rawCallback(data) {
+    if(this.socketCallBack)
+      this.socketCallBack.write(data);
+  }
+  /**
+  * [init]
+  */
+  setSocket(func) {
+    this.socketCallBack = func;
+  }
+  /**
   * [init]
   */
   async init() {
     if (config.dbType === 'mysql') {
       await this.createSrtream();
+      this.stream.on('data', data => {
+        console.log(data);
+        this.rawCallback(data)
+      });
       this.connection = await mySql.createConnection({
         password: config.dbPass,
         user: config.dbUser,
@@ -65,20 +83,7 @@ class DBClient {
           this.setDB(this.InitDB);
         }
         if (rawResult){
-          const stream = this.stream;
           this.connection.query(query);
-          return new Promise(function (resolve) {
-
-            stream.on('data', function (data) {
-
-              console.log(data);
-              let packetLength = data.readUIntLE(0,3);
-              console.log(`packetLength: ${packetLength}`);
-              console.log(`data: ${data.length}`);
-              resolve(data);
-            });
-          });
-          
         } else{
           const [rows, fields, err] = await this.connection.query(query);
           return rows;

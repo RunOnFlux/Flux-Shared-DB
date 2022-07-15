@@ -34,7 +34,8 @@ async function handleCommand({ command, extra }) {
   switch (command) {
     case consts.COM_QUERY:
       console.log(`Got query: ${extra.toString()}`);
-      handleQuery.call(this, await this.localDBClient.query(extra.toString(),true));
+      this.localDBClient.setSocket(this.socket);
+      await this.localDBClient.query(extra.toString(),true);
       break;
       case consts.COM_PING:
         this.sendOK({ message: 'OK' });
