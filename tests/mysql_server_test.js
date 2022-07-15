@@ -10,7 +10,6 @@ let appDBClient = null;
 
 async function init(){
   localDBClient = await dbClient.createClient();  
-  console.log(localDBClient);
   appDBClient = await mysql.createConnection({
     password: 'secret',
     port: 3307,
