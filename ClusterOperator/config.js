@@ -1,5 +1,5 @@
 module.exports = {
-  dbHost: process.env.DB_COMPONENT_NAME || '',
+  dbHost: process.env.DB_COMPONENT_NAME || 'localhost',
   dbType: 'mysql',
   dbUser: 'root',
   dbPass: process.env.DB_INIT_PASS || 'secret',
