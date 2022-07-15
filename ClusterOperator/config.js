@@ -1,5 +1,5 @@
 module.exports = {
-  dbHost: process.env.DB_COMPONENT_NAME || '',
+  dbHost: process.env.DB_COMPONENT_NAME || 'localhost',
   dbType: 'mysql',
   dbUser: 'root',
   dbPass: process.env.DB_INIT_PASS || 'secret',
@@ -16,7 +16,7 @@ module.exports = {
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || 'dbfluxtest4',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.53',
+  version: '0.9.54',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary
 };

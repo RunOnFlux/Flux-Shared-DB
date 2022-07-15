@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const mySql = require('mysql2/promise');
+const net = require('net');
 const config = require('./config');
 const log = require('../lib/log');
 
@@ -8,18 +9,57 @@ class DBClient {
     this.connection = {};
     this.connected = false;
     this.InitDB = '';
+    this.stream = null;
+    this.socketCallBack = null;
   }
-
+   /**
+  * [init]
+  */
+  async createSrtream() {
+    this.stream = net.connect({
+      host: config.dbHost,
+      port: config.dbPort,
+    })
+    const stream = this.stream;
+    return new Promise(function (resolve, reject) {
+      
+      stream.once('connect', function () {
+        stream.removeListener('error', reject);
+          resolve(stream);
+      });
+      stream.once('error', function (err) {
+        stream.removeListener('connection', resolve);
+          reject(err);
+      });
+    });
+  }
+  /**
+  * [rawCallback]
+  */
+  rawCallback(data) {
+    if(this.socketCallBack)
+      this.socketCallBack.write(data);
+  }
+  /**
+  * [init]
+  */
+  setSocket(func) {
+    this.socketCallBack = func;
+  }
   /**
   * [init]
   */
   async init() {
     if (config.dbType === 'mysql') {
+      await this.createSrtream();
+      this.stream.on('data', data => {
+        console.log(data);
+        this.rawCallback(data)
+      });
       this.connection = await mySql.createConnection({
-        host: config.dbHost,
-        user: config.dbUser,
         password: config.dbPass,
-        port: config.dbPort,
+        user: config.dbUser,
+        stream: this.stream,
       });
       this.connection.once('error', () => {
         this.connected = false;
@@ -42,9 +82,12 @@ class DBClient {
           await this.init();
           this.setDB(this.InitDB);
         }
-        const [rows, fields, err] = await this.connection.query(query);
-        if (rawResult) return [rows, fields, err];
-        return rows;
+        if (rawResult){
+          this.connection.query(query);
+        } else{
+          const [rows, fields, err] = await this.connection.query(query);
+          return rows;
+        }
       } catch (err) {
         log.info(err);
         return [null,null,err];

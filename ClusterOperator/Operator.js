@@ -179,17 +179,20 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString(); 
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          
+          console.log(`Got Query: ${query}`);
           for(const queryItem of analyzedQueries){
             if(queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
               //forward it to the master node
               var result = await this.sendWriteQuery(queryItem[0]);
+              this.sendOK({ message: 'OK' });
             }else{
               //forward it to the local DB
+              this.localDB.setSocket(this.socket);
               var result = await this.localDB.query(queryItem[0], true);
             }
             //log.info(result);
             // Then send it back to the user in table format
+            /*
             if(result[1]){
               let fieldNames = [];
               for (let definition of result[1]) fieldNames.push(definition.name);
@@ -214,10 +217,10 @@ class Operator {
             }else{
               //this.sendError({ message: result[3] });
               //break;
-            }
+            }*/
           }
          
-          this.sendOK({ message: 'OK' });
+
           break;
         case mySQLConsts.COM_PING:
           this.sendOK({ message: 'OK' });
