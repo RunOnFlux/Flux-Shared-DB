@@ -8,13 +8,13 @@ const consts = require('../lib/mysqlConstants');
 let localDBClient = null;
 let appDBClient = null;
 
-async function init(){
-  localDBClient = await dbClient.createClient();  
+async function init() {
+  localDBClient = await dbClient.createClient();
   appDBClient = await mysql.createConnection({
     password: 'secret',
     port: 3307,
-    host: 'localhost'
-  }); 
+    host: 'localhost',
+  });
 }
 function handleAuthorize(param) {
   console.log('Auth Info:');
@@ -25,7 +25,7 @@ function handleAuthorize(param) {
 
 function handleQuery(result) {
   // Take the query, print it out
-  //console.log(`Got Result: ${JSON.stringify(result)}`);
+  // console.log(`Got Result: ${JSON.stringify(result)}`);
   this.sendPacket(result);
 }
 async function handleCommand({ command, extra }) {
@@ -34,27 +34,27 @@ async function handleCommand({ command, extra }) {
     case consts.COM_QUERY:
       console.log(`Got query: ${extra.toString()}`);
       this.localDBClient.setSocket(this.socket);
-      await this.localDBClient.query(extra.toString(),true);
+      await this.localDBClient.query(extra.toString(), true);
       break;
-      case consts.COM_PING:
-        this.sendOK({ message: 'OK' });
-        break;
-      case null:
-      case undefined:
-      case consts.COM_QUIT:
-        console.log('Disconnecting');
-        this.end();
-        break;
-      case consts.COM_INIT_DB:
-        var result = await this.localDBClient.query(`use ${extra}`);
-        console.log(`extra is ${extra}`)
-        this.sendOK({ message: 'OK' });
-        break;
-      default:
-        console.log(`Unknown Command: ${command}`);
-        this.sendError({ message: 'Unknown Command' });
-        break;
-    }
+    case consts.COM_PING:
+      this.sendOK({ message: 'OK' });
+      break;
+    case null:
+    case undefined:
+    case consts.COM_QUIT:
+      console.log('Disconnecting');
+      this.end();
+      break;
+    case consts.COM_INIT_DB:
+      await this.localDBClient.query(`use ${extra}`);
+      console.log(`extra is ${extra}`);
+      this.sendOK({ message: 'OK' });
+      break;
+    default:
+      console.log(`Unknown Command: ${command}`);
+      this.sendError({ message: 'Unknown Command' });
+      break;
+  }
 }
 
 net.createServer((so) => {
@@ -62,14 +62,10 @@ net.createServer((so) => {
     socket: so,
     onAuthorize: handleAuthorize,
     onCommand: handleCommand,
-    localDBClient: localDBClient
+    localDBClient,
   });
 }).listen(3307);
 
 console.log('Started server on port 3307');
-
-
-
-
 
 init();
