@@ -12,49 +12,51 @@ class DBClient {
     this.stream = null;
     this.socketCallBack = null;
   }
-   /**
+
+  /**
   * [init]
   */
   async createSrtream() {
     this.stream = net.connect({
       host: config.dbHost,
       port: config.dbPort,
-    })
-    const stream = this.stream;
-    return new Promise(function (resolve, reject) {
-      
-      stream.once('connect', function () {
+    });
+    const { stream } = this;
+    return new Promise((resolve, reject) => {
+      stream.once('connect', () => {
         stream.removeListener('error', reject);
-          resolve(stream);
+        resolve(stream);
       });
-      stream.once('error', function (err) {
+      stream.once('error', (err) => {
         stream.removeListener('connection', resolve);
-          reject(err);
+        reject(err);
       });
     });
   }
+
   /**
   * [rawCallback]
   */
   rawCallback(data) {
-    if(this.socketCallBack)
-      this.socketCallBack.write(data);
+    if (this.socketCallBack) { this.socketCallBack.write(data); }
   }
+
   /**
   * [init]
   */
   setSocket(func) {
     this.socketCallBack = func;
   }
+
   /**
   * [init]
   */
   async init() {
     if (config.dbType === 'mysql') {
       await this.createSrtream();
-      this.stream.on('data', data => {
+      this.stream.on('data', (data) => {
         console.log(data);
-        this.rawCallback(data)
+        this.rawCallback(data);
       });
       this.connection = await mySql.createConnection({
         password: config.dbPass,
@@ -63,7 +65,7 @@ class DBClient {
       });
       this.connection.once('error', () => {
         this.connected = false;
-        console.log(`mysql connected: ${this.connected }`);
+        console.log(`mysql connected: ${this.connected}`);
       });
       this.connected = true;
     }
@@ -75,26 +77,26 @@ class DBClient {
   */
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
-      
       try {
-        if(!this.connected){
-          log.info(`DB connecten was lost, reconnecting...`);
+        if (!this.connected) {
+          log.info('DB connecten was lost, reconnecting...');
           await this.init();
           this.setDB(this.InitDB);
         }
-        if (rawResult){
+        if (rawResult) {
           this.connection.query(query);
-        } else{
+        } else {
           const [rows, fields, err] = await this.connection.query(query);
           return rows;
         }
       } catch (err) {
         log.info(err);
-        return [null,null,err];
+        return [null, null, err];
       }
     }
     return null;
   }
+
   /**
   * [execute]
   * @param {string} query [description]
@@ -103,7 +105,7 @@ class DBClient {
   async execute(query, params, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
-        if(!this.connected){
+        if (!this.connected) {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
@@ -111,13 +113,13 @@ class DBClient {
         return rows;
       } catch (err) {
         log.info(err);
-        return [null,null,err];
+        return [null, null, err];
       }
     }
     return null;
   }
 
-  /** 
+  /**
   * [createDB]
   * @param {string} dbName [description]
   */
@@ -140,13 +142,12 @@ class DBClient {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
       this.connection.changeUser({
-        database : dbName
+        database: dbName,
       }, (err) => {
-          if (err) {
-            console.log('Error in changing database', err);
-            return;
-          }
-      })
+        if (err) {
+          console.log('Error in changing database', err);
+        }
+      });
     }
   }
 }
