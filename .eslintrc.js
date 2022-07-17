@@ -28,9 +28,10 @@ module.exports = {
       'windows',
     ],
   },
-  parser: 'babel-eslint',
+  parser: '@babel/eslint-parser',
   parserOptions: {
-    ecmaVersion: 6,
+    ecmaVersion: 8,
+    requireConfigFile: false,
     ecmaFeatures: {
       experimentalObjectRestSpread: true,
     },
