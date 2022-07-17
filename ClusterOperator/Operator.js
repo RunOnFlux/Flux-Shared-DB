@@ -34,7 +34,7 @@ class Operator {
 
   static masterWSConn;
 
-  static status = 'initializing';
+  static status = 'INIT';
 
   static serverSocket;
 
@@ -84,7 +84,11 @@ class Operator {
         });
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp) => {
           log.info(`query from master:${query},${sequenceNumber},${timestamp}`);
-          await BackLog.pushQuery(query, sequenceNumber, timestamp);
+          if (this.status === 'OK') {
+            await BackLog.pushQuery(query, sequenceNumber, timestamp);
+          } else {
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
+          }
         });
       } catch (e) {
         log.error(e);
@@ -158,7 +162,7 @@ class Operator {
     }
     log.info(`sending query to slaves: ${query}`);
     const result = await BackLog.pushQuery(query);
-    this.serverSocket.emit('query', query, result[1], result[2]);
+    if (result) this.serverSocket.emit('query', query, result[1], result[2]);
     return result[0];
   }
 
@@ -263,9 +267,10 @@ class Operator {
   */
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
-      this.status = 'sync';
+      this.status = 'SYNC';
       let masterSN = BackLog.sequenceNumber + 1;
-      while (BackLog.sequenceNumber < masterSN) {
+      let copyBuffer = false;
+      while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         const index = BackLog.sequenceNumber;
         const response = await fluxAPI.getBackLog(index, this.masterWSConn);
         masterSN = response.sequenceNumber;
@@ -273,8 +278,10 @@ class Operator {
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
+        if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
       }
-      this.status = 'ready';
+      if (copyBuffer) await BackLog.moveBufferToBacklog();
+      this.status = 'OK';
     }
   }
 

@@ -1,3 +1,5 @@
+/* eslint-disable no-else-return */
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-empty-function */
 
 const dbClient = require('./DBClient');
@@ -89,14 +91,18 @@ class BackLog {
             [this.sequenceNumber, query, timestamp],
           );
           return [null, this.sequenceNumber, timestamp];
+        } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
+          const result2 = await this.UserDBClient.query(query);
+          if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+          await this.BLClient.execute(
+            `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+            [this.sequenceNumber, query, timestamp],
+          );
+          return [result2, this.sequenceNumber, timestamp];
+        } else {
+          log.error(`Wrong query order skipping pushQuery. ${this.sequenceNumber} + 1 <> ${seq}`);
+          return [];
         }
-        const result2 = await this.UserDBClient.query(query);
-        if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
-        await this.BLClient.execute(
-          `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
-          [this.sequenceNumber, query, timestamp],
-        );
-        return [result2, this.sequenceNumber, timestamp];
       }
     } catch (e) {
       log.error('error executing query');
@@ -228,6 +234,29 @@ class BackLog {
     }
     this.buffer = [];
     log.info('All buffer data removed successfully.');
+  }
+
+  /**
+  * [moveBufferToBacklog]
+  */
+  static async moveBufferToBacklog() {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+        for (const record of records) {
+          // eslint-disable-next-line no-await-in-loop
+          await this.pushQuery(record.query, record.seq, record.timestamp);
+        }
+        this.clearBuffer();
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    log.info('All buffer data moved to backlog successfully.');
   }
 }
 
