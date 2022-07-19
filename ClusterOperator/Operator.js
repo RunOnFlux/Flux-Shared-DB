@@ -20,6 +20,8 @@ class Operator {
 
   static OpNodes = [];
 
+  static AppNodes = [];
+
   static clientNodes = [];
 
   static nodeInstances = 0;
@@ -115,6 +117,7 @@ class Operator {
             masterWSConn: this.masterWSConn,
             BACKLOG_DB: config.dbBacklog,
             IamMaster: this.IamMaster,
+            appIPList: this.appIPList,
             isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery,
           });
@@ -141,6 +144,7 @@ class Operator {
       if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('80.239.140.')) {
         return true;
       }
+      if (this.appIPList.includes(remoteIp)) return true;
     } catch (err) {
       log.error(err);
     }
@@ -299,12 +303,23 @@ class Operator {
         await timer.setTimeout(10000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       }
+      let appIPList = [];
+      if (config.DBAppName === config.AppName) {
+        appIPList = ipList;
+      } else {
+        appIPList = await fluxAPI.getApplicationIP(config.AppName);
+      }
       this.OpNodes = [];
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         // eslint-disable-next-line prefer-destructuring
         if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
         this.OpNodes.push({ ip: ipList[i].ip, active: null });
+      }
+      for (let i = 0; i < appIPList.length; i += 1) {
+        // eslint-disable-next-line prefer-destructuring
+        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+        this.AppNodes.push(appIPList[i].ip);
       }
       // log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
 
@@ -339,8 +354,14 @@ class Operator {
   static async doHealthCheck() {
     try {
       const ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-
+      let appIPList = [];
+      if (config.DBAppName === config.AppName) {
+        appIPList = ipList;
+      } else {
+        appIPList = await fluxAPI.getApplicationIP(config.AppName);
+      }
       this.OpNodes = [];
+      this.AppNodes = [];
       let checkMasterIp = false;
       const nodeList = [];
       for (let i = 0; i < ipList.length; i += 1) {
@@ -351,9 +372,15 @@ class Operator {
         this.OpNodes.push({ ip: ipList[i].ip, active: null });
         if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
       }
+      for (let i = 0; i < appIPList.length; i += 1) {
+        // eslint-disable-next-line prefer-destructuring
+        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+        this.AppNodes.push(appIPList[i].ip);
+      }
       log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
+      log.info(`app ip's: ${JSON.stringify(this.AppNodes)}`);
       if (this.masterNode && !checkMasterIp) {
-        // master removed from the list, should find a new master
+        log.info('master removed from the list, should find a new master');
         this.findMaster();
       }
     } catch (err) {

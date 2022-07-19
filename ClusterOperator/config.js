@@ -15,7 +15,7 @@ module.exports = {
   containerDBPort: process.env.DB_PORT || 33949,
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || 'dbfluxtest4',
-  AppName: process.env.CLIENT_APPNAME || '',
+  AppName: process.env.CLIENT_APPNAME || 'dbfluxtest4',
   version: '0.9.54',
   whiteListedIps: process.env.WHITELIST || '::1',
   clusterList: [], // Temporary

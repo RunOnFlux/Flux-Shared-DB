@@ -1,6 +1,5 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-/* eslint-disable no-empty-function */
 
 const dbClient = require('./DBClient');
 const config = require('./config');
@@ -124,8 +123,8 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} LIMIT ${startFrom},${pageSize} `);
-        log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} LIMIT ${startFrom},${pageSize}`);
+        // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return totalRecords;
       }
     } catch (e) {
