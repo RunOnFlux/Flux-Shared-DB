@@ -11,6 +11,7 @@ class DBClient {
     this.InitDB = '';
     this.stream = null;
     this.socketCallBack = null;
+    this.enableSocketWrite = false;
   }
 
   /**
@@ -38,7 +39,11 @@ class DBClient {
   * [rawCallback]
   */
   rawCallback(data) {
-    if (this.socketCallBack) { this.socketCallBack.write(data); }
+    if (this.socketCallBack) {
+      this.socketCallBack.write(data);
+      this.enableSocketWrite = false;
+      log.info(`writing data ${data.length}`);
+    }
   }
 
   /**
@@ -46,6 +51,7 @@ class DBClient {
   */
   setSocket(func) {
     this.socketCallBack = func;
+    this.enableSocketWrite = true;
   }
 
   /**
@@ -55,7 +61,6 @@ class DBClient {
     if (config.dbType === 'mysql') {
       await this.createSrtream();
       this.stream.on('data', (data) => {
-        console.log(data);
         this.rawCallback(data);
       });
       this.connection = await mySql.createConnection({
@@ -84,7 +89,9 @@ class DBClient {
           this.setDB(this.InitDB);
         }
         if (rawResult) {
-          this.connection.query(query);
+          const [rows, fields, err] = await this.connection.query(query);
+          return [rows, fields, err];
+        // eslint-disable-next-line no-else-return
         } else {
           const [rows, fields, err] = await this.connection.query(query);
           return rows;

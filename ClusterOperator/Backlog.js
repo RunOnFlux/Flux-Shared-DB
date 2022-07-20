@@ -91,13 +91,14 @@ class BackLog {
           );
           return [null, this.sequenceNumber, timestamp];
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
-          const result2 = await this.UserDBClient.query(query);
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+          const seqForThis = this.sequenceNumber;
+          const result2 = await this.UserDBClient.query(query);
           await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
-            [this.sequenceNumber, query, timestamp],
+            [seqForThis, query, timestamp],
           );
-          return [result2, this.sequenceNumber, timestamp];
+          return [result2, seqForThis, timestamp];
         } else {
           log.error(`Wrong query order skipping pushQuery. ${this.sequenceNumber} + 1 <> ${seq}`);
           return [];

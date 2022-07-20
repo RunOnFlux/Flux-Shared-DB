@@ -137,7 +137,7 @@ class Operator {
   static handleAuthorize(param) {
     try {
       log.info('Auth Info:');
-      log.info(param);
+      log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
       if (remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
       const whiteList = config.whiteListedIps.split(',');
@@ -200,7 +200,7 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          console.log(`Got Query: ${query}`);
+          log.info(`Got Query: ${query}`);
           for (const queryItem of analyzedQueries) {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
@@ -209,7 +209,8 @@ class Operator {
             } else {
               // forward it to the local DB
               this.localDB.setSocket(this.socket);
-              await this.localDB.query(queryItem[0], true);
+              let result = await this.localDB.query(queryItem[0], true);
+              // log.info(`result: ${JSON.stringify(result)}`);
             }
             // log.info(result);
             // Then send it back to the user in table format
