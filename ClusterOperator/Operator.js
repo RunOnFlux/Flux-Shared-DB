@@ -144,6 +144,7 @@ class Operator {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
+      log.info(`DB connection rejected from ${remoteIp}`);
     } catch (err) {
       log.error(err);
     }
