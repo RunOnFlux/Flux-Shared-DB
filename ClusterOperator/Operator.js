@@ -44,9 +44,11 @@ class Operator {
   * [initLocalDB]
   */
   static async initLocalDB() {
-    await BackLog.createBacklog(this.localDB);
+    await BackLog.createBacklog();
     if (config.dbInitDB) {
       await this.localDB.createDB(config.dbInitDB);
+      BackLog.UserDBClient = this.localDB;
+      BackLog.UserDBClient.setDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
     }
   }
