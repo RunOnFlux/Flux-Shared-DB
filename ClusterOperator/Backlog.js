@@ -22,9 +22,9 @@ class BackLog {
   * [createBacklog]
   * @param {object} params [description]
   */
-  static async createBacklog() {
+  static async createBacklog(UserDBClient) {
     this.BLClient = await dbClient.createClient();
-    this.UserDBClient = await dbClient.createClient();
+    this.UserDBClient = UserDBClient;
     try {
       if (config.dbType === 'mysql') {
         const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);

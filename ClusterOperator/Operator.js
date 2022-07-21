@@ -44,10 +44,9 @@ class Operator {
   * [initLocalDB]
   */
   static async initLocalDB() {
-    await BackLog.createBacklog();
+    await BackLog.createBacklog(this.localDB);
     if (config.dbInitDB) {
       await this.localDB.createDB(config.dbInitDB);
-      BackLog.UserDBClient.setDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
     }
   }
@@ -85,7 +84,7 @@ class Operator {
           this.initMasterConnection();
         });
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, sendToClient) => {
-          log.info(`query from master:${query},${sequenceNumber},${timestamp}`);
+          log.info(`query from master:${query},${sequenceNumber},${timestamp},${sendToClient}`);
           if (this.status === 'OK') {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, false, sendToClient);
           } else {
