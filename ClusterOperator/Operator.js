@@ -200,12 +200,12 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          log.info(`Got Query: ${query}`);
           for (const queryItem of analyzedQueries) {
+            log.info(`got Query: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               await this.sendWriteQuery(queryItem[0]);
-              this.sendOK({ message: 'OK' });
+              // this.sendOK({ message: 'OK' });
             } else {
               // forward it to the local DB
               this.localDB.setSocket(this.socket);
@@ -244,6 +244,7 @@ class Operator {
 
           break;
         case mySQLConsts.COM_PING:
+          console.log('got ping');
           this.sendOK({ message: 'OK' });
           break;
         case null:
@@ -254,8 +255,7 @@ class Operator {
           break;
         case mySQLConsts.COM_INIT_DB:
           await this.localDB.query(`use ${extra}`);
-          log.info(`extra is ${extra}`);
-          this.sendOK({ message: 'OK' });
+          //this.sendOK({ message: 'OK' });
           break;
         default:
           log.info(`Unknown Command: ${command}`);

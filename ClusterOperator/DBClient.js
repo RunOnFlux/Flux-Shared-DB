@@ -41,7 +41,6 @@ class DBClient {
   rawCallback(data) {
     if (this.socketCallBack) {
       this.socketCallBack.write(data);
-      this.enableSocketWrite = false;
       log.info(`writing data ${data.length}`);
     }
   }
@@ -82,6 +81,7 @@ class DBClient {
   */
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
+      log.info(`running Query: ${query}`);
       try {
         if (!this.connected) {
           log.info('DB connecten was lost, reconnecting...');
