@@ -73,7 +73,7 @@ class BackLog {
   * @param {int} timestamp [description]
   * @return {Array}
   */
-  static async pushQuery(query, seq = 0, timestamp, buffer = false) {
+  static async pushQuery(query, seq = 0, timestamp, buffer = false, sendToClient = false) {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
@@ -93,7 +93,7 @@ class BackLog {
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
-          this.UserDBClient.enableSocketWrite = false;
+          this.UserDBClient.enableSocketWrite = sendToClient;
           const result2 = await this.UserDBClient.query(query);
           await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,

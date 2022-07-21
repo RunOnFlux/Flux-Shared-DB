@@ -83,7 +83,9 @@ async function initServer() {
         const result = await BackLog.pushQuery(query);
         log.info(`query result: ${JSON.stringify(result)}`);
         log.info(`forwarding query to slaves: ${query}`);
-        io.emit('query', query, result[1], result[2]);
+        socket.broadcast.emit('query', query, result[1], result[2], false);
+        socket.emit('query', query, result[1], result[2], true);
+        // io.emit('query', query, result[1], result[2]);
         callback({ status: 'success', result: result[0] });
       });
     } else {

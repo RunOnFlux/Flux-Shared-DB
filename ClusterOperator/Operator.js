@@ -84,10 +84,10 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.masterWSConn.on('query', async (query, sequenceNumber, timestamp) => {
+        this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, sendToClient) => {
           log.info(`query from master:${query},${sequenceNumber},${timestamp}`);
           if (this.status === 'OK') {
-            await BackLog.pushQuery(query, sequenceNumber, timestamp);
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, false, sendToClient);
           } else {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
@@ -200,15 +200,17 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
+          this.localDB.setSocket(this.socket);
           for (const queryItem of analyzedQueries) {
             log.info(`got Query: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               await this.sendWriteQuery(queryItem[0]);
-              this.sendOK({ message: 'OK' });
+              // this.localDB.enableSocketWrite = false;
+              // let result = await this.localDB.query(queryItem[0], true);
+              // this.sendOK({ message: 'OK' });
             } else {
               // forward it to the local DB
-              this.localDB.setSocket(this.socket);
               // eslint-disable-next-line prefer-const
               let result = await this.localDB.query(queryItem[0], true);
               // log.info(`result: ${JSON.stringify(result)}`);
