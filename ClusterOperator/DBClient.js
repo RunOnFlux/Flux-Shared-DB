@@ -39,7 +39,7 @@ class DBClient {
   * [rawCallback]
   */
   rawCallback(data) {
-    if (this.socketCallBack) {
+    if (this.socketCallBack && this.enableSocketWrite) {
       this.socketCallBack.write(data);
       log.info(`writing data ${data.length}`);
     }

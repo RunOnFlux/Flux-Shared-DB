@@ -205,10 +205,11 @@ class Operator {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               await this.sendWriteQuery(queryItem[0]);
-              // this.sendOK({ message: 'OK' });
+              this.sendOK({ message: 'OK' });
             } else {
               // forward it to the local DB
               this.localDB.setSocket(this.socket);
+              // eslint-disable-next-line prefer-const
               let result = await this.localDB.query(queryItem[0], true);
               // log.info(`result: ${JSON.stringify(result)}`);
             }
@@ -254,8 +255,9 @@ class Operator {
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:
+          this.localDB.setSocket(this.socket);
           await this.localDB.query(`use ${extra}`);
-          //this.sendOK({ message: 'OK' });
+          // this.sendOK({ message: 'OK' });
           break;
         default:
           log.info(`Unknown Command: ${command}`);
