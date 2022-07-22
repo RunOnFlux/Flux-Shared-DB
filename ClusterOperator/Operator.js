@@ -167,8 +167,8 @@ class Operator {
       });
     }
     log.info(`sending query to slaves: ${query}`);
-    const result = await BackLog.pushQuery(query);
-    if (result) this.serverSocket.emit('query', query, result[1], result[2]);
+    const result = await BackLog.pushQuery(query, 0, Date.now(), false, true);
+    if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
     return result[0];
   }
 
