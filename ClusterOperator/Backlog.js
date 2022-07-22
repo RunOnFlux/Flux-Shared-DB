@@ -83,13 +83,13 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         if (buffer) {
-          if (seq === 0) { this.bufferSequenceNumber += 1; } else { this.bufferSequenceNumber = seq; }
-          if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = this.bufferSequenceNumber;
+          if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
+          this.bufferSequenceNumber = seq;
           await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogBuffer} (seq, query, timestamp) VALUES (?,?,?)`,
-            [this.sequenceNumber, query, timestamp],
+            [seq, query, timestamp],
           );
-          return [null, this.sequenceNumber, timestamp];
+          return [null, seq, timestamp];
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
@@ -245,18 +245,22 @@ class BackLog {
       this.BLClient = await dbClient.createClient();
       if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
-    try {
-      if (config.dbType === 'mysql') {
-        const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
-        for (const record of records) {
+
+    if (config.dbType === 'mysql') {
+      const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+      for (const record of records) {
+        log.info(`copying seq(${record.seq}) from buffer`);
+        try {
           // eslint-disable-next-line no-await-in-loop
           await this.pushQuery(record.query, record.seq, record.timestamp);
+        } catch (e) {
+          log.error(e);
         }
-        this.clearBuffer();
+        // eslint-disable-next-line no-await-in-loop
+        await this.BLClient.execute(`DELETE FROM ${config.dbBacklogBuffer} WHERE seq=?`, [record.seq]);
       }
-    } catch (e) {
-      log.error(e);
     }
+    this.clearBuffer();
     log.info('All buffer data moved to backlog successfully.');
   }
 }
