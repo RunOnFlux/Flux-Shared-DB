@@ -384,8 +384,8 @@ class Operator {
         if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
         this.AppNodes.push(appIPList[i].ip);
       }
-      log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
-      log.info(`app ip's: ${JSON.stringify(this.AppNodes)}`);
+      // log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
+      // log.info(`app ip's: ${JSON.stringify(this.AppNodes)}`);
       if (this.masterNode && !checkMasterIp) {
         log.info('master removed from the list, should find a new master');
         this.findMaster();
