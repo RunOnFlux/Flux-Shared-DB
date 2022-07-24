@@ -167,7 +167,7 @@ class Operator {
       });
     }
     const result = await BackLog.pushQuery(query, 0, Date.now(), false, true);
-    log.info(`sending query to slaves: ${result}`);
+    log.info(`sending query to slaves: ${JSON.stringify(result)}`);
     if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
     return result[0];
   }
@@ -285,7 +285,7 @@ class Operator {
         const index = BackLog.sequenceNumber;
         const response = await fluxAPI.getBackLog(index, this.masterWSConn);
         masterSN = response.sequenceNumber;
-        log.info(`sync backlog: ${JSON.stringify(response)}`);
+        log.info(`sync backlog from ${index} to ${index + response.records.length}`);
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
