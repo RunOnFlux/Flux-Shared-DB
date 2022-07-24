@@ -86,7 +86,7 @@ class Operator {
           this.initMasterConnection();
         });
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, sendToClient) => {
-          log.info(`query from master:${query},${sequenceNumber},${timestamp},${sendToClient}`);
+          log.info(`query from master:${sequenceNumber},${timestamp},${sendToClient}`);
           if (this.status === 'OK') {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, false, sendToClient);
           } else {
@@ -166,8 +166,8 @@ class Operator {
         });
       });
     }
-    log.info(`sending query to slaves: ${query}`);
     const result = await BackLog.pushQuery(query, 0, Date.now(), false, true);
+    log.info(`sending query to slaves: ${result}`);
     if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
     return result[0];
   }
@@ -204,7 +204,7 @@ class Operator {
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           this.localDB.setSocket(this.socket);
           for (const queryItem of analyzedQueries) {
-            log.info(`got Query: ${queryItem}`);
+            // log.info(`got Query: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               await this.sendWriteQuery(queryItem[0]);

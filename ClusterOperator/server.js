@@ -79,10 +79,9 @@ async function initServer() {
         callback({ status: 'success', sequenceNumber: BackLog.sequenceNumber, records });
       });
       socket.on('writeQuery', async (query, callback) => {
-        log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)} : ${query}`);
+        log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}`);
         const result = await BackLog.pushQuery(query);
-        log.info(`query result: ${JSON.stringify(result)}`);
-        log.info(`forwarding query to slaves: ${query}`);
+        log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], true);
         // io.emit('query', query, result[1], result[2]);

@@ -81,7 +81,7 @@ class DBClient {
   */
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
-      log.info(`running Query: ${query}`);
+      // log.info(`running Query: ${query}`);
       try {
         if (!this.connected) {
           log.info('DB connecten was lost, reconnecting...');
