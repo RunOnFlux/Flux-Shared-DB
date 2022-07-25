@@ -148,6 +148,7 @@ class DBClient {
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
+      log.info(`seeting db to ${dbName}`);
       this.connection.changeUser({
         database: dbName,
       }, (err) => {
