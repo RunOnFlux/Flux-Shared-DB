@@ -406,6 +406,8 @@ class Operator {
         await this.updateAppInfo();
         // find master candidate
         const masterCandidates = [];
+        // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
+        this.OpNodes.sort((a, b) => (a.ip > b.ip) ? 1 : ((b.ip > a.ip) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
         }
