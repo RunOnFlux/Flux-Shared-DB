@@ -98,7 +98,7 @@ class BackLog {
           if (connId === false) {
             result2 = await this.UserDBClient.query(query);
           } else {
-            result2 = await ConnectionPool.getConnectionById[connId].query(query);
+            result2 = await ConnectionPool.getConnectionById(connId).query(query);
           }
           await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
