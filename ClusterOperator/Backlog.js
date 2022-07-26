@@ -4,6 +4,7 @@
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
+const ConnectionPool = require('../lib/ConnectionPool');
 
 class BackLog {
   static buffer = [];
@@ -73,7 +74,7 @@ class BackLog {
   * @param {int} timestamp [description]
   * @return {Array}
   */
-  static async pushQuery(query, seq = 0, timestamp, buffer = false, sendToClient = false) {
+  static async pushQuery(query, seq = 0, timestamp, buffer = false, connId = false) {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
@@ -93,8 +94,12 @@ class BackLog {
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
-          this.UserDBClient.enableSocketWrite = sendToClient;
-          const result2 = await this.UserDBClient.query(query);
+          let result2 = null;
+          if (connId === false) {
+            result2 = await this.UserDBClient.query(query);
+          } else {
+            result2 = await ConnectionPool.getConnectionById[connId].query(query);
+          }
           await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],

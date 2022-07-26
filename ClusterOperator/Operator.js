@@ -14,6 +14,7 @@ const config = require('./config');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
+const ConnectionPool = require('../lib/ConnectionPool');
 
 class Operator {
   static localDB = null;
@@ -50,6 +51,7 @@ class Operator {
       BackLog.UserDBClient = this.localDB;
       BackLog.UserDBClient.setDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
+      await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
     }
   }
 
@@ -85,10 +87,10 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, sendToClient) => {
-          log.info(`query from master:${sequenceNumber},${timestamp},${sendToClient}`);
+        this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
+          log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
           if (this.status === 'OK') {
-            await BackLog.pushQuery(query, sequenceNumber, timestamp, false, sendToClient);
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
           } else {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
@@ -157,11 +159,11 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query) {
+  static async sendWriteQuery(query, connId) {
     if (!this.IamMaster) {
       const { masterWSConn } = this;
       return new Promise((resolve) => {
-        masterWSConn.emit('writeQuery', query, (response) => {
+        masterWSConn.emit('writeQuery', query, connId, (response) => {
           resolve(response.result);
         });
       });
@@ -195,26 +197,25 @@ class Operator {
   * @param {int} command [description]
   * @param {string} extra [description]
   */
-  static async handleCommand({ command, extra }) {
+  static async handleCommand({ command, extra, id }) {
     try {
-    // command is a numeric ID, extra is a Buffer
+      // command is a numeric ID, extra is a Buffer
       switch (command) {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          this.localDB.setSocket(this.socket);
           for (const queryItem of analyzedQueries) {
-            // log.info(`got Query: ${queryItem}`);
+            log.info(`got Query from ${id}: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
-              await this.sendWriteQuery(queryItem[0]);
+              await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
               // this.sendOK({ message: 'OK' });
             } else {
               // forward it to the local DB
               // eslint-disable-next-line prefer-const
-              let result = await this.localDB.query(queryItem[0], true);
+              let result = await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
               // log.info(`result: ${JSON.stringify(result)}`);
             }
             // log.info(result);
@@ -255,7 +256,7 @@ class Operator {
         case null:
         case undefined:
         case mySQLConsts.COM_QUIT:
-          log.info('Disconnecting');
+          log.info(`Disconnecting from ${id}`);
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:

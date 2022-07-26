@@ -1,34 +1,37 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 
-let connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'me',
-  password: 'secret',
-  database: 'my_db',
-  port: '3306',
-});
+async function test() {
+  const connection = await mysql.createConnection({
+    host: 'localhost',
+    user: 'me',
+    password: 'secret',
+    database: 'my_db',
+    port: '3307',
+  });
 
-connection.connect();
+  console.log(await connection.query('Show Databases'));
 
-connection.query('Show Databases', (error, results, fields) => {
-  if (error) throw error;
-  console.log('The solution is: ', [results, fields]);
-});
+  // connection.end();
 
-connection.end();
+  const connection2 = await mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '123',
+    port: '3307',
+  });
+  console.log(await connection2.query('SHOw Databases'));
 
-connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '123',
-  port: '3307',
-});
+  const connection3 = await mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '123',
+    port: '3307',
+  });
 
-connection.connect();
+  console.log(await connection3.query('SHOW Databases'));
 
-connection.query('Show Databases', (error, results, fields) => {
-  if (error) throw error;
-  console.log('The solution is: ', [results, fields]);
-});
-
-connection.end();
+  connection.end();
+  connection2.end();
+  connection3.end();
+}
+test();

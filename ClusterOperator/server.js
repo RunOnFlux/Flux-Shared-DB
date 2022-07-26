@@ -78,12 +78,12 @@ async function initServer() {
         // log.info(`backlog records: ${JSON.stringify(records)}`);
         callback({ status: 'success', sequenceNumber: BackLog.sequenceNumber, records });
       });
-      socket.on('writeQuery', async (query, callback) => {
-        log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}`);
+      socket.on('writeQuery', async (query, connId, callback) => {
+        log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
         const result = await BackLog.pushQuery(query);
         log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
-        socket.emit('query', query, result[1], result[2], true);
+        socket.emit('query', query, result[1], result[2], connId);
         // io.emit('query', query, result[1], result[2]);
         callback({ status: 'success', result: result[0] });
       });
@@ -93,10 +93,10 @@ async function initServer() {
   });
 
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.findMaster();
+  //await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
-    Operator.initMasterConnection();
+    //Operator.initMasterConnection();
   }
   const updateAppInterval = setInterval(async () => {
     const x = Operator.doHealthCheck();
