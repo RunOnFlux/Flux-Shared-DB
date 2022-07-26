@@ -205,7 +205,7 @@ class Operator {
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           for (const queryItem of analyzedQueries) {
-            log.info(`got Query from ${id}: ${queryItem}`);
+            // log.info(`got Query from ${id}: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               await this.sendWriteQuery(queryItem[0], id);
@@ -250,13 +250,13 @@ class Operator {
 
           break;
         case mySQLConsts.COM_PING:
-          console.log('got ping');
+          // console.log('got ping');
           this.sendOK({ message: 'OK' });
           break;
         case null:
         case undefined:
         case mySQLConsts.COM_QUIT:
-          log.info(`Disconnecting from ${id}`);
+          // log.info(`Disconnecting from ${id}`);
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:
