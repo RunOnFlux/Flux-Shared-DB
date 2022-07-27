@@ -260,7 +260,7 @@ class Operator {
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:
-          this.localDB.setSocket(this.socket);
+          this.localDB.setSocket(this.socket, id);
           await this.localDB.query(`use ${extra}`);
           // this.sendOK({ message: 'OK' });
           break;

@@ -11,6 +11,7 @@ class DBClient {
     this.InitDB = '';
     this.stream = null;
     this.socketCallBack = null;
+    this.socketId = null;
     this.enableSocketWrite = false;
   }
 
@@ -42,15 +43,16 @@ class DBClient {
   rawCallback(data) {
     if (this.socketCallBack && this.enableSocketWrite) {
       this.socketCallBack.write(data);
-      log.info(`writing data ${data.length}`);
+      log.info(`writing to ${this.socketId}: ${data.length} bytes`);
     }
   }
 
   /**
   * [init]
   */
-  setSocket(func) {
+  setSocket(func, id = null) {
     this.socketCallBack = func;
+    this.socketId = id;
     this.enableSocketWrite = true;
   }
 
