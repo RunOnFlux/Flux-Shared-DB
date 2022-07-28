@@ -433,6 +433,11 @@ class Operator {
             log.info('retrying FindMaster...');
             return this.findMaster();
           }
+          if (MasterIP === this.myIP) {
+            this.IamMaster = true;
+            this.masterNode = this.myIP;
+            return this.masterNode;
+          }
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
           const MasterIP2 = await fluxAPI.getMaster(MasterIP, config.containerApiPort);
           log.info(`response from ${MasterIP} was ${MasterIP2}`);
