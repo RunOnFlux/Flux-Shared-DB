@@ -87,16 +87,18 @@ class DBClient {
       // log.info(`running Query: ${query}`);
       try {
         if (!this.connected) {
-          log.info('DB connecten was lost, reconnecting...');
+          log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
           this.setDB(this.InitDB);
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
+          if (err) log.info(JSON.stringify(err));
           return [rows, fields, err];
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, fields, err] = await this.connection.query(query);
+          if (err) log.info(JSON.stringify(err));
           return rows;
         }
       } catch (err) {
@@ -119,6 +121,7 @@ class DBClient {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
+        if (err) log.info(JSON.stringify(err));
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
