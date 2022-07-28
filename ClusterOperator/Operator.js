@@ -413,8 +413,17 @@ class Operator {
         }
         // if first candidate is me i'm the master
         if (masterCandidates[0] === this.myIP) {
-          this.IamMaster = true;
-          this.masterNode = this.myIP;
+          // ask second candidate for confirmation
+          const MasterIP = await fluxAPI.getMaster(masterCandidates[0], config.containerApiPort);
+          if (MasterIP === this.myIP) {
+            this.IamMaster = true;
+            this.masterNode = this.myIP;
+          } else if (MasterIP === null || MasterIP === 'null') {
+            log.info('retrying FindMaster...');
+            return this.findMaster();
+          } else {
+            this.masterNode = MasterIP;
+          }
         } else {
           // ask first candidate who the master is
           log.info(`asking master from ${masterCandidates[0]}`);
