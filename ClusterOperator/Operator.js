@@ -362,6 +362,7 @@ class Operator {
   static async doHealthCheck() {
     try {
       ConnectionPool.keepFreeConnections();
+      BackLog.keepConnections();
       const ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       let appIPList = [];
       if (config.DBAppName === config.AppName) {

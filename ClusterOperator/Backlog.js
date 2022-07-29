@@ -187,6 +187,16 @@ class BackLog {
   }
 
   /**
+  * [keepConnections]
+  */
+  static async keepConnections() {
+    if (config.dbType === 'mysql' && this.BLClient) {
+      await this.BLClient.setDB(config.dbBacklog);
+      await this.UserDBClient.setDB(config.dbInitDB);
+    }
+  }
+
+  /**
   * [clearLogs]
   */
   static async clearLogs() {
