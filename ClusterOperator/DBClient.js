@@ -48,12 +48,22 @@ class DBClient {
   }
 
   /**
-  * [init]
+  * [setSocket]
   */
   setSocket(func, id = null) {
+    if (func === null) log.info('socket set to null');
     this.socketCallBack = func;
     this.socketId = id;
     this.enableSocketWrite = true;
+  }
+
+  /**
+  * [disableSocketWrite]
+  */
+  disableSocketWrite() {
+    log.info(`socket write disabled for ${this.socketId}`);
+    this.enableSocketWrite = false;
+    this.socketId = null;
   }
 
   /**
