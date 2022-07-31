@@ -64,7 +64,12 @@ async function initServer() {
       socket.on('disconnect', (reason) => {
       });
       socket.on('getStatus', (callback) => {
-        callback({ status: 'ok' });
+        callback({
+          status: Operator.status,
+          sequenceNumber: BackLog.sequenceNumber,
+          remoteIP: utill.convertIP(socket.handshake.address),
+          masterIP: Operator.getMaster(),
+        });
       });
       socket.on('getMyIp', (callback) => {
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
@@ -76,7 +81,7 @@ async function initServer() {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
         // log.info(`backlog records: ${JSON.stringify(records)}`);
-        callback({ status: 'success', sequenceNumber: BackLog.sequenceNumber, records });
+        callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
       });
       socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
@@ -85,7 +90,7 @@ async function initServer() {
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
         // io.emit('query', query, result[1], result[2]);
-        callback({ status: 'success', result: result[0] });
+        callback({ status: Operator.status, result: result[0] });
       });
     } else {
       socket.disconnect();
