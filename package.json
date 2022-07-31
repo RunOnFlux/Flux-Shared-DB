@@ -16,6 +16,9 @@
   "axios": "^0.27.2",
   
     
+  "@babel/eslint-parser": "^7.5.4",
+  
+    
   "dbgate-query-splitter": "^4.9.0",
   
     

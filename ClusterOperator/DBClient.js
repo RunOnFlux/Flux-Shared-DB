@@ -11,50 +11,69 @@ class DBClient {
     this.InitDB = '';
     this.stream = null;
     this.socketCallBack = null;
+    this.socketId = null;
+    this.enableSocketWrite = false;
   }
-   /**
+
+  /**
   * [init]
   */
   async createSrtream() {
     this.stream = net.connect({
       host: config.dbHost,
       port: config.dbPort,
-    })
-    const stream = this.stream;
-    return new Promise(function (resolve, reject) {
-      
-      stream.once('connect', function () {
+    });
+    const { stream } = this;
+    return new Promise((resolve, reject) => {
+      stream.once('connect', () => {
         stream.removeListener('error', reject);
-          resolve(stream);
+        resolve(stream);
       });
-      stream.once('error', function (err) {
+      stream.once('error', (err) => {
         stream.removeListener('connection', resolve);
-          reject(err);
+        stream.removeListener('data', resolve);
+        reject(err);
       });
     });
   }
+
   /**
   * [rawCallback]
   */
   rawCallback(data) {
-    if(this.socketCallBack)
+    if (this.socketCallBack && this.enableSocketWrite) {
       this.socketCallBack.write(data);
+      log.info(`writing to ${this.socketId}: ${data.length} bytes`);
+    }
   }
+
   /**
-  * [init]
+  * [setSocket]
   */
-  setSocket(func) {
+  setSocket(func, id = null) {
+    if (func === null) log.info('socket set to null');
     this.socketCallBack = func;
+    this.socketId = id;
+    this.enableSocketWrite = true;
   }
+
+  /**
+  * [disableSocketWrite]
+  */
+  disableSocketWrite() {
+    log.info(`socket write disabled for ${this.socketId}`);
+    this.enableSocketWrite = false;
+    this.socketId = null;
+  }
+
   /**
   * [init]
   */
   async init() {
     if (config.dbType === 'mysql') {
       await this.createSrtream();
-      this.stream.on('data', data => {
-        console.log(data);
-        this.rawCallback(data)
+      this.stream.on('data', (data) => {
+        this.rawCallback(data);
       });
       this.connection = await mySql.createConnection({
         password: config.dbPass,
@@ -63,7 +82,7 @@ class DBClient {
       });
       this.connection.once('error', () => {
         this.connected = false;
-        console.log(`mysql connected: ${this.connected }`);
+        console.log(`mysql connected: ${this.connected}`);
       });
       this.connected = true;
     }
@@ -75,26 +94,31 @@ class DBClient {
   */
   async query(query, rawResult = false) {
     if (config.dbType === 'mysql') {
-      
+      // log.info(`running Query: ${query}`);
       try {
-        if(!this.connected){
-          log.info(`DB connecten was lost, reconnecting...`);
+        if (!this.connected) {
+          log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
           this.setDB(this.InitDB);
         }
-        if (rawResult){
-          this.connection.query(query);
-        } else{
+        if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
+          if (err) log.info(JSON.stringify(err));
+          return [rows, fields, err];
+        // eslint-disable-next-line no-else-return
+        } else {
+          const [rows, fields, err] = await this.connection.query(query);
+          if (err) log.info(JSON.stringify(err));
           return rows;
         }
       } catch (err) {
         log.info(err);
-        return [null,null,err];
+        return [null, null, err];
       }
     }
     return null;
   }
+
   /**
   * [execute]
   * @param {string} query [description]
@@ -103,21 +127,22 @@ class DBClient {
   async execute(query, params, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
-        if(!this.connected){
+        if (!this.connected) {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
+        if (err) log.info(JSON.stringify(err));
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
         log.info(err);
-        return [null,null,err];
+        return [null, null, err];
       }
     }
     return null;
   }
 
-  /** 
+  /**
   * [createDB]
   * @param {string} dbName [description]
   */
@@ -139,14 +164,14 @@ class DBClient {
   async setDB(dbName) {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
+      // log.info(`seting db to ${dbName}`);
       this.connection.changeUser({
-        database : dbName
+        database: dbName,
       }, (err) => {
-          if (err) {
-            console.log('Error in changing database', err);
-            return;
-          }
-      })
+        if (err) {
+          console.log('Error in changing database', err);
+        }
+      });
     }
   }
 }

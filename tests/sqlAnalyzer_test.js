@@ -1,3 +1,4 @@
+/* eslint-disable */
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const fs = require('fs');
 

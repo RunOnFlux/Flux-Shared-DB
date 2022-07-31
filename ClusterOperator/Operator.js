@@ -1,30 +1,44 @@
+/* eslint-disable no-case-declarations */
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
+const net = require('net');
+const { io } = require('socket.io-client');
+const md5 = require('md5');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
 const fluxAPI = require('../lib/fluxAPI');
 const config = require('./config');
-const net = require('net');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
-const { io } = require("socket.io-client");
-const md5 = require('md5');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
+const ConnectionPool = require('../lib/ConnectionPool');
 
 class Operator {
-
   static localDB = null;
+
   static OpNodes = [];
+
+  static AppNodes = [];
+
   static clientNodes = [];
+
   static nodeInstances = 0;
+
   static masterNode = null;
+
   static IamMaster = false;
+
   static apiKey = null;
+
   static myIP = null;
+
   static masterWSConn;
-  static status = 'initializing';
+
+  static status = 'INIT';
+
   static serverSocket;
 
   /**
@@ -32,48 +46,54 @@ class Operator {
   */
   static async initLocalDB() {
     await BackLog.createBacklog();
-    if(config.dbInitDB){ 
+    if (config.dbInitDB) {
       await this.localDB.createDB(config.dbInitDB);
+      BackLog.UserDBClient = this.localDB;
       BackLog.UserDBClient.setDB(config.dbInitDB);
       log.info(`${config.dbInitDB} database created on local DB.`);
+      await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
     }
   }
+
   /**
   * [initMasterConnection]
   */
   static initMasterConnection() {
-    
-    if(this.masterNode && !this.IamMaster){ 
+    if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
-        this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`,{
-          transports: ["websocket"], 
-          reconnection: false, 
-          timeout:2000
-        } );
-        this.masterWSConn.on("connect", (socket) => {
-          const engine = this.masterWSConn.io.engine;
-          log.info(`connected to master...`);
+        this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`, {
+          transports: ['websocket'],
+          reconnection: false,
+          timeout: 2000,
+        });
+        this.masterWSConn.on('connect', (socket) => {
+          const { engine } = this.masterWSConn.io;
+          log.info('connected to master...');
           this.syncLocalDB();
-          engine.once("upgrade", () => {
+          engine.once('upgrade', () => {
             log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
           });
         });
-        this.masterWSConn.on("connect_error", async (reason) => {
+        this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
           this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.masterWSConn.on("disconnect", async () => {
-          log.info(`disconnected from master...`);
+        this.masterWSConn.on('disconnect', async () => {
+          log.info('disconnected from master...');
           this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
         });
-        this.masterWSConn.on("query", async (query, sequenceNumber, timestamp) => {
-          log.info(`query from master:${query},${sequenceNumber},${timestamp}`);
-          await BackLog.pushQuery(query, sequenceNumber, timestamp);
+        this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
+          log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
+          if (this.status === 'OK') {
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+          } else {
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
+          }
         });
       } catch (e) {
         log.error(e);
@@ -87,9 +107,9 @@ class Operator {
   * @param {string} serverType [description]
   */
   static initInBoundConnections(serverType) {
-    try{
-      if(serverType==='mysql'){
-        //init mysql port
+    try {
+      if (serverType === 'mysql') {
+        // init mysql port
         net.createServer((so) => {
           const server = mySQLServer.createServer({
             socket: so,
@@ -100,57 +120,60 @@ class Operator {
             masterWSConn: this.masterWSConn,
             BACKLOG_DB: config.dbBacklog,
             IamMaster: this.IamMaster,
+            appIPList: this.appIPList,
             isNotBacklogQuery: this.isNotBacklogQuery,
-            sendWriteQuery: this.sendWriteQuery
+            sendWriteQuery: this.sendWriteQuery,
           });
         }).listen(config.externalDBPort);
-        
+
         log.info(`Started mysql server on port ${config.externalDBPort}`);
       }
-    }catch(err){
+    } catch (err) {
       log.error(err);
     }
   }
+
   /**
   * [handleAuthorize]
   * @param {object} param [description]
   */
   static handleAuthorize(param) {
-    try{
+    try {
       log.info('Auth Info:');
-      log.info(param);
+      log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
-      if(remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
+      if (remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
       const whiteList = config.whiteListedIps.split(',');
-      if(whiteList.length && whiteList.includes(remoteIp) || remoteIp.startsWith('80.239.140.')){
-          return true;  
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('80.239.140.') || remoteIp.startsWith('172.15.0.')) {
+        return true;
       }
-      
-    }catch(err){
+      if (this.appIPList.includes(remoteIp)) return true;
+      log.info(`DB connection rejected from ${remoteIp}`);
+    } catch (err) {
       log.error(err);
     }
-    return false; 
+    return false;
   }
+
   /**
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query) {
-    if(!this.IamMaster){
-      const masterWSConn = this.masterWSConn;
-      return new Promise(function (resolve) {
-        masterWSConn.emit("writeQuery", query, (response) => {
+  static async sendWriteQuery(query, connId) {
+    if (!this.IamMaster) {
+      const { masterWSConn } = this;
+      return new Promise((resolve) => {
+        masterWSConn.emit('writeQuery', query, connId, (response) => {
           resolve(response.result);
-        }); 
+        });
       });
-    }else{
-      log.info(`sending query to slaves: ${query}`);
-      const result = await BackLog.pushQuery(query);
-      this.serverSocket.emit("query", query, result[1], result[2]);
-      return result[0];
     }
-
+    const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
+    log.info(`sending query to slaves: ${JSON.stringify(result)}`);
+    if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
+    return result[0];
   }
+
   /**
   * [setServerSocket]
   * @param {socket} socket [description]
@@ -158,7 +181,8 @@ class Operator {
   static async setServerSocket(socket) {
     this.serverSocket = socket;
     const sockets = await this.serverSocket.fetchSockets();
-  } 
+  }
+
   /**
   * [isNotBacklogQuery]
   * @param {string} query [description]
@@ -167,30 +191,34 @@ class Operator {
   static isNotBacklogQuery(query, BACKLOG_DB) {
     return !query.includes(BACKLOG_DB);
   }
+
   /**
   * [handleCommand]
   * @param {int} command [description]
   * @param {string} extra [description]
   */
-  static async handleCommand({ command, extra }) {
-    try{
-    // command is a numeric ID, extra is a Buffer
+  static async handleCommand({ command, extra, id }) {
+    try {
+      // command is a numeric ID, extra is a Buffer
       switch (command) {
         case mySQLConsts.COM_QUERY:
-          const query = extra.toString(); 
+          const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          console.log(`Got Query: ${query}`);
-          for(const queryItem of analyzedQueries){
-            if(queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0],this.BACKLOG_DB)){
-              //forward it to the master node
-              var result = await this.sendWriteQuery(queryItem[0]);
-              this.sendOK({ message: 'OK' });
-            }else{
-              //forward it to the local DB
-              this.localDB.setSocket(this.socket);
-              var result = await this.localDB.query(queryItem[0], true);
+          for (const queryItem of analyzedQueries) {
+            // log.info(`got Query from ${id}: ${queryItem}`);
+            if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
+              // forward it to the master node
+              await this.sendWriteQuery(queryItem[0], id);
+              // this.localDB.enableSocketWrite = false;
+              // let result = await this.localDB.query(queryItem[0], true);
+              // this.sendOK({ message: 'OK' });
+            } else {
+              // forward it to the local DB
+              // eslint-disable-next-line prefer-const
+              let result = await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
+              // log.info(`result: ${JSON.stringify(result)}`);
             }
-            //log.info(result);
+            // log.info(result);
             // Then send it back to the user in table format
             /*
             if(result[1]){
@@ -217,31 +245,31 @@ class Operator {
             }else{
               //this.sendError({ message: result[3] });
               //break;
-            }*/
+            } */
           }
-         
 
           break;
         case mySQLConsts.COM_PING:
+          // console.log('got ping');
           this.sendOK({ message: 'OK' });
           break;
         case null:
         case undefined:
         case mySQLConsts.COM_QUIT:
-          log.info('Disconnecting');
+          // log.info(`Disconnecting from ${id}`);
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:
-          var result = await this.localDB.query(`use ${extra}`);
-          log.info(`extra is ${extra}`)
-          this.sendOK({ message: 'OK' });
+          // this.localDB.setSocket(this.socket, id);
+          await ConnectionPool.getConnectionById(id).query(`use ${extra}`);
+          // this.sendOK({ message: 'OK' });
           break;
         default:
           log.info(`Unknown Command: ${command}`);
           this.sendError({ message: 'Unknown Command' });
           break;
       }
-    }catch(err){
+    } catch (err) {
       log.error(err);
     }
   }
@@ -250,34 +278,30 @@ class Operator {
   * [syncLocalDB]
   */
   static async syncLocalDB() {
-    if(this.masterWSConn && this.masterWSConn.connected){
-      this.status = 'sync';
+    if (this.masterWSConn && this.masterWSConn.connected) {
+      this.status = 'SYNC';
       let masterSN = BackLog.sequenceNumber + 1;
-      while(BackLog.sequenceNumber < masterSN){
+      let copyBuffer = false;
+      while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         const index = BackLog.sequenceNumber;
-        let response = await fluxAPI.getBackLog(index, this.masterWSConn);
+        const response = await fluxAPI.getBackLog(index, this.masterWSConn);
         masterSN = response.sequenceNumber;
-        log.info(`sync backlog: ${JSON.stringify(response)}`);
-        for(let record of response.records){
+        log.info(`sync backlog from ${index} to ${index + response.records.length}`);
+        for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
-          
         }
-      };
-      this.status = 'ready';
+        if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+      }
+      if (copyBuffer) await BackLog.moveBufferToBacklog();
+      this.status = 'OK';
     }
   }
 
-
-
-  /**
-  * [getSyncStatus]
-  */
-  static async getSyncStatus() {}
   /**
   * [updateAppInfo]
   */
   static async updateAppInfo() {
-    try{
+    try {
       const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
@@ -287,62 +311,89 @@ class Operator {
         await timer.setTimeout(10000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       }
-      this.OpNodes = [];
-      for(let i=0; i<ipList.length; i++){
-        //extraxt ip from upnp nodes
-        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ip:ipList[i].ip, active:null});
+      let appIPList = [];
+      if (config.DBAppName === config.AppName) {
+        appIPList = ipList;
+      } else {
+        appIPList = await fluxAPI.getApplicationIP(config.AppName);
       }
-      //log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+      this.OpNodes = [];
+      for (let i = 0; i < ipList.length; i += 1) {
+        // extraxt ip from upnp nodes
+        // eslint-disable-next-line prefer-destructuring
+        if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+        this.OpNodes.push({ ip: ipList[i].ip, active: null });
+      }
+      for (let i = 0; i < appIPList.length; i += 1) {
+        // eslint-disable-next-line prefer-destructuring
+        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+        this.AppNodes.push(appIPList[i].ip);
+      }
+      // log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
 
-      for(let i=0; i<ipList.length; i++){
-        //extraxt ip from upnp nodes
+      for (let i = 0; i < ipList.length; i += 1) {
+        // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        let myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+        const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
         log.info(`response was: ${myTempIp}`);
-        if(myTempIp===null || myTempIp==='null'){
+        if (myTempIp === null || myTempIp === 'null') {
           this.OpNodes[i].active = false;
-        }else{
+        } else {
           this.OpNodes[i].active = true;
           this.myIP = myTempIp;
         }
       }
       log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-      if(this.myIP!==null){
+      if (this.myIP !== null) {
         log.info(`My ip is ${this.myIP}`);
-      }else{
-          log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
-          await timer.setTimeout(15000);
-          await this.updateAppInfo();
+      } else {
+        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
+        await timer.setTimeout(15000);
+        await this.updateAppInfo();
       }
-    }catch(err){
+    } catch (err) {
       log.error(err);
     }
-
   }
+
   /**
   * [doHealthCheck]
   */
   static async doHealthCheck() {
-    try{
-      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-
-      this.OpNodes = [];
-      let checkMasterIp = false;
-      let nodeList = [];
-      for(let i=0; i<ipList.length; i++){
-        //extraxt ip from upnp nodes
-        nodeList.push(ipList[i].ip);
-        if(ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ip:ipList[i].ip, active:null});    
-        if(this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+    try {
+      ConnectionPool.keepFreeConnections();
+      BackLog.keepConnections();
+      const ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      let appIPList = [];
+      if (config.DBAppName === config.AppName) {
+        appIPList = ipList;
+      } else {
+        appIPList = await fluxAPI.getApplicationIP(config.AppName);
       }
-      log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
-      if(this.masterNode && !checkMasterIp){
-        //master removed from the list, should find a new master
+      this.OpNodes = [];
+      this.AppNodes = [];
+      let checkMasterIp = false;
+      const nodeList = [];
+      for (let i = 0; i < ipList.length; i += 1) {
+        // extraxt ip from upnp nodes
+        nodeList.push(ipList[i].ip);
+        // eslint-disable-next-line prefer-destructuring
+        if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+        this.OpNodes.push({ ip: ipList[i].ip, active: null });
+        if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+      }
+      for (let i = 0; i < appIPList.length; i += 1) {
+        // eslint-disable-next-line prefer-destructuring
+        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+        this.AppNodes.push(appIPList[i].ip);
+      }
+      // log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
+      // log.info(`app ip's: ${JSON.stringify(this.AppNodes)}`);
+      if (this.masterNode && !checkMasterIp) {
+        log.info('master removed from the list, should find a new master');
         this.findMaster();
       }
-    }catch(err){
+    } catch (err) {
       log.error(err);
     }
   }
@@ -351,57 +402,73 @@ class Operator {
   * [findMaster]
   */
   static async findMaster() {
-    try{
-      //get dbappspecs
-      if(config.DBAppName){
+    try {
+      // get dbappspecs
+      if (config.DBAppName) {
         await this.updateAppInfo();
-        //find master candidate
-        var masterCandidates=[];
-        for(let i=0; i<this.OpNodes.length; i++){
-          if(this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
+        // find master candidate
+        const masterCandidates = [];
+        // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
+        this.OpNodes.sort((a, b) => (a.ip > b.ip) ? 1 : ((b.ip > a.ip) ? -1 : 0));
+        for (let i = 0; i < this.OpNodes.length; i += 1) {
+          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
         }
-        //if first candidate is me i'm the master
-        if(masterCandidates[0]===this.myIP){
-          this.IamMaster = true;
-          this.masterNode = this.myIP;
-        }else{
-          //ask first candidate who the master is
-          log.info(`asking master from ${masterCandidates[0]}`);
-          let MasterIP = await fluxAPI.getMaster(masterCandidates[0],config.containerApiPort);
-          log.info(`response was ${MasterIP}`);
-          if(MasterIP === null || MasterIP === "null"){
-            log.info(`retrying FindMaster...`);
+        // if first candidate is me i'm the master
+        if (masterCandidates[0] === this.myIP) {
+          // ask second candidate for confirmation
+          const MasterIP = await fluxAPI.getMaster(masterCandidates[1], config.containerApiPort);
+          if (MasterIP === this.myIP) {
+            this.IamMaster = true;
+            this.masterNode = this.myIP;
+          } else if (MasterIP === null || MasterIP === 'null') {
+            log.info('retrying FindMaster...');
             return this.findMaster();
-          }else{
-            log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
-            let MasterIP2 = await fluxAPI.getMaster(MasterIP,config.containerApiPort);
-            log.info(`response from ${MasterIP} was ${MasterIP2}`);
-            if(MasterIP2===MasterIP){
-              this.masterNode = MasterIP;
-            }else{
-              log.info(`master node not matching, retrying...`);
-              return this.findMaster();
-            }
+          } else {
+            this.masterNode = MasterIP;
+          }
+        } else {
+          // ask first candidate who the master is
+          log.info(`asking master from ${masterCandidates[0]}`);
+          const MasterIP = await fluxAPI.getMaster(masterCandidates[0], config.containerApiPort);
+          log.info(`response was ${MasterIP}`);
+          if (MasterIP === null || MasterIP === 'null') {
+            log.info('retrying FindMaster...');
+            return this.findMaster();
+          }
+          if (MasterIP === this.myIP) {
+            this.IamMaster = true;
+            this.masterNode = this.myIP;
+            return this.masterNode;
+          }
+          log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
+          const MasterIP2 = await fluxAPI.getMaster(MasterIP, config.containerApiPort);
+          log.info(`response from ${MasterIP} was ${MasterIP2}`);
+          if (MasterIP2 === MasterIP) {
+            this.masterNode = MasterIP;
+          } else {
+            log.info('master node not matching, retrying...');
+            return this.findMaster();
           }
         }
         log.info(`Master node is ${this.masterNode}`);
         return this.masterNode;
-      }else{
-        log.info(`DB_APPNAME environment variabele is not defined.`)
       }
-    }catch(err){
+      log.info('DB_APPNAME environment variabele is not defined.');
+    } catch (err) {
       log.error(err);
     }
+    return null;
   }
+
   /**
   * [getMaster]
   */
   static getMaster() {
-    if(this.masterNode === null){
-      if(this.OpNodes.length > 2){
+    if (this.masterNode === null) {
+      if (this.OpNodes.length > 2) {
         return this.OpNodes[0].ip;
       }
-    }else{
+    } else {
       return this.masterNode;
     }
     return null;
@@ -410,7 +477,7 @@ class Operator {
   /**
   * [getMyIp]
   */
- /*
+  /*
   static async getMyIp(retries=1) {
     try{
       if(this.myIP !== null){
@@ -434,7 +501,7 @@ class Operator {
         await timer.setTimeout(15000 * retries);
         return this.getMyIp(retries+1);
         log.info(`all response list: ${JSON.stringify(ipList)}`);
-        //find the highest occurrence in the array 
+        //find the highest occurrence in the array
         if(ipList.length>=2){
           const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
           this.myIP = myIP;
@@ -452,7 +519,6 @@ class Operator {
     }
   }
   */
-
 
   /**
   * [ConnectLocalDB]

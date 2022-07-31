@@ -1,3 +1,4 @@
+/* eslint-disable */
 const WebSocket = require('ws');
 const axios = require('axios');
 const fluxAPI = require('../lib/fluxAPI');
