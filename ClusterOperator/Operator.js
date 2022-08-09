@@ -5,7 +5,6 @@
 const timer = require('timers/promises');
 const net = require('net');
 const { io } = require('socket.io-client');
-const md5 = require('md5');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
