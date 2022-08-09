@@ -107,7 +107,7 @@ class DBClient {
           return [rows, fields, err];
         // eslint-disable-next-line no-else-return
         } else {
-          const [rows, fields, err] = await this.connection.query(query);
+          const [rows, err] = await this.connection.query(query);
           if (err) log.info(JSON.stringify(err));
           return rows;
         }

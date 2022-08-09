@@ -5,7 +5,6 @@
 const timer = require('timers/promises');
 const net = require('net');
 const { io } = require('socket.io-client');
-const md5 = require('md5');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
@@ -111,7 +110,7 @@ class Operator {
       if (serverType === 'mysql') {
         // init mysql port
         net.createServer((so) => {
-          const server = mySQLServer.createServer({
+          mySQLServer.createServer({
             socket: so,
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
@@ -180,7 +179,6 @@ class Operator {
   */
   static async setServerSocket(socket) {
     this.serverSocket = socket;
-    const sockets = await this.serverSocket.fetchSockets();
   }
 
   /**
@@ -215,7 +213,7 @@ class Operator {
             } else {
               // forward it to the local DB
               // eslint-disable-next-line prefer-const
-              let result = await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
+              await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
               // log.info(`result: ${JSON.stringify(result)}`);
             }
             // log.info(result);

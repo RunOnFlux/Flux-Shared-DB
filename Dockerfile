@@ -1,10 +1,14 @@
-FROM node:16
+FROM node:16 AS build-env
 
-WORKDIR /usr/src/app
-COPY package*.json ./
-RUN npm install
-COPY . .
+WORKDIR /app
+COPY . /app
+
+RUN npm ci --omit=dev
+
+FROM gcr.io/distroless/nodejs:16
+COPY --from=build-env /app /app
+WORKDIR /app
 EXPOSE 3307
 EXPOSE 7071
 EXPOSE 8008
-CMD [ "node", "ClusterOperator/server.js" ]
+CMD [ "ClusterOperator/server.js" ]
