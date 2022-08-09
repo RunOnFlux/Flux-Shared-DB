@@ -16,6 +16,6 @@ module.exports = {
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.58',
+  version: '0.9.59',
   whiteListedIps: process.env.WHITELIST || '::1',
 };
