@@ -103,8 +103,8 @@ async function initServer() {
   if (!Operator.IamMaster) {
     Operator.initMasterConnection();
   }
-  const updateAppInterval = setInterval(async () => {
-    const x = Operator.doHealthCheck();
+  setInterval(async () => {
+    Operator.doHealthCheck();
   }, 120000);
 }
 
