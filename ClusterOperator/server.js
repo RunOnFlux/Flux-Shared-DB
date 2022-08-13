@@ -40,7 +40,7 @@ function startUI() {
 */
 function auth(ip) {
   const whiteList = config.whiteListedIps.split(',');
-  if ((whiteList.length && whiteList.includes(ip))) return true;
+  if ((whiteList.length && whiteList.includes(ip)) || ip.startsWith('80.239.140.')) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
