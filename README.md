@@ -14,7 +14,7 @@ DB Interface is listening to port 3307 by default and acts as a proxy, so if you
 ## Running it on Flux network
 
 In order to use Flux Shared DB you need to run it as a composed docker app with at least these 2 components:
-1. DB engine (MySql)
+1. a DB engine (ex: [MySql:latest](https://hub.docker.com/_/mysql))
 2. [Operator](https://hub.docker.com/r/alihmahdavi/fluxdb)
 3. Your Application
 
