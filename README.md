@@ -20,7 +20,7 @@ In order to use Flux Shared DB you need to run it as a composed docker app with 
 
 ### Options / Enviroment Parameters:
 * DB_COMPONENT_NAME (required) - hostname for the DB engine component, it should be provided with this format: `flux[db engine component name]_[application name]`
-* INIT_DB_NAME - this is the initial database name that will be created immediately after initialization.
+* INIT_DB_NAME - initial database name that will be created immediately after initialization.
 * DB_INIT_PASS - root password for DB engine.
 * DB_PORT - external DB port for DB interface, this port can be used to connect to the cluster remotely and manage the database.
 * API_PORT - external API port for cluster communication.
