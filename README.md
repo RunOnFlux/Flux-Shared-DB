@@ -9,7 +9,7 @@ The Operator has 3 interfaces:
 2. Internal API (used for internal communication)
 3. UI API (used for managing cluster)
 
-DB Interface is listening to port 3307 by default and acts as a proxy, so if you're using MySql as a DB engine it will behave as a MySql server.
+DB Interface is listening to port 3307 by default and acts as a proxy, so if you're using MySql as a DB engine it will behave like a MySql server.
 
 ## Running it on Flux network
 
