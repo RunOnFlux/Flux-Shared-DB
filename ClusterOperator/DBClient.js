@@ -103,12 +103,12 @@ class DBClient {
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
-          if (err) log.info(JSON.stringify(err));
+          if (err) log.info(`Error: ${err}`);
           return [rows, fields, err];
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, err] = await this.connection.query(query);
-          if (err) log.info(JSON.stringify(err));
+          if (err) log.info(`Error: ${err}`);
           return rows;
         }
       } catch (err) {
@@ -131,11 +131,11 @@ class DBClient {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
-        if (err) log.info(JSON.stringify(err));
+        if (err) log.info(`Error: ${err}`);
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
-        log.info(err);
+        log.info(`Error: ${err}`);
         return [null, null, err];
       }
     }
@@ -151,7 +151,7 @@ class DBClient {
       try {
         await this.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
       } catch (err) {
-        log.info(err);
+        log.info(`Error: ${err}`);
       }
     }
     return null;
