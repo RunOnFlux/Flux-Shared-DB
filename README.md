@@ -1,6 +1,6 @@
 # Flux Shared DB
 
-Flux Shared DB is a solution for persistent shared DB storage on the [Flux network](https://www.runonflux.io), It handles replication between various DB engine instances (MySQL, ~~MongoDB~~ and ~~PostgreSQL~~). The operator nodes discover each other using FluxOS API and immediately form a cluster. Each Operator node is connected to a DB engine using a connection pool, received read queries are proxied directly to the DB engine, and write queries are sent to the master node. master nodes timestamp and sequence received write queries and immediately forward them to the slaves.
+Flux Shared DB is a solution for persistent shared DB storage on the [Flux network](https://www.runonflux.io), It handles replication between various DB engine instances (MySQL, ~~MongoDB~~ and ~~PostgreSQL~~). The operator nodes discover each other using FluxOS API and immediately form a cluster. Each Operator node is connected to a DB engine using a connection pool, received read queries are proxied directly to the DB engine, and write queries are sent to the master node. master node timestamps and sequences received write queries and immediately forwards them to the slaves.
 
 ![FLUX DB Cluster](https://user-images.githubusercontent.com/1296210/184499730-722801f7-e827-4857-902e-fe9a61f36e5f.jpg)
 
