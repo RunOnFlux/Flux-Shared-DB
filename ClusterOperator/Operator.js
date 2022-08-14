@@ -89,7 +89,10 @@ class Operator {
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
           log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
           if (this.status === 'OK') {
-            await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+            const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+            if (result === []) {
+              this.syncLocalDB();
+            }
           } else {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
