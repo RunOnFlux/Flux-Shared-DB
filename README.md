@@ -1,6 +1,6 @@
 # Flux Shared DB
 
-Flux Shared DB is a solution for persistent shared DB storage on the [Flux network](https://www.runonflux.io), It handles replication between various DB engine instances (MySQL, ~~MongoDB~~ and ~~PostgreSQL~~). The operator nodes discover each other using FluxOS API and immediately form a cluster. Each Operator node is connected to a DB engine using a connection pool, received read queries are proxied directly to the DB engine, and write queries are sent to the master node. master node timestamps and sequences received write queries and immediately forwards them to the slaves.
+Flux Shared DB is a solution for persistent shared DB storage on [Flux network](https://www.runonflux.io), It handles replication between various DB engine instances (MySQL, ~~MongoDB~~ and ~~PostgreSQL~~). The operator nodes discover each other using FluxOS API and immediately form a cluster. Each Operator node is connected to a DB engine using a connection pool, received read queries are proxied directly to the DB engine, and write queries are sent to the master node. master node timestamps and sequences received write queries and immediately forwards them to the slaves.
 
 ![FLUX DB Cluster](https://user-images.githubusercontent.com/1296210/184499730-722801f7-e827-4857-902e-fe9a61f36e5f.jpg)
 
@@ -13,7 +13,7 @@ DB Interface is listening to port 3307 by default and acts as a proxy, so if you
 
 ## Running it on Flux network
 
-In order to use Flux Shared DB you need to run it alongside a db engine. One setup could be using docker compose to run it alongside your application, to do that goto [Register Flux App](https://home.runonflux.io/apps/registerapp), fill your app details and add these components to it:  
+In order to use Flux Shared DB you need to run it alongside a DB engine. One setup could be using docker compose to run it alongside your application, to do that goto [Register Flux App](https://home.runonflux.io/apps/registerapp), fill in your app details, and add these components to it:  
 1. DB engine (ex: [mysql:latest](https://hub.docker.com/_/mysql))
 2. Operator: [alihmahdavi/fluxdb](https://hub.docker.com/r/alihmahdavi/fluxdb)
 3. Your Application (Optional)
