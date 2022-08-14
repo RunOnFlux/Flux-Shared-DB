@@ -18,7 +18,7 @@ Using Flux Shared DB in your project is easy, you just need to link it to a DB e
 2. Operator: [alihmahdavi/fluxdb](https://hub.docker.com/r/alihmahdavi/fluxdb)
 3. Your Application (Optional)
 
-### Operator options / enviroment parameters:
+### Operator Options (environment variables):
 * DB_COMPONENT_NAME (required) - hostname for the DB engine component, it should be provided with this format: `flux[db engine component name]_[application name]`
 * INIT_DB_NAME - initial database name that will be created immediately after initialization.
 * DB_INIT_PASS - root password for DB engine.
