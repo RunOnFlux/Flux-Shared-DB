@@ -15,7 +15,7 @@ DB Interface is listening to port 3307 by default and acts as a proxy, so if you
 
 Using Flux Shared DB in your project is easy, you just need to link it to a DB engine and it handles the rest. One setup could be using docker compose to run it alongside a DB engine, you can also add your application to the compose and connect it directly to the Operator's DB port, to do that goto [Register Flux App](https://home.runonflux.io/apps/registerapp), fill in your app details, and add these components to it:  
 1. DB engine (ex: [mysql:latest](https://hub.docker.com/_/mysql))
-2. Operator: [alihmahdavi/fluxdb](https://hub.docker.com/r/alihmahdavi/fluxdb)
+2. Operator: [runonflux/shared-db](https://hub.docker.com/repository/docker/runonflux/shared-db)
 3. Your Application (Optional)
 
 ### Operator Options (environment variables):
