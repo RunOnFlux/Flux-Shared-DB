@@ -107,6 +107,13 @@ class BackLog {
           return [result2, seqForThis, timestamp];
         } else {
           log.error(`Wrong query order skipping pushQuery. ${this.sequenceNumber} + 1 <> ${seq}`);
+          log.error(`Wrong query order, ${this.sequenceNumber} + 1 <> ${seq}. pushing to buffer.`);
+          if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
+          this.bufferSequenceNumber = seq;
+          await this.BLClient.execute(
+            `INSERT INTO ${config.dbBacklogBuffer} (seq, query, timestamp) VALUES (?,?,?)`,
+            [seq, query, timestamp],
+          );
           return [];
         }
       }
