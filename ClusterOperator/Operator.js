@@ -569,7 +569,7 @@ class Operator {
         }
       }
     }
-    log.info(ips);
+    log.info(JSON.stringify(ips));
     Security.init();
     if (await this.ConnectLocalDB()) {
       await this.initLocalDB();
