@@ -7,6 +7,7 @@ module.exports = {
   dbBacklog: 'flux_backlog',
   dbBacklogCollection: 'backlog',
   dbBacklogBuffer: 'backlog_buffer',
+  dbOptions: 'options',
   dbInitDB: process.env.INIT_DB_NAME || 'test_db',
   connectionServer: 'mysql',
   externalDBPort: 3307,
@@ -18,5 +19,4 @@ module.exports = {
   AppName: process.env.CLIENT_APPNAME || 'wordpressonflux',
   version: '0.9.58',
   whiteListedIps: process.env.WHITELIST || '::1',
-  clusterList: [], // Temporary
 };

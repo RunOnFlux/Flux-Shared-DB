@@ -61,6 +61,14 @@ class BackLog {
         } else {
           log.info('Backlog buffer table already exists, moving on...');
         }
+        tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
+          WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbOptions}'`);
+        if (tableList.length === 0) {
+          log.info('Backlog options table not defined yet, creating options table...');
+          await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=MyISAM;`);
+        } else {
+          log.info('Backlog options table already exists, moving on...');
+        }
         log.info(`Last Seq No: ${this.sequenceNumber}`);
       }
     } catch (e) {

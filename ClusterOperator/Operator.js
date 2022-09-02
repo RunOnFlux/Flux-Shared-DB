@@ -1,9 +1,12 @@
+/* eslint-disable no-else-return */
 /* eslint-disable no-case-declarations */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
 const net = require('net');
+const { networkInterfaces } = require('os');
+const axios = require('axios');
 const { io } = require('socket.io-client');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
@@ -14,6 +17,7 @@ const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
+const Security = require('./Security');
 
 class Operator {
   static localDB = null;
@@ -526,22 +530,54 @@ class Operator {
   */
   static async ConnectLocalDB() {
     // wait for local db to boot up
+
     this.localDB = await dbClient.createClient();
-    while (this.localDB === null) {
-      log.info('Waiting for local DB to boot up...');
-      await timer.setTimeout(2000);
-      this.localDB = await dbClient.createClient();
+
+    if (this.localDB === 'WRONG_KEY') {
+      return false;
+    } else {
+      while (this.localDB === null) {
+        log.info('Waiting for local DB to boot up...');
+        await timer.setTimeout(2000);
+        this.localDB = await dbClient.createClient();
+      }
+      log.info('Connected to local DB.');
     }
-    log.info('Connected to local DB.');
+    return true;
   }
 
   /**
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
-    this.initInBoundConnections(config.dbType);
+    const nets = networkInterfaces();
+    const ips = {};
+    for (const name of Object.keys(nets)) {
+      for (const anet of nets[name]) {
+        const familyV4Value = typeof anet.family === 'string' ? 'IPv4' : 4;
+        if (anet.family === familyV4Value && !anet.internal) {
+          if (!ips[name]) {
+            ips[name] = [];
+          }
+          ips[name].push(anet.address);
+          try {
+            const status = await axios.get(`http://${anet.address}:16127/daemon/getzelnodestatus`, { timeout: 1000 });
+            ips[name].push(status);
+          } catch (err) {
+            ips[name].push(null);
+          }
+        }
+      }
+    }
+    log.info(ips);
+    Security.init();
+    if (await this.ConnectLocalDB()) {
+      await this.initLocalDB();
+      this.initInBoundConnections(config.dbType);
+    } else {
+      log.info('WRONG_KEY removing key from other nodes...');
+      // TODO
+    }
   }
 }
 module.exports = Operator;
