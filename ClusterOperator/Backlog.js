@@ -339,7 +339,6 @@ class BackLog {
     } catch (e) {
       log.error(e);
     }
-    log.info('Key pushed.');
     return keys;
   }
 }

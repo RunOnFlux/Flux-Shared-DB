@@ -122,6 +122,7 @@ async function initServer() {
         Operator.keys[decKey] = value;
         socket.broadcast.emit('updateKey', key, value);
         callback({ status: Operator.status });
+        log.info(JSON.stringify(Operator.keys));
       });
       socket.on('getKeys', async (callback) => {
         const keysToSend = {};
@@ -131,7 +132,8 @@ async function initServer() {
             keysToSend[key] = Operator.keys[key];
           }
         }
-        keysToSend[`N${Operator.myIP}`] = `${Security.getKey()}:${Security.getIV()}`;
+        log.info(JSON.stringify(Operator.keys));
+        keysToSend[`N${Operator.myIP}`] = Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`);
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
     } else {

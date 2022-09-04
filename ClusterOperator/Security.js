@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const {
   generateKeyPairSync, randomBytes, createCipheriv, createDecipheriv, publicDecrypt, publicEncrypt, privateDecrypt, privateEncrypt,
 } = require('crypto');
@@ -40,15 +41,13 @@ class Security {
     this.#privateKey = this.encrypt(privateKey, this.#securityKey, this.#initVector);
     privateKey = null;
     publicKey = null;
-    log.info(`commAESIv is: ${this.#commAESIv.toString('hex')}`);
-    log.info(`commAESKey is: ${this.#commAESKey.toString('hex')}`);
-    log.info(`pubKey is: ${this.publicKey}`);
   }
 
   static encrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
     try {
+      const utfMessage = message.toString();
       const cipher = createCipheriv('aes-256-cbc', key, iv);
-      return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+      return cipher.update(utfMessage, 'utf-8', 'hex') + cipher.final('hex');
     } catch (err) {
       log.error(err);
       return null;
@@ -58,7 +57,7 @@ class Security {
   static decrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
     try {
       const decipher = createDecipheriv('aes-256-cbc', key, iv);
-      return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+      return decipher.update(message, 'hex') + decipher.final();
     } catch (err) {
       log.error(err);
       return null;
@@ -67,8 +66,9 @@ class Security {
 
   static encryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
     try {
+      const utfMessage = message.toString();
       const cipher = createCipheriv('aes-256-cbc', key, iv);
-      return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+      return cipher.update(utfMessage, 'utf-8', 'hex') + cipher.final('hex');
     } catch (err) {
       log.error(err);
       return null;
@@ -78,7 +78,7 @@ class Security {
   static decryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
     try {
       const decipher = createDecipheriv('aes-256-cbc', key, iv);
-      return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+      return decipher.update(message, 'hex') + decipher.final();
     } catch (err) {
       log.error(err);
       return null;
@@ -106,8 +106,6 @@ class Security {
   }
 
   static setCommKeys(key, iv) {
-    console.log(key);
-    console.log(iv);
     this.#commAESIv = Buffer.from(iv, 'hex');
     this.#commAESKey = Buffer.from(key, 'hex');
   }

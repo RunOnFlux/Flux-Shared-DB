@@ -81,10 +81,10 @@ class Operator {
           log.info('connected to master, Sharing keys...');
           try {
             const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
-            log.info(Security.privateDecrypt(keys.commAESKey));
+            // log.info(Security.privateDecrypt(keys.commAESKey));
             Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIV));
-            
-            log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
+            // log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
+            // log.info(`commAESIV is: ${Security.privateDecrypt(keys.commAESIV)}`);
             if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
               const myKeys = Security.privateDecrypt(keys.key).split(':');
               log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
@@ -319,12 +319,11 @@ class Operator {
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
-        if ('keys' in keys) {
-          // eslint-disable-next-line guard-for-in
-          for (const key in keys.keys) {
-            BackLog.pushKey(key, keys.keys[key]);
-            Operator.keys[key] = keys.keys[key];
-          }
+        console.log(keys);
+        // eslint-disable-next-line guard-for-in
+        for (const key in keys) {
+          BackLog.pushKey(key, keys[key]);
+          Operator.keys[key] = keys[key];
         }
       } catch (err) {
         log.info(err);
