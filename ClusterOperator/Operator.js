@@ -376,7 +376,7 @@ class Operator {
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        //const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+        // const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
         const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
         log.info(`response was: ${JSON.stringify(status)}`);
         if (status === null || status === 'null') {
