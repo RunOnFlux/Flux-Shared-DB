@@ -370,13 +370,15 @@ class Operator {
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
-        log.info(`response was: ${myTempIp}`);
-        if (myTempIp === null || myTempIp === 'null') {
+        //const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+        const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
+        log.info(`response was: ${status}`);
+        if (status === null || status === 'null') {
           this.OpNodes[i].active = false;
         } else {
+          this.OpNodes[i].seqNo = status.seqNo;
           this.OpNodes[i].active = true;
-          this.myIP = myTempIp;
+          this.myIP = status.remoteIP;
         }
       }
       log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
@@ -445,7 +447,7 @@ class Operator {
         // find master candidate
         const masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.ip > b.ip) ? 1 : ((b.ip > a.ip) ? -1 : 0));
+        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
         }
