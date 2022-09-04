@@ -378,7 +378,7 @@ class Operator {
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
         //const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
         const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
-        log.info(`response was: ${status}`);
+        log.info(`response was: ${JSON.stringify(status)}`);
         if (status === null || status === 'null') {
           this.OpNodes[i].active = false;
         } else {
