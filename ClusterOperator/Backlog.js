@@ -307,10 +307,10 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const record = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
-        if (record) {
+        if (record.length) {
           await this.BLClient.execute(`UPDATE ${config.dbOptions} SET value=? WHERE k=?`, [encryptedValue, key]);
         } else {
-          await this.BLClient.execute(`INSERT INTO ${config.dbOptions} SET (k, value) VALUES (?,?)`, [key, encryptedValue]);
+          await this.BLClient.execute(`INSERT INTO ${config.dbOptions} (k, value) VALUES (?,?)`, [key, encryptedValue]);
         }
       }
     } catch (e) {
