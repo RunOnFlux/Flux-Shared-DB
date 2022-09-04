@@ -79,21 +79,24 @@ class Operator {
         this.masterWSConn.on('connect', async (socket) => {
           const { engine } = this.masterWSConn.io;
           log.info('connected to master, Sharing keys...');
-          
-          const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
-          Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIv));
-          log.info(JSON.stringify(keys));
-          log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
-          if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
-            const myKeys = Security.privateDecrypt(keys.key).split(':');
-            log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
-            Security.setKey(myKeys[0]);
-            Security.setIV(myKeys[1]);
-            await this.initDB();
-          } else {
-            await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
+          try {
+            const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
+            Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIv));
+            log.info(JSON.stringify(keys));
+            log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
+            if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
+              const myKeys = Security.privateDecrypt(keys.key).split(':');
+              log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
+              Security.setKey(myKeys[0]);
+              Security.setIV(myKeys[1]);
+              await this.initDB();
+            } else {
+              await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
+            }
+          } catch (err) {
+            log.error(err);
           }
-          
+
           this.syncLocalDB();
           engine.once('upgrade', () => {
             log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
@@ -312,16 +315,18 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
-      
-      const keys = JSON.parse(Security.decryptComm(await fluxAPI.getKeys(this.masterWSConn)));
-      if ('keys' in keys) {
-        // eslint-disable-next-line guard-for-in
-        for (const key in keys.keys) {
-          BackLog.pushKey(key, keys.keys[key]);
-          Operator.keys[key] = keys.keys[key];
+      try {
+        const keys = JSON.parse(Security.decryptComm(await fluxAPI.getKeys(this.masterWSConn)));
+        if ('keys' in keys) {
+          // eslint-disable-next-line guard-for-in
+          for (const key in keys.keys) {
+            BackLog.pushKey(key, keys.keys[key]);
+            Operator.keys[key] = keys.keys[key];
+          }
         }
+      } catch (err) {
+        log.info(err);
       }
-      
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {

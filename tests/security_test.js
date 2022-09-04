@@ -7,7 +7,7 @@ async function test() {
   console.log(Security.getKey());
   console.log(Security.getCommAESKey());
   const encrypted = Security.publicEncrypt(Security.publicKey, Security.getCommAESKey());
-  const encrypted2 = Security.publicEncrypt(Security.publicKey, Buffer.from('null', 'hex'));
+  const encrypted2 = Security.publicEncrypt(Security.publicKey, Buffer.from(null, 'hex'));
   const decrypted = Security.privateDecrypt(encrypted);
   console.log(Buffer.from(decrypted.toString('hex'), 'hex'));
   Security.setCommKeys(decrypted, Security.getCommAESIv());
