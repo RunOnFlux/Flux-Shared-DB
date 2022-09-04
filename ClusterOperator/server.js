@@ -103,12 +103,13 @@ async function initServer() {
         if (!(`N${nodeip}` in Operator.keys)) {
           Operator.keys = await BackLog.getAllKeys();
           if (`N${nodeip}` in Operator.keys) nodeKey = Operator.keys[`N${nodeip}`];
+          nodeKey = Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex'));
         }
         callback({
           status: Operator.status,
           commAESKey: Security.publicEncrypt(pubKey, Security.getCommAESKey()),
           commAESIV: Security.publicEncrypt(pubKey, Security.getCommAESIv()),
-          key: Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex')),
+          key: nodeKey,
         });
       });
       socket.on('updateKey', async (key, value, callback) => {
