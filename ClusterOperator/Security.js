@@ -106,6 +106,8 @@ class Security {
   }
 
   static setCommKeys(key, iv) {
+    console.log(key);
+    console.log(iv);
     this.#commAESIv = Buffer.from(iv, 'hex');
     this.#commAESKey = Buffer.from(key, 'hex');
   }
