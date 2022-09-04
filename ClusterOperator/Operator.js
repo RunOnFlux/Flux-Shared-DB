@@ -510,7 +510,7 @@ class Operator {
   */
   static getMaster() {
     if (this.masterNode === null) {
-      if (this.this.masterCandidates.length) {
+      if (this.masterCandidates.length) {
         return this.masterCandidates[0];
       }
     } else {

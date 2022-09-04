@@ -76,7 +76,6 @@ class DBClient {
       this.stream.on('data', (data) => {
         this.rawCallback(data);
       });
-      console.log(Security.getKey());
       this.connection = await mySql.createConnection({
         password: Security.getKey(),
         user: config.dbUser,
