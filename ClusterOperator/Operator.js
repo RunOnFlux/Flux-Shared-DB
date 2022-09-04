@@ -24,6 +24,8 @@ class Operator {
 
   static OpNodes = [];
 
+  static masterCandidates = [];
+
   static AppNodes = [];
 
   static clientNodes = [];
@@ -444,18 +446,18 @@ class Operator {
       if (config.DBAppName) {
         await this.updateAppInfo();
         // find master candidate
-        const masterCandidates = [];
+        this.masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
         this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
-          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
+          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) this.masterCandidates.push(this.OpNodes[i].ip);
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-        log.info(`masterCandidates: ${JSON.stringify(masterCandidates)}`);
+        log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
         // if first candidate is me i'm the master
-        if (masterCandidates[0] === this.myIP) {
+        if (this.masterCandidates[0] === this.myIP) {
           // ask second candidate for confirmation
-          const MasterIP = await fluxAPI.getMaster(masterCandidates[1], config.containerApiPort);
+          const MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
@@ -467,8 +469,8 @@ class Operator {
           }
         } else {
           // ask first candidate who the master is
-          log.info(`asking master from ${masterCandidates[0]}`);
-          const MasterIP = await fluxAPI.getMaster(masterCandidates[0], config.containerApiPort);
+          log.info(`asking master from ${this.masterCandidates[0]}`);
+          const MasterIP = await fluxAPI.getMaster(this.masterCandidates[0], config.containerApiPort);
           log.info(`response was ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
@@ -504,8 +506,8 @@ class Operator {
   */
   static getMaster() {
     if (this.masterNode === null) {
-      if (this.OpNodes.length > 2) {
-        return this.OpNodes[0].ip;
+      if (this.this.masterCandidates.length) {
+        return this.masterCandidates[0];
       }
     } else {
       return this.masterNode;
