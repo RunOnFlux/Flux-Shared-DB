@@ -46,23 +46,43 @@ class Security {
   }
 
   static encrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
-    const cipher = createCipheriv('aes-256-cbc', key, iv);
-    return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+    try {
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
+      return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static decrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
-    const decipher = createDecipheriv('aes-256-cbc', key, iv);
-    return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+    try {
+      const decipher = createDecipheriv('aes-256-cbc', key, iv);
+      return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static encryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
-    const cipher = createCipheriv('aes-256-cbc', key, iv);
-    return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+    try {
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
+      return cipher.update(message, 'utf-8', 'hex') + cipher.final('hex');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static decryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
-    const decipher = createDecipheriv('aes-256-cbc', key, iv);
-    return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+    try {
+      const decipher = createDecipheriv('aes-256-cbc', key, iv);
+      return decipher.update(message, 'hex', 'utf-8') + decipher.final('utf-8');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static getKey() {
@@ -103,19 +123,39 @@ class Security {
   }
 
   static publicDecrypt(key, buffer) {
-    return publicDecrypt(key, buffer).toString('utf-8');
+    try {
+      return publicDecrypt(key, buffer).toString('utf-8');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static publicEncrypt(key, buffer) {
-    return publicEncrypt(key, buffer);
+    try {
+      return publicEncrypt(key, buffer);
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static privateDecrypt(buffer) {
-    return privateDecrypt(this.#getPrivateKey(), buffer).toString('utf-8');
+    try {
+      return privateDecrypt(this.#getPrivateKey(), buffer).toString('utf-8');
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 
   static privateEncrypt(buffer) {
-    return privateEncrypt(this.#getPrivateKey(), buffer);
+    try {
+      return privateEncrypt(this.#getPrivateKey(), buffer);
+    } catch (err) {
+      log.error(err);
+      return null;
+    }
   }
 }
 module.exports = Security;
