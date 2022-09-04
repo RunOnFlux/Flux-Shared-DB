@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
 const { Server } = require('socket.io');
 const express = require('express');
@@ -7,6 +8,7 @@ const BackLog = require('./Backlog');
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
+const Security = require('./Security');
 
 /**
 * Starts UI service
@@ -53,6 +55,7 @@ function auth(ip) {
 * [initServer]
 */
 async function initServer() {
+  Security.init();
   startUI();
   await Operator.init();
   const io = new Server(config.apiPort);
@@ -92,6 +95,40 @@ async function initServer() {
         socket.emit('query', query, result[1], result[2], connId);
         // io.emit('query', query, result[1], result[2]);
         callback({ status: Operator.status, result: result[0] });
+      });
+      socket.on('shareKeys', async (pubKey, callback) => {
+        const nodeip = utill.convertIP(socket.handshake.address);
+        log.info(`shareKeys from ${nodeip} : ${pubKey}`);
+        let nodeKey = null;
+        if (!(`N${nodeip}` in Operator.keys)) {
+          Operator.keys = await BackLog.getAllKeys();
+          if (`N${nodeip}` in Operator.keys) nodeKey = Operator.keys[`N${nodeip}`];
+        }
+        callback({
+          status: Operator.status,
+          commAESKey: Security.publicEncrypt(pubKey, Security.getCommAESKey()),
+          commAESIV: Security.publicEncrypt(pubKey, Security.getCommAESIv()),
+          key: Security.publicEncrypt(pubKey, nodeKey),
+        });
+      });
+      socket.on('updateKey', async (key, value, callback) => {
+        const decKey = Security.decryptComm(key);
+        log.info(`updateKey from ${decKey}:${value}`);
+        await BackLog.pushKey(decKey, value);
+        Operator.keys[decKey] = value;
+        socket.broadcast.emit('updateKey', key, value);
+        callback({ status: Operator.status });
+      });
+      socket.on('getKeys', async (callback) => {
+        const keysToSend = {};
+        const nodeip = utill.convertIP(socket.handshake.address);
+        for (const key in Operator.keys) {
+          if ((key.startsWith('N') || key.startsWith('_')) && key !== `N${nodeip}`) {
+            keysToSend[key] = Operator.keys[key];
+          }
+        }
+        keysToSend[`N${Operator.myIP}`] = `${Security.getKey()}:${Security.getIV()}`;
+        callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
     } else {
       socket.disconnect();

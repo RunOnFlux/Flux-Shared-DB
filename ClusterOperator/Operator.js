@@ -42,7 +42,11 @@ class Operator {
 
   static status = 'INIT';
 
+  static dbConnStatus = 'NOT_CONNECTED';
+
   static serverSocket;
+
+  static keys = {};
 
   /**
   * [initLocalDB]
@@ -70,9 +74,22 @@ class Operator {
           reconnection: false,
           timeout: 2000,
         });
-        this.masterWSConn.on('connect', (socket) => {
+        this.masterWSConn.on('connect', async (socket) => {
           const { engine } = this.masterWSConn.io;
-          log.info('connected to master...');
+          log.info('connected to master, Sharing keys...');
+          const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
+          Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIv));
+          log.info(JSON.stringify(keys));
+          log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
+          if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
+            const myKeys = Security.privateDecrypt(keys.key).split(':');
+            log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
+            Security.setKey(myKeys[0]);
+            Security.setIV(myKeys[1]);
+            await this.initDB();
+          } else {
+            await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
+          }
           this.syncLocalDB();
           engine.once('upgrade', () => {
             log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
@@ -100,6 +117,12 @@ class Operator {
           } else {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
+        });
+        this.masterWSConn.on('updateKey', async (key, value) => {
+          const decKey = Security.decryptComm(key);
+          log.info(`updateKey master:${decKey},${value}`);
+          await BackLog.pushKey(decKey, value);
+          Operator.keys[decKey] = value;
         });
       } catch (e) {
         log.error(e);
@@ -285,6 +308,14 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      const keys = JSON.parse(Security.decryptComm(await fluxAPI.getKeys(this.masterWSConn)));
+      if ('keys' in keys) {
+        // eslint-disable-next-line guard-for-in
+        for (const key in keys.keys) {
+          BackLog.pushKey(key, keys.keys[key]);
+          Operator.keys[key] = keys.keys[key];
+        }
+      }
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
@@ -547,37 +578,25 @@ class Operator {
   }
 
   /**
-  * [init]
+  * [initDB]
   */
-  static async init() {
-    const nets = networkInterfaces();
-    const ips = {};
-    for (const name of Object.keys(nets)) {
-      for (const anet of nets[name]) {
-        const familyV4Value = typeof anet.family === 'string' ? 'IPv4' : 4;
-        if (anet.family === familyV4Value && !anet.internal) {
-          if (!ips[name]) {
-            ips[name] = [];
-          }
-          ips[name].push(anet.address);
-          try {
-            const status = await axios.get(`http://${anet.address}:16127/daemon/getzelnodestatus`, { timeout: 1000 });
-            ips[name].push(status);
-          } catch (err) {
-            ips[name].push(null);
-          }
-        }
-      }
-    }
-    log.info(JSON.stringify(ips));
-    Security.init();
+  static async initDB() {
     if (await this.ConnectLocalDB()) {
       await this.initLocalDB();
       this.initInBoundConnections(config.dbType);
+      this.dbConnStatus = 'CONNECTED';
+      Security.setKey(Security.generateNewKey());
+      // TODO: RESET DB PASS
     } else {
-      log.info('WRONG_KEY removing key from other nodes...');
-      // TODO
+      this.dbConnStatus = 'WRONG_KEY';
     }
+  }
+
+  /**
+  * [init]
+  */
+  static async init() {
+    await this.initDB();
   }
 }
 module.exports = Operator;
