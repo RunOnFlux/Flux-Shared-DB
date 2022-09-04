@@ -381,7 +381,6 @@ class Operator {
           this.myIP = status.remoteIP;
         }
       }
-      log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
       if (this.myIP !== null) {
         log.info(`My ip is ${this.myIP}`);
       } else {
@@ -447,10 +446,12 @@ class Operator {
         // find master candidate
         const masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
+        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
         }
+        log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+        log.info(`masterCandidates: ${JSON.stringify(masterCandidates)}`);
         // if first candidate is me i'm the master
         if (masterCandidates[0] === this.myIP) {
           // ask second candidate for confirmation
