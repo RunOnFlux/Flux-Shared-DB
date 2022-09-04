@@ -447,7 +447,7 @@ class Operator {
         // find master candidate
         const masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
+        this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
         }
