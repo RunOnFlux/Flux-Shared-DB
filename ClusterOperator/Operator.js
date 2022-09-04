@@ -376,7 +376,7 @@ class Operator {
         if (status === null || status === 'null') {
           this.OpNodes[i].active = false;
         } else {
-          this.OpNodes[i].seqNo = status.seqNo;
+          this.OpNodes[i].seqNo = status.sequenceNumber;
           this.OpNodes[i].active = true;
           this.myIP = status.remoteIP;
         }
