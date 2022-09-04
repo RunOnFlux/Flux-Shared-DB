@@ -358,7 +358,7 @@ class Operator {
         // extraxt ip from upnp nodes
         // eslint-disable-next-line prefer-destructuring
         if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ ip: ipList[i].ip, active: null });
+        this.OpNodes.push({ ip: ipList[i].ip, active: null, seqNo: 0 });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
         // eslint-disable-next-line prefer-destructuring

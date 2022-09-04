@@ -108,7 +108,7 @@ async function initServer() {
           status: Operator.status,
           commAESKey: Security.publicEncrypt(pubKey, Security.getCommAESKey()),
           commAESIV: Security.publicEncrypt(pubKey, Security.getCommAESIv()),
-          key: Security.publicEncrypt(pubKey, nodeKey),
+          key: Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex')),
         });
       });
       socket.on('updateKey', async (key, value, callback) => {
