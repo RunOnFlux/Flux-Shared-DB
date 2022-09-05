@@ -17,6 +17,7 @@ module.exports = {
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || 'wordpressonflux',
   AppName: process.env.CLIENT_APPNAME || 'wordpressonflux',
-  version: '0.9.58',
+  version: '1.0.0',
   whiteListedIps: process.env.WHITELIST || '::1',
+  debugMode: 'off',
 };

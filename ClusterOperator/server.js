@@ -64,7 +64,7 @@ async function initServer() {
   io.on('connection', (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
     if (auth(ip)) {
-      console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
+      // console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
       socket.on('disconnect', (reason) => {
       });
       socket.on('getStatus', (callback) => {
@@ -98,12 +98,12 @@ async function initServer() {
       });
       socket.on('shareKeys', async (pubKey, callback) => {
         const nodeip = utill.convertIP(socket.handshake.address);
-        log.info(`shareKeys from ${nodeip} : ${pubKey}`);
+        log.info(`shareKeys from ${nodeip}`);
         let nodeKey = null;
         if (!(`N${nodeip}` in Operator.keys)) {
           Operator.keys = await BackLog.getAllKeys();
           if (`N${nodeip}` in Operator.keys) nodeKey = Operator.keys[`N${nodeip}`];
-          log.info(nodeKey);
+          // log.info(nodeKey);
           if (nodeKey) {
             nodeKey = Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex'));
           }
@@ -117,12 +117,12 @@ async function initServer() {
       });
       socket.on('updateKey', async (key, value, callback) => {
         const decKey = Security.decryptComm(key);
-        log.info(`updateKey from ${decKey}:${value}`);
+        log.info(`updateKey from ${decKey}`);
         await BackLog.pushKey(decKey, value);
         Operator.keys[decKey] = value;
         socket.broadcast.emit('updateKey', key, value);
         callback({ status: Operator.status });
-        log.info(JSON.stringify(Operator.keys));
+        // log.info(JSON.stringify(Operator.keys));
       });
       socket.on('getKeys', async (callback) => {
         const keysToSend = {};
@@ -132,7 +132,7 @@ async function initServer() {
             keysToSend[key] = Operator.keys[key];
           }
         }
-        log.info(JSON.stringify(Operator.keys));
+        // log.info(JSON.stringify(Operator.keys));
         keysToSend[`N${Operator.myIP}`] = Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`);
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
