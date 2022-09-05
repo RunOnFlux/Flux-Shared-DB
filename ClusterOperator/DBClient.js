@@ -83,7 +83,7 @@ class DBClient {
       });
       this.connection.once('error', () => {
         this.connected = false;
-        console.log(`mysql connected: ${this.connected}`);
+        // console.log(`mysql connected: ${this.connected}`);
       });
       this.connected = true;
     }
@@ -169,7 +169,7 @@ class DBClient {
         database: dbName,
       }, (err) => {
         if (err) {
-          console.log('Error changing database', err);
+          // console.log('Error changing database', err);
         }
       });
     }
