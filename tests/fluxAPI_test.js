@@ -46,4 +46,12 @@ async function getMyIp(OpNodes, retries = 1) {
   await timer.setTimeout(5000 * retries);
   return getMyIp(OpNodes, retries + 1);
 }
-testFluxAPI();
+
+async function testFluxAPI2() {
+  const DBAppName = 'wordpressonflux';
+  const validity = await fluxAPI.validateApp(DBAppName, '185.136.186.202');
+  console.log(validity);
+}
+
+//testFluxAPI();
+testFluxAPI2();
