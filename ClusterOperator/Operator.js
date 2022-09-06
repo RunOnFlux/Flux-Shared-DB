@@ -1,9 +1,12 @@
+/* eslint-disable no-else-return */
 /* eslint-disable no-case-declarations */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
 const net = require('net');
+const { networkInterfaces } = require('os');
+const axios = require('axios');
 const { io } = require('socket.io-client');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
@@ -14,11 +17,14 @@ const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
+const Security = require('./Security');
 
 class Operator {
   static localDB = null;
 
   static OpNodes = [];
+
+  static masterCandidates = [];
 
   static AppNodes = [];
 
@@ -38,7 +44,11 @@ class Operator {
 
   static status = 'INIT';
 
+  static dbConnStatus = 'NOT_CONNECTED';
+
   static serverSocket;
+
+  static keys = {};
 
   /**
   * [initLocalDB]
@@ -66,9 +76,28 @@ class Operator {
           reconnection: false,
           timeout: 2000,
         });
-        this.masterWSConn.on('connect', (socket) => {
+        this.masterWSConn.on('connect', async (socket) => {
           const { engine } = this.masterWSConn.io;
-          log.info('connected to master...');
+          log.info('connected to master, Sharing keys...');
+          try {
+            const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
+            // log.info(Security.privateDecrypt(keys.commAESKey));
+            Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIV));
+            // log.info(`commAESKey is: ${Security.privateDecrypt(keys.commAESKey)}`);
+            // log.info(`commAESIV is: ${Security.privateDecrypt(keys.commAESIV)}`);
+            if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
+              const myKeys = Security.privateDecrypt(keys.key).split(':');
+              log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
+              Security.setKey(myKeys[0]);
+              Security.setIV(myKeys[1]);
+              await this.initDB();
+            } else {
+              await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
+            }
+          } catch (err) {
+            log.error(err);
+          }
+
           this.syncLocalDB();
           engine.once('upgrade', () => {
             log.info(`transport protocol: ${engine.transport.name}`); // in most cases, prints "websocket"
@@ -96,6 +125,12 @@ class Operator {
           } else {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
+        });
+        this.masterWSConn.on('updateKey', async (key, value) => {
+          const decKey = Security.decryptComm(key);
+          log.info(`updateKey master:${decKey},${value}`);
+          await BackLog.pushKey(decKey, value);
+          Operator.keys[decKey] = value;
         });
       } catch (e) {
         log.error(e);
@@ -281,6 +316,18 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      try {
+        const response = await fluxAPI.getKeys(this.masterWSConn);
+        const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
+        console.log(keys);
+        // eslint-disable-next-line guard-for-in
+        for (const key in keys) {
+          BackLog.pushKey(key, keys[key]);
+          Operator.keys[key] = keys[key];
+        }
+      } catch (err) {
+        log.info(err);
+      }
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
@@ -323,7 +370,7 @@ class Operator {
         // extraxt ip from upnp nodes
         // eslint-disable-next-line prefer-destructuring
         if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ ip: ipList[i].ip, active: null });
+        this.OpNodes.push({ ip: ipList[i].ip, active: null, seqNo: 0 });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
         // eslint-disable-next-line prefer-destructuring
@@ -335,16 +382,17 @@ class Operator {
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
-        log.info(`response was: ${myTempIp}`);
-        if (myTempIp === null || myTempIp === 'null') {
+        // const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
+        const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
+        log.info(`response was: ${JSON.stringify(status)}`);
+        if (status === null || status === 'null') {
           this.OpNodes[i].active = false;
         } else {
+          this.OpNodes[i].seqNo = status.sequenceNumber;
           this.OpNodes[i].active = true;
-          this.myIP = myTempIp;
+          this.myIP = status.remoteIP;
         }
       }
-      log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
       if (this.myIP !== null) {
         log.info(`My ip is ${this.myIP}`);
       } else {
@@ -408,16 +456,18 @@ class Operator {
       if (config.DBAppName) {
         await this.updateAppInfo();
         // find master candidate
-        const masterCandidates = [];
+        this.masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.ip > b.ip) ? 1 : ((b.ip > a.ip) ? -1 : 0));
+        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
-          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) masterCandidates.push(this.OpNodes[i].ip);
+          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) this.masterCandidates.push(this.OpNodes[i].ip);
         }
+        log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
+        log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
         // if first candidate is me i'm the master
-        if (masterCandidates[0] === this.myIP) {
+        if (this.masterCandidates[0] === this.myIP) {
           // ask second candidate for confirmation
-          const MasterIP = await fluxAPI.getMaster(masterCandidates[1], config.containerApiPort);
+          const MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
@@ -429,8 +479,8 @@ class Operator {
           }
         } else {
           // ask first candidate who the master is
-          log.info(`asking master from ${masterCandidates[0]}`);
-          const MasterIP = await fluxAPI.getMaster(masterCandidates[0], config.containerApiPort);
+          log.info(`asking master from ${this.masterCandidates[0]}`);
+          const MasterIP = await fluxAPI.getMaster(this.masterCandidates[0], config.containerApiPort);
           log.info(`response was ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
@@ -466,8 +516,8 @@ class Operator {
   */
   static getMaster() {
     if (this.masterNode === null) {
-      if (this.OpNodes.length > 2) {
-        return this.OpNodes[0].ip;
+      if (this.masterCandidates.length) {
+        return this.masterCandidates[0];
       }
     } else {
       return this.masterNode;
@@ -526,22 +576,42 @@ class Operator {
   */
   static async ConnectLocalDB() {
     // wait for local db to boot up
+
     this.localDB = await dbClient.createClient();
-    while (this.localDB === null) {
-      log.info('Waiting for local DB to boot up...');
-      await timer.setTimeout(2000);
-      this.localDB = await dbClient.createClient();
+
+    if (this.localDB === 'WRONG_KEY') {
+      return false;
+    } else {
+      while (this.localDB === null) {
+        log.info('Waiting for local DB to boot up...');
+        await timer.setTimeout(2000);
+        this.localDB = await dbClient.createClient();
+      }
+      log.info('Connected to local DB.');
     }
-    log.info('Connected to local DB.');
+    return true;
+  }
+
+  /**
+  * [initDB]
+  */
+  static async initDB() {
+    if (await this.ConnectLocalDB()) {
+      await this.initLocalDB();
+      this.initInBoundConnections(config.dbType);
+      this.dbConnStatus = 'CONNECTED';
+      Security.setKey(Security.generateNewKey());
+      // TODO: RESET DB PASS
+    } else {
+      this.dbConnStatus = 'WRONG_KEY';
+    }
   }
 
   /**
   * [init]
   */
   static async init() {
-    await this.ConnectLocalDB();
-    await this.initLocalDB();
-    this.initInBoundConnections(config.dbType);
+    await this.initDB();
   }
 }
 module.exports = Operator;

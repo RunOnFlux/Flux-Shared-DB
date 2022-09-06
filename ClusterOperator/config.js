@@ -7,6 +7,7 @@ module.exports = {
   dbBacklog: 'flux_backlog',
   dbBacklogCollection: 'backlog',
   dbBacklogBuffer: 'backlog_buffer',
+  dbOptions: 'options',
   dbInitDB: process.env.INIT_DB_NAME || 'test_db',
   connectionServer: 'mysql',
   externalDBPort: 3307,
@@ -16,6 +17,7 @@ module.exports = {
   containerApiPort: process.env.API_PORT || 33950,
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '0.9.62',
+  version: '1.0.0',
   whiteListedIps: process.env.WHITELIST || '::1',
+  debugMode: 'off',
 };

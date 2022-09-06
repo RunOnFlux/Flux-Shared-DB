@@ -2,6 +2,7 @@
 const mySql = require('mysql2/promise');
 const net = require('net');
 const config = require('./config');
+const Security = require('./Security');
 const log = require('../lib/log');
 
 class DBClient {
@@ -76,13 +77,13 @@ class DBClient {
         this.rawCallback(data);
       });
       this.connection = await mySql.createConnection({
-        password: config.dbPass,
+        password: Security.getKey(),
         user: config.dbUser,
         stream: this.stream,
       });
       this.connection.once('error', () => {
         this.connected = false;
-        console.log(`mysql connected: ${this.connected}`);
+        // console.log(`mysql connected: ${this.connected}`);
       });
       this.connected = true;
     }
@@ -103,16 +104,16 @@ class DBClient {
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
-          if (err) console.log(`Error running query: ${JSON.stringify(err)}`);
+          if (err) log.info(err);
           return [rows, fields, err];
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, err] = await this.connection.query(query);
-          if (err) console.log(`Error running query: ${JSON.stringify(err)}`);
+          if (err) log.info(`Error running query: ${query}`);
           return rows;
         }
       } catch (err) {
-        log.info(err);
+        log.info(`Error running query: ${query}`);
         return [null, null, err];
       }
     }
@@ -168,9 +169,19 @@ class DBClient {
         database: dbName,
       }, (err) => {
         if (err) {
-          console.log('Error changing database', err);
+          // console.log('Error changing database', err);
         }
       });
+    }
+  }
+
+  /**
+  * [setPassword]
+  * @param {string} key [description]
+  */
+  async setPassword(key) {
+    if (config.dbType === 'mysql') {
+      await this.query(`SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${key}');SET PASSWORD FOR 'root'@'%' = PASSWORD('${key}');FLUSH PRIVILEGES;`);
     }
   }
 }
@@ -182,7 +193,10 @@ exports.createClient = async function () {
     await cl.init();
     return cl;
   } catch (err) {
-    log.info(err);
+    // log.info(JSON.stringify(err));
+    if (config.dbType === 'mysql') {
+      if (err.code === 'ER_ACCESS_DENIED_ERROR') return 'WRONG_KEY';
+    }
     return null;
   }
 };

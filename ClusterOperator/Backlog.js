@@ -4,6 +4,7 @@
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
+const Security = require('./Security');
 const ConnectionPool = require('../lib/ConnectionPool');
 
 class BackLog {
@@ -60,6 +61,14 @@ class BackLog {
             ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
         } else {
           log.info('Backlog buffer table already exists, moving on...');
+        }
+        tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
+          WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbOptions}'`);
+        if (tableList.length === 0) {
+          log.info('Backlog options table not defined yet, creating options table...');
+          await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=MyISAM;`);
+        } else {
+          log.info('Backlog options table already exists, moving on...');
         }
         log.info(`Last Seq No: ${this.sequenceNumber}`);
       }
@@ -283,6 +292,53 @@ class BackLog {
     }
     this.clearBuffer();
     log.info('All buffer data moved to backlog successfully.');
+  }
+
+  /**
+  * [pushKey]
+  */
+  static async pushKey(key, value) {
+    const encryptedValue = Security.encrypt(Security.decryptComm(value));
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const record = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (record.length) {
+          await this.BLClient.execute(`UPDATE ${config.dbOptions} SET value=? WHERE k=?`, [encryptedValue, key]);
+        } else {
+          await this.BLClient.execute(`INSERT INTO ${config.dbOptions} (k, value) VALUES (?,?)`, [key, encryptedValue]);
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    this.buffer = [];
+    log.info('Key pushed.');
+  }
+
+  /**
+  * [getAllKeys]
+  */
+  static async getAllKeys() {
+    const keys = {};
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions}`);
+        for (const record of records) {
+          keys[record.k] = Security.encryptComm(Security.decrypt(record.value));
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return keys;
   }
 }
 
