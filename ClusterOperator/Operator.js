@@ -179,9 +179,9 @@ class Operator {
       log.info('Auth Info:');
       log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
-      if (remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
+      // if (remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
       const whiteList = config.whiteListedIps.split(',');
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('80.239.140.') || remoteIp.startsWith('172.15.0.')) {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.15.0.')) {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
