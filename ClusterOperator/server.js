@@ -9,6 +9,7 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
+const fluxAPI = require('../lib/fluxAPI');
 
 /**
 * Starts UI service
@@ -40,15 +41,14 @@ function startUI() {
 * [auth]
 * @param {string} ip [description]
 */
-function auth(ip) {
+async function auth(ip) {
   const whiteList = config.whiteListedIps.split(',');
   if ((whiteList.length && whiteList.includes(ip)) || ip.startsWith('80.239.140.')) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
-  // only one connection per ip allowed
-  // idx = clients.findIndex(item => item.ip==ip);
-  // if(idx === -1) return true; else return false;
+  const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
+  if (!validateApp) return false;
   return true;
 }
 /**
@@ -61,10 +61,9 @@ async function initServer() {
   const io = new Server(config.apiPort);
   Operator.setServerSocket(io);
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
-    if (auth(ip)) {
-      // console.info(`Client connected [id=${socket.id}, ip=${ip}]`);
+    if (await auth(ip)) {
       socket.on('disconnect', (reason) => {
       });
       socket.on('getStatus', (callback) => {
@@ -103,10 +102,7 @@ async function initServer() {
         if (!(`N${nodeip}` in Operator.keys)) {
           Operator.keys = await BackLog.getAllKeys();
           if (`N${nodeip}` in Operator.keys) nodeKey = Operator.keys[`N${nodeip}`];
-          // log.info(nodeKey);
-          if (nodeKey) {
-            nodeKey = Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex'));
-          }
+          if (nodeKey) nodeKey = Security.publicEncrypt(pubKey, Buffer.from(nodeKey, 'hex'));
         }
         callback({
           status: Operator.status,
