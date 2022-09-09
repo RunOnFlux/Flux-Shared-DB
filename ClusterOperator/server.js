@@ -43,14 +43,13 @@ function startUI() {
 */
 async function auth(ip) {
   const whiteList = config.whiteListedIps.split(',');
-  if (ip === '172.15.0.1') return true;
   if (whiteList.length && whiteList.includes(ip)) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
   const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
-  if (!validateApp) return false;
-  return true;
+  if (validateApp) return true;
+  return false;
 }
 /**
 * [initServer]
