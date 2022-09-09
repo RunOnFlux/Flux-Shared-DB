@@ -26,5 +26,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/fluxdb:latest
+          tags: runonflux/shared-db:latest
 
