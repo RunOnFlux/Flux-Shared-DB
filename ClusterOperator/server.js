@@ -3,6 +3,7 @@
 const { Server } = require('socket.io');
 const express = require('express');
 const fs = require('fs');
+const e = require('express');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
 const log = require('../lib/log');
@@ -10,7 +11,6 @@ const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
 const fluxAPI = require('../lib/fluxAPI');
-const e = require('express');
 
 /**
 * Starts UI service

@@ -354,7 +354,7 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      while (ipList.length < this.nodeInstances-1) {
+      while (ipList.length < this.nodeInstances) {
         log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
         await timer.setTimeout(10000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
@@ -458,7 +458,7 @@ class Operator {
         // find master candidate
         this.masterCandidates = [];
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
+        this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) this.masterCandidates.push(this.OpNodes[i].ip);
         }
