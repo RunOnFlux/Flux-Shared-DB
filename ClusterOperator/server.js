@@ -70,6 +70,7 @@ async function initServer() {
       // log.info(`disconnected from ${ip}`);
     });
     socket.on('getStatus', async (callback) => {
+      log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
       log.info(`getStatus from ${ip}`);
       if (await auth(ip)) {
         callback({
@@ -99,7 +100,7 @@ async function initServer() {
       }
     });
     socket.on('getBackLog', async (start, callback) => {
-      log.info(`getBackLog: ${ip} is authorized: ${Operator.authorized[ip]}`);
+      log.info(`getBackLog: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
       if (Operator.authorized[ip]) {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
@@ -119,7 +120,7 @@ async function initServer() {
       }
     });
     socket.on('shareKeys', async (pubKey, callback) => {
-      log.info(`shareKeys: ${ip} is authorized: ${Operator.authorized[ip]}`);
+      log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
       if (Operator.authorized[ip]) {
         const nodeip = utill.convertIP(socket.handshake.address);
         log.info(`shareKeys from ${nodeip}`);
@@ -164,7 +165,7 @@ async function initServer() {
     });
     if (await auth(ip)) {
       Operator.authorized[ip] = true;
-      log.info(`${ip} is authorized: ${Operator.authorized[ip]}`);
+      log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
     } else {
       // log.info(`rejected from ${ip}`);
       socket.disconnect();
