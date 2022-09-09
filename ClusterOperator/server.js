@@ -10,6 +10,7 @@ const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
 const fluxAPI = require('../lib/fluxAPI');
+const e = require('express');
 
 /**
 * Starts UI service
@@ -70,23 +71,31 @@ async function initServer() {
     socket.on('disconnect', (reason) => {
       log.info(`disconnected from ${ip}`);
     });
-    if (await auth(ip)) {
-      socket.on('getStatus', (callback) => {
-        log.info(`getStatus from ${ip}`);
+    socket.on('getStatus', async (callback) => {
+      log.info(`getStatus from ${ip}`);
+      if (await auth(ip)) {
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
         });
-      });
+      } else {
+        socket.disconnect();
+      }
+    });
+    socket.on('getMaster', async (callback) => {
+      log.info(`getMaster from ${ip}`);
+      if (await auth(ip)) {
+        callback({ status: 'success', message: Operator.getMaster() });
+      } else {
+        socket.disconnect();
+      }
+    });
+    if (await auth(ip)) {
       socket.on('getMyIp', (callback) => {
         log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
-      });
-      socket.on('getMaster', (callback) => {
-        log.info(`getMaster from ${ip}`);
-        callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getBackLog', async (start, callback) => {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
