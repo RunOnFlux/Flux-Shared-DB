@@ -102,6 +102,7 @@ async function initServer() {
       }
     });
     socket.on('getBackLog', async (start, callback) => {
+      log.info(`getBackLog: ${ip} is authorized: ${authorized}`);
       if (authorized) {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
@@ -165,6 +166,7 @@ async function initServer() {
     });
     if (await auth(ip)) {
       authorized = true;
+      log.info(`${ip} is authorized: ${authorized}`);
     } else {
       log.info(`rejected from ${ip}`);
       socket.disconnect();
