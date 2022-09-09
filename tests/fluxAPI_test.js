@@ -49,7 +49,10 @@ async function getMyIp(OpNodes, retries = 1) {
 
 async function testFluxAPI2() {
   const DBAppName = 'wordpressonflux';
+  const startTime = new Date().getTime();
   const validity = await fluxAPI.validateApp(DBAppName, '185.136.186.202');
+  const endTime = new Date().getTime();
+  console.log(`validation time is ${endTime - startTime} milliseconds`);
   console.log(validity);
 }
 
