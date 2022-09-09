@@ -354,7 +354,7 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      while (ipList.length < this.nodeInstances) {
+      while (ipList.length < this.nodeInstances-1) {
         log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
         await timer.setTimeout(10000);
         ipList = await fluxAPI.getApplicationIP(config.DBAppName);
