@@ -63,6 +63,7 @@ async function initServer() {
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
+    log.info(`validating ${ip}: ${await auth(ip)}`);
     if (await auth(ip)) {
       socket.on('disconnect', (reason) => {
       });
