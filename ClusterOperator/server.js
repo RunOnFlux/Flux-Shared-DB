@@ -47,9 +47,9 @@ async function auth(ip) {
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
-  const startTime = performance.now();
+  const startTime = new Date().getTime();
   const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
-  const endTime = performance.now();
+  const endTime = new Date().getTime();
   log.info(`validation time is ${endTime - startTime} milliseconds`);
   if (validateApp) return true;
   return true;
