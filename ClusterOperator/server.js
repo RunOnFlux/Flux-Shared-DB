@@ -63,11 +63,13 @@ async function initServer() {
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
-    log.info(`validating ${ip}: ${await auth(ip)}`);
+    // log.info(`validating ${ip}: ${await auth(ip)}`);
     if (await auth(ip)) {
       socket.on('disconnect', (reason) => {
+        log.info(`disconnected from ${ip}`);
       });
       socket.on('getStatus', (callback) => {
+        log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
@@ -76,9 +78,11 @@ async function initServer() {
         });
       });
       socket.on('getMyIp', (callback) => {
+        log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getMaster', (callback) => {
+        log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getBackLog', async (start, callback) => {
