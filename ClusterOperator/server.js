@@ -64,6 +64,8 @@ async function initServer() {
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
+    Operator.authorized[ip] = false;
+    log.info(`connected: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
     // log.info(`validating ${ip}: ${await auth(ip)}`);
     socket.on('disconnect', (reason) => {
       // log.info(`disconnected from ${ip}`);
@@ -119,7 +121,7 @@ async function initServer() {
       // }
     });
     socket.on('shareKeys', async (pubKey, callback) => {
-      // log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
+       log.info(`shareKeys: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
       // if (Operator.authorized[ip]) {
         const nodeip = utill.convertIP(socket.handshake.address);
         log.info(`shareKeys from ${nodeip}`);
@@ -164,7 +166,7 @@ async function initServer() {
     });
     if (await auth(ip)) {
       Operator.authorized[ip] = true;
-      log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
+      log.info(`auth: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
     } else {
       Operator.authorized[ip] = false;
       // log.info(`rejected from ${ip}`);
