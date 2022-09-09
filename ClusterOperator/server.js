@@ -48,10 +48,7 @@ async function auth(ip) {
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
-  const startTime = new Date().getTime();
   const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
-  const endTime = new Date().getTime();
-  log.info(`validation time is ${endTime - startTime} milliseconds`);
   if (validateApp) return true;
   return true;
 }
@@ -70,7 +67,7 @@ async function initServer() {
     let authorized = false;
     // log.info(`validating ${ip}: ${await auth(ip)}`);
     socket.on('disconnect', (reason) => {
-      log.info(`disconnected from ${ip}`);
+      // log.info(`disconnected from ${ip}`);
     });
     socket.on('getStatus', async (callback) => {
       log.info(`getStatus from ${ip}`);
@@ -122,6 +119,7 @@ async function initServer() {
       }
     });
     socket.on('shareKeys', async (pubKey, callback) => {
+      log.info(`shareKeys: ${ip} is authorized: ${authorized}`);
       if (authorized) {
         const nodeip = utill.convertIP(socket.handshake.address);
         log.info(`shareKeys from ${nodeip}`);
@@ -168,7 +166,7 @@ async function initServer() {
       authorized = true;
       log.info(`${ip} is authorized: ${authorized}`);
     } else {
-      log.info(`rejected from ${ip}`);
+      // log.info(`rejected from ${ip}`);
       socket.disconnect();
     }
   });
