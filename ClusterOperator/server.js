@@ -47,9 +47,9 @@ async function auth(ip) {
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
-  const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
-  if (validateApp) return true;
-  return false;
+  //const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
+  //if (validateApp) return true;
+  return true;
 }
 /**
 * [initServer]
