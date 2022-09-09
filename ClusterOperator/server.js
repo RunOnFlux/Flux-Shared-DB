@@ -64,10 +64,10 @@ async function initServer() {
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
     // log.info(`validating ${ip}: ${await auth(ip)}`);
+    socket.on('disconnect', (reason) => {
+      log.info(`disconnected from ${ip}`);
+    });
     if (await auth(ip)) {
-      socket.on('disconnect', (reason) => {
-        log.info(`disconnected from ${ip}`);
-      });
       socket.on('getStatus', (callback) => {
         log.info(`getStatus from ${ip}`);
         callback({
@@ -138,6 +138,7 @@ async function initServer() {
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
     } else {
+      log.info(`rejected from ${ip}`);
       socket.disconnect();
     }
   });
