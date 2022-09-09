@@ -50,6 +50,8 @@ class Operator {
 
   static keys = {};
 
+  static authorized = {};
+
   /**
   * [initLocalDB]
   */

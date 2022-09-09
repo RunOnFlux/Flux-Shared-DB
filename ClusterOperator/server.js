@@ -61,11 +61,10 @@ async function initServer() {
   await Operator.init();
   const io = new Server(config.apiPort);
   Operator.setServerSocket(io);
-  const authorized = {};
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
-    authorized[ip] = false;
+    Operator.authorized[ip] = false;
     // log.info(`validating ${ip}: ${await auth(ip)}`);
     socket.on('disconnect', (reason) => {
       // log.info(`disconnected from ${ip}`);
@@ -100,8 +99,8 @@ async function initServer() {
       }
     });
     socket.on('getBackLog', async (start, callback) => {
-      log.info(`getBackLog: ${ip} is authorized: ${authorized[ip]}`);
-      if (authorized[ip]) {
+      log.info(`getBackLog: ${ip} is authorized: ${Operator.authorized[ip]}`);
+      if (Operator.authorized[ip]) {
         log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
         const records = await BackLog.getLogs(start, 100);
         // log.info(`backlog records: ${JSON.stringify(records)}`);
@@ -109,7 +108,7 @@ async function initServer() {
       }
     });
     socket.on('writeQuery', async (query, connId, callback) => {
-      if (authorized[ip]) {
+      if (Operator.authorized[ip]) {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
         const result = await BackLog.pushQuery(query);
         log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
@@ -120,8 +119,8 @@ async function initServer() {
       }
     });
     socket.on('shareKeys', async (pubKey, callback) => {
-      log.info(`shareKeys: ${ip} is authorized: ${authorized[ip]}`);
-      if (authorized[ip]) {
+      log.info(`shareKeys: ${ip} is authorized: ${Operator.authorized[ip]}`);
+      if (Operator.authorized[ip]) {
         const nodeip = utill.convertIP(socket.handshake.address);
         log.info(`shareKeys from ${nodeip}`);
         let nodeKey = null;
@@ -139,7 +138,7 @@ async function initServer() {
       }
     });
     socket.on('updateKey', async (key, value, callback) => {
-      if (authorized[ip]) {
+      if (Operator.authorized[ip]) {
         const decKey = Security.decryptComm(key);
         log.info(`updateKey from ${decKey}`);
         await BackLog.pushKey(decKey, value);
@@ -150,7 +149,7 @@ async function initServer() {
       }
     });
     socket.on('getKeys', async (callback) => {
-      if (authorized[ip]) {
+      if (Operator.authorized[ip]) {
         const keysToSend = {};
         const nodeip = utill.convertIP(socket.handshake.address);
         for (const key in Operator.keys) {
@@ -164,8 +163,8 @@ async function initServer() {
       }
     });
     if (await auth(ip)) {
-      authorized[ip] = true;
-      log.info(`${ip} is authorized: ${authorized[ip]}`);
+      Operator.authorized[ip] = true;
+      log.info(`${ip} is authorized: ${Operator.authorized[ip]}`);
     } else {
       // log.info(`rejected from ${ip}`);
       socket.disconnect();
