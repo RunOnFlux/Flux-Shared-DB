@@ -43,15 +43,22 @@ function startUI() {
 * [auth]
 * @param {string} ip [description]
 */
-async function auth(ip) {
+function auth(ip) {
   const whiteList = config.whiteListedIps.split(',');
   if (whiteList.length && whiteList.includes(ip)) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) return false;
+  return true;
+}
+/**
+* [validate]
+* @param {string} ip [description]
+*/
+async function validate(ip) {
   const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
   if (validateApp) return true;
-  return true;
+  return false;
 }
 /**
 * [initServer]
@@ -60,60 +67,40 @@ async function initServer() {
   Security.init();
   startUI();
   await Operator.init();
-  const io = new Server(config.apiPort);
+  const io = new Server();
   const app = new App();
   io.attachApp(app);
   Operator.setServerSocket(io);
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
-    Operator.authorized[ip] = false;
-    log.info(`connected: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
-    // log.info(`validating ${ip}: ${await auth(ip)}`);
-    socket.on('disconnect', (reason) => {
-      // log.info(`disconnected from ${ip}`);
-    });
-    socket.on('getStatus', async (callback) => {
-      log.info(`getStatus: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
-      log.info(`getStatus from ${ip}`);
-      if (await auth(ip)) {
+    if (auth(ip)) {
+      // log.info(`validating ${ip}: ${await auth(ip)}`);
+      // socket.on('disconnect', (reason) => {
+      //   log.info(`disconnected from ${ip}`);
+      // });
+      socket.on('getStatus', async (callback) => {
+        log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
         });
-      } else {
-        socket.disconnect();
-      }
-    });
-    socket.on('getMaster', async (callback) => {
-      log.info(`getMaster from ${ip}`);
-      if (await auth(ip)) {
+      });
+      socket.on('getMaster', async (callback) => {
+        log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
-      } else {
-        socket.disconnect();
-      }
-    });
-    socket.on('getMyIp', async (callback) => {
-      if (await auth(ip)) {
+      });
+      socket.on('getMyIp', async (callback) => {
         log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
-      } else {
-        socket.disconnect();
-      }
-    });
-    socket.on('getBackLog', async (start, callback) => {
-      // log.info(`getBackLog: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
-      // if (Operator.authorized[ip]) {
-        //log.info(`getBackLog from ${utill.convertIP(socket.handshake.address)} : ${start}`);
+      });
+      socket.on('getBackLog', async (start, callback) => {
         const records = await BackLog.getLogs(start, 100);
-        // log.info(`backlog records: ${JSON.stringify(records)}`);
         callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
-      // }
-    });
-    socket.on('writeQuery', async (query, connId, callback) => {
-      // if (Operator.authorized[ip]) {
+      });
+      socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
         const result = await BackLog.pushQuery(query);
         log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
@@ -121,11 +108,8 @@ async function initServer() {
         socket.emit('query', query, result[1], result[2], connId);
         // io.emit('query', query, result[1], result[2]);
         callback({ status: Operator.status, result: result[0] });
-      // }
-    });
-    socket.on('shareKeys', async (pubKey, callback) => {
-       log.info(`shareKeys: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
-      // if (Operator.authorized[ip]) {
+      });
+      socket.on('shareKeys', async (pubKey, callback) => {
         const nodeip = utill.convertIP(socket.handshake.address);
         log.info(`shareKeys from ${nodeip}`);
         let nodeKey = null;
@@ -140,21 +124,16 @@ async function initServer() {
           commAESIV: Security.publicEncrypt(pubKey, Security.getCommAESIv()),
           key: nodeKey,
         });
-      // }
-    });
-    socket.on('updateKey', async (key, value, callback) => {
-      // if (Operator.authorized[ip]) {
+      });
+      socket.on('updateKey', async (key, value, callback) => {
         const decKey = Security.decryptComm(key);
         log.info(`updateKey from ${decKey}`);
         await BackLog.pushKey(decKey, value);
         Operator.keys[decKey] = value;
         socket.broadcast.emit('updateKey', key, value);
         callback({ status: Operator.status });
-        // log.info(JSON.stringify(Operator.keys));
-      // }
-    });
-    socket.on('getKeys', async (callback) => {
-      // if (Operator.authorized[ip]) {
+      });
+      socket.on('getKeys', async (callback) => {
         const keysToSend = {};
         const nodeip = utill.convertIP(socket.handshake.address);
         for (const key in Operator.keys) {
@@ -162,18 +141,24 @@ async function initServer() {
             keysToSend[key] = Operator.keys[key];
           }
         }
-        // log.info(JSON.stringify(Operator.keys));
         keysToSend[`N${Operator.myIP}`] = Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`);
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
-      // }
-    });
-    if (await auth(ip)) {
-      Operator.authorized[ip] = true;
-      log.info(`auth: ${ip} is authorized: ${JSON.stringify(Operator.authorized)}`);
+      });
     } else {
-      Operator.authorized[ip] = false;
-      // log.info(`rejected from ${ip}`);
+      log.info(`rejected from ${ip}`);
       socket.disconnect();
+    }
+    if (await validate(ip)) {
+      log.info(`auth: ${ip} is validated`);
+    } else {
+      log.info(`validation failed for ${ip}`);
+      socket.disconnect();
+    }
+  });
+
+  app.listen(config.apiPort, (token) => {
+    if (!token) {
+      log.warn(`port ${config.apiPort} already in use`);
     }
   });
 
