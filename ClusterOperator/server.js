@@ -68,12 +68,13 @@ async function initServer() {
   startUI();
   await Operator.init();
   const io = new Server(config.apiPort);
-  // const app = new App();
-  // io.attachApp(app);
+   const app = new App();
+   io.attachApp(app);
   Operator.setServerSocket(io);
 
   io.on('connection', async (socket) => {
-    const ip = utill.convertIP(socket.handshake.address);
+    const ip = socket.handshake.address;
+    log.info(`remote ip is ${ip}`);
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
       // socket.on('disconnect', (reason) => {
@@ -155,13 +156,13 @@ async function initServer() {
       socket.disconnect();
     }
   });
-  /*
+  
   app.listen(config.apiPort, (token) => {
     if (!token) {
       log.warn(`port ${config.apiPort} already in use`);
     }
   });
- */
+ 
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);

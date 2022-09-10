@@ -10,7 +10,7 @@ function startServer() {
   const app = new App();
   io.attachApp(app);
   io.on('connection', async (socket) => {
-    const ip = utill.convertIP(socket.handshake.address);
+    const ip = socket.handshake.address;
     console.log(ip);
     socket.on('getStatus', async (callback) => {
       console.log(`getStatus from ${ip}`);
