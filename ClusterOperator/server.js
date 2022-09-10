@@ -67,7 +67,7 @@ async function initServer() {
   Security.init();
   startUI();
   await Operator.init();
-  const io = new Server(config.apiPort);
+  const io = new Server();
    const app = new App();
    io.attachApp(app);
   Operator.setServerSocket(io);
