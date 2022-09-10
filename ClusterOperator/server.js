@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
+const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
 const express = require('express');
 const fs = require('fs');
@@ -60,6 +61,8 @@ async function initServer() {
   startUI();
   await Operator.init();
   const io = new Server(config.apiPort);
+  const app = new App();
+  io.attachApp(app);
   Operator.setServerSocket(io);
 
   io.on('connection', async (socket) => {
