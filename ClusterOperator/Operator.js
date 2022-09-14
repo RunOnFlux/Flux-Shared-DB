@@ -50,6 +50,8 @@ class Operator {
 
   static keys = {};
 
+  static authorized = {};
+
   /**
   * [initLocalDB]
   */
@@ -457,10 +459,16 @@ class Operator {
         await this.updateAppInfo();
         // find master candidate
         this.masterCandidates = [];
-        // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.seqNo > b.seqNo) ? 1 : ((b.seqNo > a.seqNo) ? -1 : 0));
         for (let i = 0; i < this.OpNodes.length; i += 1) {
-          if (this.OpNodes[i].active || this.OpNodes[i].ip === this.myIP) this.masterCandidates.push(this.OpNodes[i].ip);
+          if (this.OpNodes[i].ip === this.myIP) {
+            this.OpNodes[i].active = true;
+            this.OpNodes[i].seqNo = BackLog.sequenceNumber;
+          }
+        }
+        // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
+        this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
+        for (let i = 0; i < this.OpNodes.length; i += 1) {
+          if (this.OpNodes[i].active) this.masterCandidates.push(this.OpNodes[i].ip);
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
