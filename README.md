@@ -31,6 +31,8 @@ Using Flux Shared DB in your project is easy, you just need to link it to a DB e
 
 TODO:
 
+-- support for date & time functions
+
 -- implement MongoDB support
 
 -- implement PostgreSQL support
