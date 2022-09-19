@@ -114,6 +114,9 @@ class BackLog {
             [seqForThis, query, timestamp],
           );
           return [result2, seqForThis, timestamp];
+        } else if (this.bufferStartSequenceNumber === this.sequenceNumber + 1) {
+          await this.moveBufferToBacklog();
+          return await this.pushQuery(query, seq, timestamp, buffer, connId);
         } else {
           log.error(`Wrong query order, ${this.sequenceNumber} + 1 <> ${seq}. pushing to buffer.`);
           if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
@@ -289,8 +292,14 @@ class BackLog {
         // eslint-disable-next-line no-await-in-loop
         await this.BLClient.execute(`DELETE FROM ${config.dbBacklogBuffer} WHERE seq=?`, [record.seq]);
       }
+      const records2 = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+      if (records2.length > 0) {
+        this.bufferStartSequenceNumber = records2[0].seq;
+      } else {
+        this.bufferStartSequenceNumber = 0;
+      }
     }
-    this.clearBuffer();
+    // this.clearBuffer();
     log.info('All buffer data moved to backlog successfully.');
   }
 

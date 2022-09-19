@@ -3,6 +3,8 @@
 const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
 const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
 const fs = require('fs');
 const e = require('express');
 const Operator = require('./Operator');
@@ -18,9 +20,11 @@ const fluxAPI = require('../lib/fluxAPI');
 */
 function startUI() {
   const app = express();
+  app.use(cors());
+  app.use(bodyParser.json());
   fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
-  app.get('/', (req, res) => {
+  app.get('/logs', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
@@ -36,7 +40,7 @@ function startUI() {
   });
 
   app.listen(config.debugUIPort, () => {
-    log.info(`starting debug interface on port ${config.debugUIPort}`);
+    log.info(`starting interface on port ${config.debugUIPort}`);
   });
 }
 /**
@@ -145,13 +149,13 @@ async function initServer() {
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
     } else {
-      log.info(`rejected from ${ip}`);
+      // log.info(`rejected from ${ip}`);
       socket.disconnect();
     }
     if (await validate(ip)) {
-      log.info(`auth: ${ip} is validated`);
+      // log.info(`auth: ${ip} is validated`);
     } else {
-      log.info(`validation failed for ${ip}`);
+      // log.info(`validation failed for ${ip}`);
       socket.disconnect();
     }
   });
