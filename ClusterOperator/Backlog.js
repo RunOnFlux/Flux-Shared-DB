@@ -236,6 +236,41 @@ class BackLog {
   }
 
   /**
+  * [rebuildDatabase]
+  */
+  static async rebuildDatabase(seqNo) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.query(`DROP DATABASE ${config.dbInitDB}`);
+        await this.BLClient.createDB(config.dbInitDB);
+        this.UserDBClient.setDB(config.dbInitDB);
+        await this.BLClient.setDB(config.dbBacklog);
+        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<? ORDER BY seq', [seqNo]);
+        // console.log(records);
+        for (const record of records) {
+          log.info(`executing seq(${record.seq})`);
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const result = await this.UserDBClient.query(record.query);
+          } catch (e) {
+            log.error(e);
+          }
+          // eslint-disable-next-line no-await-in-loop
+        }
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>=? ORDER BY seq', [seqNo]);
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    this.buffer = [];
+    log.info('All buffer data removed successfully.');
+  }
+
+  /**
   * [destroyBacklog]
   */
   static async destroyBacklog() {

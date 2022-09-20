@@ -28,14 +28,48 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
-      //if (whiteList.includes(remoteIp)) {
+      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
         res.send(`<html><body style="
           font-family: monospace;
           background-color: #404048;
           color: white;
           font-size: 12;
           ">FluxDB Debug Screen<br>${utill.htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
-      //}
+      }
+    }
+  });
+
+  app.get('/rollback', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    const seqNo = req.query.seqNo;
+    if (whiteList.length && seqNo) {
+      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+        log.info(`rooling back to ${seqNo}`);
+        BackLog.rebuildDatabase(seqNo);
+      }
+    }
+  });
+
+  app.get('/disableWrites', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+        log.info('Writes Disabled');
+        Operator.status = 'DISABLED';
+      }
+    }
+  });
+
+  app.get('/enableWrites', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+        log.info('Writes Enabled');
+        Operator.status = 'OK';
+      }
     }
   });
 
