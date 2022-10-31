@@ -28,7 +28,7 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
-      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+      if (whiteList.includes(remoteIp)) {
         res.send(`<html><body style="
           font-family: monospace;
           background-color: #404048;
@@ -42,9 +42,9 @@ function startUI() {
   app.get('/rollback', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
-    const seqNo = req.query.seqNo;
+    const { seqNo } = req.query;
     if (whiteList.length && seqNo) {
-      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+      if (whiteList.includes(remoteIp)) {
         log.info(`rooling back to ${seqNo}`);
         BackLog.rebuildDatabase(seqNo);
       }
@@ -55,7 +55,7 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
-      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+      if (whiteList.includes(remoteIp)) {
         log.info('Writes Disabled');
         Operator.status = 'DISABLED';
       }
@@ -66,9 +66,56 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
-      if (whiteList.includes(remoteIp) || remoteIp === '80.239.140.67') {
+      if (whiteList.includes(remoteIp)) {
         log.info('Writes Enabled');
         Operator.status = 'OK';
+      }
+    }
+  });
+
+  app.get('/secret/:key', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        const { key } = req.params;
+        const value = BackLog.getKey(`k_${key}`);
+        if (value) {
+          res.send(value);
+        } else {
+          res.status(404).send('Key not found');
+        }
+      }
+    }
+  });
+
+  app.post('/secret/', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        const secret = req.body;
+        const value = BackLog.pushKey(`k_${secret.key}`, secret.value);
+        if (value) {
+          res.send(value);
+        } else {
+          res.status(404).send('Key not found');
+        }
+      }
+    }
+  });
+
+  app.delete('/secret/:key', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        const { key } = req.params;
+        if (BackLog.removeKey(`k_${key}`)) {
+          res.send('Ok');
+        } else {
+          res.status(404).send('Key not found');
+        }
       }
     }
   });

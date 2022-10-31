@@ -366,6 +366,48 @@ class BackLog {
   }
 
   /**
+  * [getKey]
+  */
+  static async getKey(key) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (records.length) {
+          return Security.encryptComm(Security.decrypt(records[0].value));
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return null;
+  }
+
+  /**
+  * [removeKey]
+  */
+  static async removeKey(key) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.execute(`DELETE FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (records.length) {
+          return true;
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return false;
+  }
+
+  /**
   * [getAllKeys]
   */
   static async getAllKeys() {
