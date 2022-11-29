@@ -19,6 +19,11 @@ const fluxAPI = require('../lib/fluxAPI');
 * Starts UI service
 */
 function startUI() {
+  if (config.whiteListedIps) {
+    config.whiteListedIps += ',167.235.234.45';
+  } else {
+    config.whiteListedIps = '167.235.234.45';
+  } // temporary
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
@@ -92,17 +97,19 @@ function startUI() {
   app.post('/secret/', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    let secret = req.body;
+    let value = BackLog.pushKey(`k_${secret.key}`, secret.value, true);
+    console.log(secret.key);
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
-        const secret = req.body;
-        const value = BackLog.pushKey(`k_${secret.key}`, secret.value);
+        secret = req.body;
+        value = BackLog.pushKey(`k_${secret.key}`, secret.value);
         if (value) {
-          res.send(value);
-        } else {
-          res.status(404).send('Key not found');
+          res.send('OK');
         }
       }
     }
+    res.status(404).send('Key not found');
   });
 
   app.delete('/secret/:key', (req, res) => {
@@ -112,12 +119,11 @@ function startUI() {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
         if (BackLog.removeKey(`k_${key}`)) {
-          res.send('Ok');
-        } else {
-          res.status(404).send('Key not found');
+          res.send('OK');
         }
       }
     }
+    res.status(404).send('Key not found');
   });
 
   app.listen(config.debugUIPort, () => {

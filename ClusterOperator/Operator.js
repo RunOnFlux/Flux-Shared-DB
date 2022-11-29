@@ -58,15 +58,14 @@ class Operator {
   static async initLocalDB() {
     await BackLog.createBacklog();
     if (config.dbInitDB) {
-      try{
+      try {
         await this.localDB.createDB(config.dbInitDB);
         BackLog.UserDBClient = this.localDB;
         BackLog.UserDBClient.setDB(config.dbInitDB);
         log.info(`${config.dbInitDB} database created on local DB.`);
         await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
-      }
-      catch (err){
-
+      } catch (err) {
+        log.info(err);
       }
     }
   }

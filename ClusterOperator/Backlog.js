@@ -344,7 +344,7 @@ class BackLog {
   * [pushKey]
   */
   static async pushKey(key, value) {
-    const encryptedValue = Security.encrypt(Security.decryptComm(value));
+    const encryptedValue = Security.encrypt(value);
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);

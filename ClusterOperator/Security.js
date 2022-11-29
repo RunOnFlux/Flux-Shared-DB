@@ -45,6 +45,7 @@ class Security {
 
   static encrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
     try {
+      console.log(message);
       const utfMessage = message.toString();
       const cipher = createCipheriv('aes-256-cbc', key, iv);
       return cipher.update(utfMessage, 'utf-8', 'hex') + cipher.final('hex');
