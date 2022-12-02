@@ -58,11 +58,15 @@ class Operator {
   static async initLocalDB() {
     await BackLog.createBacklog();
     if (config.dbInitDB) {
-      await this.localDB.createDB(config.dbInitDB);
-      BackLog.UserDBClient = this.localDB;
-      BackLog.UserDBClient.setDB(config.dbInitDB);
-      log.info(`${config.dbInitDB} database created on local DB.`);
-      await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
+      try {
+        await this.localDB.createDB(config.dbInitDB);
+        BackLog.UserDBClient = this.localDB;
+        BackLog.UserDBClient.setDB(config.dbInitDB);
+        log.info(`${config.dbInitDB} database created on local DB.`);
+        await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
+      } catch (err) {
+        log.info(err);
+      }
     }
   }
 
@@ -122,10 +126,10 @@ class Operator {
           if (this.status === 'OK') {
             const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
             if (result === []) {
-              this.syncLocalDB();
+              // this.syncLocalDB();
             }
           } else {
-            await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
+            // await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
         });
         this.masterWSConn.on('updateKey', async (key, value) => {
@@ -181,7 +185,7 @@ class Operator {
       log.info('Auth Info:');
       log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
-      // if (remoteIp === '127.0.0.1' || remoteIp === undefined) return true;
+      if (remoteIp === '80.239.140.67') return true;
       const whiteList = config.whiteListedIps.split(',');
       if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.15.0.')) {
         return true;
