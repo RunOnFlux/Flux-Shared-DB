@@ -19,11 +19,6 @@ const fluxAPI = require('../lib/fluxAPI');
 * Starts UI service
 */
 function startUI() {
-  if (config.whiteListedIps) {
-    config.whiteListedIps += ',167.235.234.45';
-  } else {
-    config.whiteListedIps = '167.235.234.45';
-  } // temporary
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
@@ -167,9 +162,9 @@ async function initServer() {
     const ip = utill.convertIP(socket.handshake.address);
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
-      // socket.on('disconnect', (reason) => {
-      //   log.info(`disconnected from ${ip}`);
-      // });
+      socket.on('disconnect', (reason) => {
+        log.info(`disconnected from ${ip}`);
+      });
       socket.on('getStatus', async (callback) => {
         log.info(`getStatus from ${ip}`);
         callback({
