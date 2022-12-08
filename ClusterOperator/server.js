@@ -163,10 +163,10 @@ async function initServer() {
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
       socket.on('disconnect', (reason) => {
-        log.info(`disconnected from ${ip}`);
+        // log.info(`disconnected from ${ip}`);
       });
       socket.on('getStatus', async (callback) => {
-        log.info(`getStatus from ${ip}`);
+        // log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
@@ -175,11 +175,11 @@ async function initServer() {
         });
       });
       socket.on('getMaster', async (callback) => {
-        log.info(`getMaster from ${ip}`);
+        // log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getMyIp', async (callback) => {
-        log.info(`getMyIp from ${ip}`);
+        // log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getBackLog', async (start, callback) => {

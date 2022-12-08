@@ -118,6 +118,7 @@ class Operator {
         this.masterWSConn.on('disconnect', async () => {
           log.info('disconnected from master...');
           this.masterWSConn.removeAllListeners();
+          this.masterNode = null;
           await this.findMaster();
           this.initMasterConnection();
         });
