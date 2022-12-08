@@ -163,10 +163,10 @@ async function initServer() {
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
       socket.on('disconnect', (reason) => {
-        log.info(`disconnected from ${ip}`);
+        // log.info(`disconnected from ${ip}`);
       });
       socket.on('getStatus', async (callback) => {
-        log.info(`getStatus from ${ip}`);
+        // log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
