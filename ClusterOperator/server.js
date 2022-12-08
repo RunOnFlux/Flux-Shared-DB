@@ -175,11 +175,11 @@ async function initServer() {
         });
       });
       socket.on('getMaster', async (callback) => {
-        log.info(`getMaster from ${ip}`);
+        // log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getMyIp', async (callback) => {
-        log.info(`getMyIp from ${ip}`);
+        // log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getBackLog', async (start, callback) => {
