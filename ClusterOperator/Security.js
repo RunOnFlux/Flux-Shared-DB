@@ -45,8 +45,9 @@ class Security {
 
   static encrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
     try {
+      console.log(message);
       const utfMessage = message.toString();
-      const cipher = createCipheriv('aes-256-gcm', key, iv);
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
       return cipher.update(utfMessage, 'utf-8', 'hex') + cipher.final('hex');
     } catch (err) {
       log.error(err);
@@ -56,7 +57,7 @@ class Security {
 
   static decrypt(message, key = Buffer.from(this.getKey(), 'hex'), iv = this.#initVector) {
     try {
-      const decipher = createDecipheriv('aes-256-gcm', key, iv);
+      const decipher = createDecipheriv('aes-256-cbc', key, iv);
       return decipher.update(message, 'hex') + decipher.final();
     } catch (err) {
       log.error(err);
@@ -67,7 +68,7 @@ class Security {
   static encryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
     try {
       const utfMessage = message.toString();
-      const cipher = createCipheriv('aes-256-gcm', key, iv);
+      const cipher = createCipheriv('aes-256-cbc', key, iv);
       return cipher.update(utfMessage, 'utf-8', 'hex') + cipher.final('hex');
     } catch (err) {
       log.error(err);
@@ -77,7 +78,7 @@ class Security {
 
   static decryptComm(message, key = this.#commAESKey, iv = this.#commAESIv) {
     try {
-      const decipher = createDecipheriv('aes-256-gcm', key, iv);
+      const decipher = createDecipheriv('aes-256-cbc', key, iv);
       return decipher.update(message, 'hex') + decipher.final();
     } catch (err) {
       log.error(err);

@@ -114,14 +114,19 @@ class BackLog {
             [seqForThis, query, timestamp],
           );
           return [result2, seqForThis, timestamp];
+        } else if (this.bufferStartSequenceNumber === this.sequenceNumber + 1) {
+          await this.moveBufferToBacklog();
+          return await this.pushQuery(query, seq, timestamp, buffer, connId);
         } else {
           log.error(`Wrong query order, ${this.sequenceNumber} + 1 <> ${seq}. pushing to buffer.`);
-          if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
-          this.bufferSequenceNumber = seq;
-          await this.BLClient.execute(
-            `INSERT INTO ${config.dbBacklogBuffer} (seq, query, timestamp) VALUES (?,?,?)`,
-            [seq, query, timestamp],
-          );
+          if (this.sequenceNumber < seq) {
+            if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
+            this.bufferSequenceNumber = seq;
+            await this.BLClient.execute(
+              `INSERT INTO ${config.dbBacklogBuffer} (seq, query, timestamp) VALUES (?,?,?)`,
+              [seq, query, timestamp],
+            );
+          }
           return [];
         }
       }
@@ -231,6 +236,41 @@ class BackLog {
   }
 
   /**
+  * [rebuildDatabase]
+  */
+  static async rebuildDatabase(seqNo) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.query(`DROP DATABASE ${config.dbInitDB}`);
+        await this.BLClient.createDB(config.dbInitDB);
+        this.UserDBClient.setDB(config.dbInitDB);
+        await this.BLClient.setDB(config.dbBacklog);
+        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<? ORDER BY seq', [seqNo]);
+        // console.log(records);
+        for (const record of records) {
+          log.info(`executing seq(${record.seq})`);
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const result = await this.UserDBClient.query(record.query);
+          } catch (e) {
+            log.error(e);
+          }
+          // eslint-disable-next-line no-await-in-loop
+        }
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>=? ORDER BY seq', [seqNo]);
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    this.buffer = [];
+    log.info('All buffer data removed successfully.');
+  }
+
+  /**
   * [destroyBacklog]
   */
   static async destroyBacklog() {
@@ -289,8 +329,14 @@ class BackLog {
         // eslint-disable-next-line no-await-in-loop
         await this.BLClient.execute(`DELETE FROM ${config.dbBacklogBuffer} WHERE seq=?`, [record.seq]);
       }
+      const records2 = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+      if (records2.length > 0) {
+        this.bufferStartSequenceNumber = records2[0].seq;
+      } else {
+        this.bufferStartSequenceNumber = 0;
+      }
     }
-    this.clearBuffer();
+    // this.clearBuffer();
     log.info('All buffer data moved to backlog successfully.');
   }
 
@@ -298,7 +344,7 @@ class BackLog {
   * [pushKey]
   */
   static async pushKey(key, value) {
-    const encryptedValue = Security.encrypt(Security.decryptComm(value));
+    const encryptedValue = Security.encrypt(value);
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
@@ -317,6 +363,48 @@ class BackLog {
     }
     this.buffer = [];
     log.info('Key pushed.');
+  }
+
+  /**
+  * [getKey]
+  */
+  static async getKey(key) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (records.length) {
+          return Security.encryptComm(Security.decrypt(records[0].value));
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return null;
+  }
+
+  /**
+  * [removeKey]
+  */
+  static async removeKey(key) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const records = await this.BLClient.execute(`DELETE FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (records.length) {
+          return true;
+        }
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return false;
   }
 
   /**

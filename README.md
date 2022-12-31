@@ -28,6 +28,9 @@ Using Flux Shared DB in your project is easy, you just need to link it to a DB e
 * CLIENT_APPNAME - in case you want to give access to an application outside the local compose network, give name of the application running on Flux
 * WHITELIST - comma separated list of IPs that can connect to the DB_PORT remotely
 
+## Secret Management API
+
+
 
 TODO:
 

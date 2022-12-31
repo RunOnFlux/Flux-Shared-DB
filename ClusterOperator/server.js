@@ -3,6 +3,8 @@
 const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
 const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
 const fs = require('fs');
 const e = require('express');
 const Operator = require('./Operator');
@@ -18,9 +20,11 @@ const fluxAPI = require('../lib/fluxAPI');
 */
 function startUI() {
   const app = express();
+  app.use(cors());
+  app.use(bodyParser.json());
   fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
 
-  app.get('/', (req, res) => {
+  app.get('/logs', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
@@ -36,8 +40,90 @@ function startUI() {
     }
   });
 
+  app.get('/rollback', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    const { seqNo } = req.query;
+    if (whiteList.length && seqNo) {
+      if (whiteList.includes(remoteIp)) {
+        log.info(`rooling back to ${seqNo}`);
+        BackLog.rebuildDatabase(seqNo);
+      }
+    }
+  });
+
+  app.get('/disableWrites', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        log.info('Writes Disabled');
+        Operator.status = 'DISABLED';
+      }
+    }
+  });
+
+  app.get('/enableWrites', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        log.info('Writes Enabled');
+        Operator.status = 'OK';
+      }
+    }
+  });
+
+  app.get('/secret/:key', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        const { key } = req.params;
+        const value = BackLog.getKey(`k_${key}`);
+        if (value) {
+          res.send(value);
+        } else {
+          res.status(404).send('Key not found');
+        }
+      }
+    }
+  });
+
+  app.post('/secret/', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    let secret = req.body;
+    let value = BackLog.pushKey(`k_${secret.key}`, secret.value, true);
+    console.log(secret.key);
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        secret = req.body;
+        value = BackLog.pushKey(`k_${secret.key}`, secret.value);
+        if (value) {
+          res.send('OK');
+        }
+      }
+    }
+    res.status(404).send('Key not found');
+  });
+
+  app.delete('/secret/:key', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        const { key } = req.params;
+        if (BackLog.removeKey(`k_${key}`)) {
+          res.send('OK');
+        }
+      }
+    }
+    res.status(404).send('Key not found');
+  });
+
   app.listen(config.debugUIPort, () => {
-    log.info(`starting debug interface on port ${config.debugUIPort}`);
+    log.info(`starting interface on port ${config.debugUIPort}`);
   });
 }
 /**
@@ -77,11 +163,11 @@ async function initServer() {
     const ip = utill.convertIP(socket.handshake.address);
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
-      // socket.on('disconnect', (reason) => {
-      //   log.info(`disconnected from ${ip}`);
-      // });
+      socket.on('disconnect', (reason) => {
+        // log.info(`disconnected from ${ip}`);
+      });
       socket.on('getStatus', async (callback) => {
-        log.info(`getStatus from ${ip}`);
+        // log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
@@ -90,15 +176,15 @@ async function initServer() {
         });
       });
       socket.on('getMaster', async (callback) => {
-        log.info(`getMaster from ${ip}`);
+        // log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getMyIp', async (callback) => {
-        log.info(`getMyIp from ${ip}`);
+        // log.info(`getMyIp from ${ip}`);
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getBackLog', async (start, callback) => {
-        const records = await BackLog.getLogs(start, 100);
+        const records = await BackLog.getLogs(start, 200);
         callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
       });
       socket.on('writeQuery', async (query, connId, callback) => {
@@ -146,13 +232,13 @@ async function initServer() {
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
     } else {
-      log.info(`rejected from ${ip}`);
+      // log.info(`rejected from ${ip}`);
       socket.disconnect();
     }
     if (await validate(ip)) {
-      log.info(`auth: ${ip} is validated`);
+      // log.info(`auth: ${ip} is validated`);
     } else {
-      log.info(`validation failed for ${ip}`);
+      // log.info(`validation failed for ${ip}`);
       socket.disconnect();
     }
   });
