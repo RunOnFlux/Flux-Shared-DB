@@ -24,7 +24,8 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
+      // temporary whitelist ip for flux team debugging, should be removed after final release
+      if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
         res.send(`<html><body style="
           font-family: monospace;
           background-color: #404048;
