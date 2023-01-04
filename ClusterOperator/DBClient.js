@@ -110,12 +110,12 @@ class DBClient {
         } else {
           const [rows, err] = await this.connection.query(query);
           if (err) {
-            log.error(`Error running query: ${err._buf.toString()}`);
+            log.error(`Error running query: ${err.toString()}`);
           }
           return rows;
         }
       } catch (err) {
-        log.error(`Error running query: ${err._buf.toString()}`);
+        log.error(`Error running query: ${err.toString()}`);
         return [null, null, err];
       }
     }
