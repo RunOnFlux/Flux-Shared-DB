@@ -83,7 +83,7 @@ class DBClient {
       });
       this.connection.once('error', () => {
         this.connected = false;
-        // console.log(`mysql connected: ${this.connected}`);
+        log.info(`Connecten to ${this.InitDB} DB was lost`);
       });
       this.connected = true;
     }
@@ -104,16 +104,16 @@ class DBClient {
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
-          if (err) log.info(err);
+          if (err) log.error(err);
           return [rows, fields, err];
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, err] = await this.connection.query(query);
-          if (err) log.info(`Error running query: ${query}`);
+          if (err) log.error(`Error running query: ${JSON.stringify(err)}`);
           return rows;
         }
       } catch (err) {
-        log.info(`Error running query: ${query}`);
+        log.error(`Error running query: ${JSON.stringify(err)}`);
         return [null, null, err];
       }
     }
@@ -132,7 +132,7 @@ class DBClient {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
-        if (err) log.info(`Error executing query: ${JSON.stringify(err)}`);
+        if (err) log.error(`Error executing query: ${JSON.stringify(err)}`);
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
@@ -193,7 +193,7 @@ exports.createClient = async function () {
     await cl.init();
     return cl;
   } catch (err) {
-    // log.info(JSON.stringify(err));
+    log.info(JSON.stringify(err));
     if (config.dbType === 'mysql') {
       if (err.code === 'ER_ACCESS_DENIED_ERROR') return 'WRONG_KEY';
     }

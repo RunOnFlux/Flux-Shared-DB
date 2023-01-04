@@ -332,7 +332,7 @@ class Operator {
           Operator.keys[key] = keys[key];
         }
       } catch (err) {
-        log.info(err);
+        log.error(err);
       }
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;

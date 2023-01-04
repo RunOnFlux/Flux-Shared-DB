@@ -22,20 +22,43 @@ function startUI() {
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
-  fs.writeFileSync('logs.txt', `version: ${config.version}\n`);
+  fs.writeFileSync('errors.txt', `version: ${config.version}\n`);
+  fs.writeFileSync('warnings.txt', `version: ${config.version}\n`);
+  fs.writeFileSync('info.txt', `version: ${config.version}\n`);
+  fs.writeFileSync('debug.txt', `version: ${config.version}\n`);
 
-  app.get('/logs', (req, res) => {
+  app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
+    let { file } = req.params;
+    file = file || req.query.file;
     const whiteList = config.whiteListedIps.split(',');
+    let logFile = 'errors.txt';
+    switch (file) {
+      case 'info':
+        logFile = 'info.txt';
+        break;
+      case 'warnings':
+        logFile = 'warnings.txt';
+        break;
+      case 'debug':
+        logFile = 'debug.txt';
+        break;
+      default:
+        logFile = 'errors.txt';
+        break;
+    }
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
       if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
-        res.send(`<html><body style="
+        res.send(`<html><style>
+        .t {color:green;}
+        .m {margin-left:10px;}
+        </style><body style="
           font-family: monospace;
           background-color: #404048;
           color: white;
           font-size: 12;
-          ">FluxDB Debug Screen<br>${utill.htmlEscape(fs.readFileSync('logs.txt').toString())}</body></html>`);
+          ">FluxDB Debug Screen<br>${fs.readFileSync(logFile).toString()}</body></html>`);
       }
     }
   });
