@@ -187,7 +187,7 @@ class Operator {
       log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
       const whiteList = config.whiteListedIps.split(',');
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.15.0.')) {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.')) {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
