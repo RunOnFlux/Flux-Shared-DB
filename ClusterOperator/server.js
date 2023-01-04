@@ -22,10 +22,10 @@ function startUI() {
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
-  fs.writeFileSync('errors.txt', `version: ${config.version}\n`);
-  fs.writeFileSync('warnings.txt', `version: ${config.version}\n`);
-  fs.writeFileSync('info.txt', `version: ${config.version}\n`);
-  fs.writeFileSync('debug.txt', `version: ${config.version}\n`);
+  fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
+  fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
+  fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
+  fs.writeFileSync('debug.txt', `version: ${config.version}<br>`);
 
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
@@ -51,7 +51,7 @@ function startUI() {
       // temporary whitelist ip for flux team debugging, should be removed after final release
       if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
         res.send(`<html><style>
-        .t {color:green;}
+        .t {color:#2cb92c;}
         .m {margin-left:10px;}
         </style><body style="
           font-family: monospace;

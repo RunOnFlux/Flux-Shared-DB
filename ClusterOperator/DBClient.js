@@ -109,11 +109,13 @@ class DBClient {
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, err] = await this.connection.query(query);
-          if (err) log.error(`Error running query: ${JSON.stringify(err)}`);
+          if (err) {
+            log.error(`Error running query: ${err._buf.toString()}`);
+          }
           return rows;
         }
       } catch (err) {
-        log.error(`Error running query: ${JSON.stringify(err)}`);
+        log.error(`Error running query: ${err._buf.toString()}`);
         return [null, null, err];
       }
     }
