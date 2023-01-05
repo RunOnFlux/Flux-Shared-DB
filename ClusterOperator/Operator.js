@@ -612,7 +612,7 @@ class Operator {
       await this.initLocalDB();
       this.initInBoundConnections(config.dbType);
       this.dbConnStatus = 'CONNECTED';
-      Security.setKey(Security.generateNewKey());
+      // Security.setKey(Security.generateNewKey());
       // TODO: RESET DB PASS
     } else {
       this.dbConnStatus = 'WRONG_KEY';
