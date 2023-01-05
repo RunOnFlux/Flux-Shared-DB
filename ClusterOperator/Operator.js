@@ -94,7 +94,7 @@ class Operator {
             if (this.dbConnStatus === 'WRONG_KEY' && keys.key) {
               const myKeys = Security.privateDecrypt(keys.key).split(':');
               log.info(`myKeys is: ${myKeys[0]}:${myKeys[1]}`);
-              Security.setKey(myKeys[0]);
+              // Security.setKey(myKeys[0]);
               Security.setIV(myKeys[1]);
               await this.initDB();
             } else {

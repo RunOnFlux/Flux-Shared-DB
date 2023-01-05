@@ -87,9 +87,7 @@ class Security {
   }
 
   static getKey() {
-    // temp key test
-    return config.dbPass;
-    // return this.decrypt(this.#key, this.#securityKey, this.#initVector);
+    return this.decrypt(this.#key, this.#securityKey, this.#initVector);
   }
 
   static getIV() {
