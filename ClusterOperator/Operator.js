@@ -202,18 +202,21 @@ class Operator {
   * @param {string} query [description]
   */
   static async sendWriteQuery(query, connId) {
-    if (!this.IamMaster) {
-      const { masterWSConn } = this;
-      return new Promise((resolve) => {
-        masterWSConn.emit('writeQuery', query, connId, (response) => {
-          resolve(response.result);
+    if (this.masterNode) {
+      if (!this.IamMaster) {
+        const { masterWSConn } = this;
+        return new Promise((resolve) => {
+          masterWSConn.emit('writeQuery', query, connId, (response) => {
+            resolve(response.result);
+          });
         });
-      });
+      }
+      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
+      log.info(`sending query to slaves: ${JSON.stringify(result)}`);
+      if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
+      return result[0];
     }
-    const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
-    log.info(`sending query to slaves: ${JSON.stringify(result)}`);
-    if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
-    return result[0];
+    return null;
   }
 
   /**
