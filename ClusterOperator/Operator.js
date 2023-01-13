@@ -386,7 +386,7 @@ class Operator {
         this.AppNodes.push(appIPList[i].ip);
       }
       // log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-
+      let activeNodes = 0;
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
@@ -396,15 +396,18 @@ class Operator {
         if (status === null || status === 'null') {
           this.OpNodes[i].active = false;
         } else {
+          activeNodes += 1;
           this.OpNodes[i].seqNo = status.sequenceNumber;
           this.OpNodes[i].active = true;
           this.myIP = status.remoteIP;
         }
       }
-      if (this.myIP !== null) {
+      const activeNodePer = 100 * (activeNodes / ipList.length);
+      log.info(`${activeNodePer} percent of nodes are active`);
+      if (this.myIP !== null && activeNodePer > 50) {
         log.info(`My ip is ${this.myIP}`);
       } else {
-        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ...`);
+        log.info('Not enough active nodes, retriying again...');
         await timer.setTimeout(15000);
         await this.updateAppInfo();
       }
