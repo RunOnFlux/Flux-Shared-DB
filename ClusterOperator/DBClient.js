@@ -44,7 +44,7 @@ class DBClient {
   rawCallback(data) {
     if (this.socketCallBack && this.enableSocketWrite) {
       this.socketCallBack.write(data);
-      log.info(`writing to ${this.socketId}: ${data.length} bytes`);
+      // log.info(`writing to ${this.socketId}: ${data.length} bytes`);
     }
   }
 
