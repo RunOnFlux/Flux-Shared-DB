@@ -118,7 +118,6 @@ class Operator {
         this.masterWSConn.on('disconnect', async () => {
           log.info('disconnected from master...');
           this.masterWSConn.removeAllListeners();
-          this.masterNode = null;
           await this.findMaster();
           this.initMasterConnection();
         });
@@ -458,6 +457,7 @@ class Operator {
   */
   static async findMaster() {
     try {
+      this.masterNode = null;
       // get dbappspecs
       if (config.DBAppName) {
         await this.updateAppInfo();
@@ -471,8 +471,9 @@ class Operator {
         }
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
         this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
+        const masterSeqNo = this.OpNodes[0].seqNo;
         for (let i = 0; i < this.OpNodes.length; i += 1) {
-          if (this.OpNodes[i].active) this.masterCandidates.push(this.OpNodes[i].ip);
+          if (this.OpNodes[i].active && this.OpNodes[i].seqNo === masterSeqNo) this.masterCandidates.push(this.OpNodes[i].ip);
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
