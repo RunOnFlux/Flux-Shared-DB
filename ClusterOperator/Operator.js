@@ -485,8 +485,10 @@ class Operator {
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
         // if first candidate is me i'm the master
         if (this.masterCandidates[0] === this.myIP) {
+          let MasterIP = this.myIP;
           // ask second candidate for confirmation
-          const MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
+          if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
+
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
@@ -525,6 +527,7 @@ class Operator {
       }
       log.info('DB_APPNAME environment variabele is not defined.');
     } catch (err) {
+      log.info('error while finding master');
       log.error(err);
     }
     return null;
