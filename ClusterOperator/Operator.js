@@ -204,9 +204,9 @@ class Operator {
   * @param {string} query [description]
   */
   static async sendWriteQuery(query, connId) {
-    log.info(`write query: ${query}`);
+    // log.info(`write query: ${query}`);
     if (this.masterNode !== null) {
-      log.info(`master node: ${this.masterNode}`);
+      // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
         const { masterWSConn } = this;
         return new Promise((resolve) => {
