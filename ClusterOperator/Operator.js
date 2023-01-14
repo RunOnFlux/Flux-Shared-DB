@@ -74,6 +74,7 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
+    log.info(`master node: ${this.masterNode}`);
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
@@ -163,6 +164,7 @@ class Operator {
             masterWSConn: this.masterWSConn,
             BACKLOG_DB: config.dbBacklog,
             IamMaster: this.IamMaster,
+            masterNode: this.masterNode,
             appIPList: this.appIPList,
             isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery,
@@ -204,7 +206,7 @@ class Operator {
   static async sendWriteQuery(query, connId) {
     log.info(`write query: ${query}`);
     if (this.masterNode !== null) {
-      log.info(`master node: ${this.masterNode},masternode: ${this.masterNode}`);
+      log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
         const { masterWSConn } = this;
         return new Promise((resolve) => {
