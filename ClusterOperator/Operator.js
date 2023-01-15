@@ -188,7 +188,8 @@ class Operator {
       log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
       const whiteList = config.whiteListedIps.split(',');
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.')) {
+      // temporary whitelist ip for flux team debugging, should be removed after final release
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.5') || remoteIp.startsWith('172.6') || remoteIp === '167.235.234.45') {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
