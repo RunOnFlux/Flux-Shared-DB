@@ -32,6 +32,8 @@ class Operator {
 
   static nodeInstances = 0;
 
+  static authorizedApp = null;
+
   static masterNode = null;
 
   static IamMaster = false;
@@ -159,6 +161,7 @@ class Operator {
             socket: so,
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
+            authorizedApp: this.authorizedApp,
             localDB: this.localDB,
             serverSocket: this.serverSocket,
             masterWSConn: this.masterWSConn,
@@ -187,9 +190,10 @@ class Operator {
       log.info('Auth Info:');
       log.info(JSON.stringify(param));
       const remoteIp = param.remoteIP;
+      if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp.startsWith('172.5') || remoteIp.startsWith('172.6') || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === this.authorizedApp || remoteIp === '167.235.234.45') {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
