@@ -1,6 +1,6 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-
+const timer = require('timers/promises');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
@@ -19,6 +19,8 @@ class BackLog {
   static BLClient = null;
 
   static UserDBClient = null;
+
+  static writeLock = false;
 
   /**
   * [createBacklog]
@@ -101,6 +103,9 @@ class BackLog {
           );
           return [null, seq, timestamp];
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
+          // eslint-disable-next-line no-await-in-loop
+          while (this.writeLock) await timer.setTimeout(10);
+          this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
           let result2 = null;
@@ -113,6 +118,7 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
+          this.writeLock = false;
           return [result2, seqForThis, timestamp];
         } else if (this.bufferStartSequenceNumber === this.sequenceNumber + 1) {
           await this.moveBufferToBacklog();
