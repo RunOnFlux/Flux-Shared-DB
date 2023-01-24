@@ -395,7 +395,7 @@ class Operator {
         this.AppNodes.push(appIPList[i].ip);
       }
       // log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
-      let activeNodes = 0;
+      let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
