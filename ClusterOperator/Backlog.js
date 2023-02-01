@@ -110,6 +110,7 @@ class BackLog {
           }
           if (seq === 0 || this.sequenceNumber + 1 === seq) {
             this.writeLock = true;
+            log.info(`pushing ${seq}`);
             if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
             const seqForThis = this.sequenceNumber;
             let result2 = null;

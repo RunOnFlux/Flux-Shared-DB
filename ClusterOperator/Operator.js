@@ -145,7 +145,7 @@ class Operator {
                   if (this.lastBufferSeqNo === nextQuery.sequenceNumber && buffer.size > 0) buffer.clear();
                 } else {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
-                  log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
+                  log.warn(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
                   this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + 1);
                   break;
                 }
@@ -159,6 +159,8 @@ class Operator {
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`);
               }
             }
+          } else {
+            log.info(`omitted query status: ${this.status}`);
           }
         });
         this.masterWSConn.on('updateKey', async (key, value) => {
