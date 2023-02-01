@@ -159,6 +159,8 @@ class Operator {
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`);
               }
             }
+          } else if (this.status === 'SYNC') {
+            const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);
           }
