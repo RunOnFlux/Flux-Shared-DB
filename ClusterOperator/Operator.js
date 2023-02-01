@@ -195,6 +195,7 @@ class Operator {
             IamMaster: this.IamMaster,
             masterNode: this.masterNode,
             appIPList: this.appIPList,
+            status: this.status,
             isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery,
           });
@@ -215,6 +216,10 @@ class Operator {
     try {
       log.info('Auth Info:');
       log.info(JSON.stringify(param));
+      if (this.status !== 'OK') {
+        log.info(`status: ${this.status}, rejecting connection`);
+        return false;
+      }
       const remoteIp = param.remoteIP;
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
