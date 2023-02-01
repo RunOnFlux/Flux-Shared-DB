@@ -187,6 +187,7 @@ class Operator {
             socket: so,
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
+            operator: this,
             authorizedApp: this.authorizedApp,
             localDB: this.localDB,
             serverSocket: this.serverSocket,
@@ -217,7 +218,7 @@ class Operator {
       log.info('Auth Info:');
       log.info(JSON.stringify(param));
       if (this.status !== 'OK') {
-        log.info(`status: ${this.status}, rejecting connection`);
+        log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
       const remoteIp = param.remoteIP;
