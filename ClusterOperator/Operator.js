@@ -550,6 +550,7 @@ class Operator {
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
+            this.status = 'OK';
             return this.masterNode;
           }
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
