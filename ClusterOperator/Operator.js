@@ -533,6 +533,7 @@ class Operator {
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
+            this.status = 'OK';
           } else if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
             return this.findMaster();
