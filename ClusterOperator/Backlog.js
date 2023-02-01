@@ -102,8 +102,32 @@ class BackLog {
             [seq, query, timestamp],
           );
           return [null, seq, timestamp];
-        } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
-          // eslint-disable-next-line no-await-in-loop
+        } else {
+          // wait in queue
+          while (this.writeLock) {
+            // eslint-disable-next-line no-await-in-loop
+            await timer.setTimeout(10);
+          }
+
+          this.writeLock = true;
+          if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+          const seqForThis = this.sequenceNumber;
+          let result2 = null;
+          if (connId === false) {
+            result2 = await this.UserDBClient.query(query);
+          } else {
+            result2 = await ConnectionPool.getConnectionById(connId).query(query);
+          }
+          await this.BLClient.execute(
+            `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+            [seqForThis, query, timestamp],
+          );
+          this.writeLock = false;
+          return [result2, seqForThis, timestamp];
+        }
+        /*
+        if (seq === 0 || this.sequenceNumber + 1 === seq) {
+
           while (this.writeLock) await timer.setTimeout(10);
           this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
@@ -124,8 +148,8 @@ class BackLog {
           await this.moveBufferToBacklog();
           return await this.pushQuery(query, seq, timestamp, buffer, connId);
         } else {
-          log.error(`Wrong query order, ${this.sequenceNumber} + 1 <> ${seq}. pushing to buffer.`);
-          if (this.sequenceNumber < seq) {
+          if (this.sequenceNumber + 1 < seq) {
+            log.error(`Wrong query order, ${this.sequenceNumber + 1} < ${seq}. pushing to buffer.`);
             if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
             this.bufferSequenceNumber = seq;
             await this.BLClient.execute(
@@ -134,9 +158,10 @@ class BackLog {
             );
           }
           return [];
-        }
+        } */
       }
     } catch (e) {
+      this.writeLock = false;
       log.error('error executing query');
       log.error(e);
     }
