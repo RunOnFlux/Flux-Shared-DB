@@ -218,14 +218,14 @@ async function initServer() {
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
         // cache write queries for 20 seconds
-        this.queryCache.put(result[1], {
+        queryCache.put(result[1], {
           query, sequenceNumber: result[1], timestamp: result[2], connId, ip,
         }, 1000 * 20);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
         log.info(`${ip} asking for seqNo: ${index}`);
-        let record = this.queryCache.get(index);
+        let record = queryCache.get(index);
         let connId = false;
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;

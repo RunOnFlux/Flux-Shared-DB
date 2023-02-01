@@ -137,12 +137,12 @@ class Operator {
               const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
               // push queries from buffer until there is a gap or the buffer is empty
               while (this.lastBufferSeqNo > BackLog.sequenceNumber) {
-                const nextQuery = this.buffer.get(BackLog.sequenceNumber + 1);
+                const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
                 if (nextQuery) {
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`);
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  this.buffer.del(nextQuery.sequenceNumber);
-                  if (this.lastBufferSeqNo === nextQuery.sequenceNumber && this.buffer.size > 0) this.buffer.clear();
+                  buffer.del(nextQuery.sequenceNumber);
+                  if (this.lastBufferSeqNo === nextQuery.sequenceNumber && buffer.size > 0) buffer.clear();
                 } else {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
                   log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
@@ -151,8 +151,8 @@ class Operator {
                 }
               }
             } else if (sequenceNumber > BackLog.sequenceNumber + 1) {
-              if (this.buffer.get(sequenceNumber) === null) {
-                this.buffer.put(sequenceNumber, {
+              if (buffer.get(sequenceNumber) === null) {
+                buffer.put(sequenceNumber, {
                   query, sequenceNumber, timestamp, connId,
                 });
                 if (this.lastBufferSeqNo < sequenceNumber) this.lastBufferSeqNo = sequenceNumber;
