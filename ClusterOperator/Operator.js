@@ -9,6 +9,7 @@ const { networkInterfaces } = require('os');
 const axios = require('axios');
 const { io } = require('socket.io-client');
 const buffer = require('memory-cache');
+const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
@@ -58,6 +59,8 @@ class Operator {
   static authorized = {};
 
   static lastBufferSeqNo = 0;
+
+  static firstBufferSeqNo = 0;
 
   /**
   * [initLocalDB]
@@ -146,6 +149,7 @@ class Operator {
                 } else {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
                   log.warn(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
+                  missingQueryBuffer.put(BackLog.sequenceNumber + 1, true, 5000);
                   this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + 1);
                   break;
                 }
@@ -155,8 +159,16 @@ class Operator {
                 buffer.put(sequenceNumber, {
                   query, sequenceNumber, timestamp, connId,
                 });
-                if (this.lastBufferSeqNo < sequenceNumber) this.lastBufferSeqNo = sequenceNumber;
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`);
+                let i = 1;
+                while (buffer.get(BackLog.sequenceNumber + i) === null || i < 10)
+                  if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
+                    log.warn(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`);
+                    missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
+                    this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + i);
+                    i++;
+                  }
+                }
               }
             }
           } else if (this.status === 'SYNC') {
