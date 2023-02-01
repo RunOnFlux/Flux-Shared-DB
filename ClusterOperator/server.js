@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
 const e = require('express');
+const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
 const log = require('../lib/log');
@@ -216,8 +217,26 @@ async function initServer() {
         log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
-        // io.emit('query', query, result[1], result[2]);
+        // cache write queries for 20 seconds
+        this.queryCache.put(result[1], {
+          query, sequenceNumber: result[1], timestamp: result[2], connId, ip,
+        }, 1000 * 20);
         callback({ status: Operator.status, result: result[0] });
+      });
+      socket.on('askQuery', async (index, callback) => {
+        log.info(`${ip} asking for seqNo: ${index}`);
+        let record = this.queryCache.get(index);
+        let connId = false;
+        if (record) {
+          if (record.ip === ip && record.connId) connId = record.connId;
+        } else {
+          record = await BackLog.getLogs(index, 1)[0];
+        }
+        if (record) {
+          log.info(`sending query: ${JSON.stringify(record)}`);
+          socket.emit('query', record.query, record.seq, record.timestamp, connId);
+        }
+        callback({ status: Operator.status });
       });
       socket.on('shareKeys', async (pubKey, callback) => {
         const nodeip = utill.convertIP(socket.handshake.address);

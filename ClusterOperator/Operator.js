@@ -8,6 +8,7 @@ const net = require('net');
 const { networkInterfaces } = require('os');
 const axios = require('axios');
 const { io } = require('socket.io-client');
+const buffer = require('memory-cache');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
 const log = require('../lib/log');
@@ -18,6 +19,8 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
+
+// const e = require('cors');
 
 class Operator {
   static localDB = null;
@@ -53,6 +56,8 @@ class Operator {
   static keys = {};
 
   static authorized = {};
+
+  static lastBufferSeqNo = 0;
 
   /**
   * [initLocalDB]
@@ -127,12 +132,33 @@ class Operator {
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
           log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
           if (this.status === 'OK') {
-            const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
-            if (result === []) {
-              // this.syncLocalDB();
+            // if it's the next sequnce number in line push it to the backlog, else put it in buffer
+            if (sequenceNumber === BackLog.sequenceNumber + 1) {
+              const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+              // push queries from buffer until there is a gap or the buffer is empty
+              while (this.lastBufferSeqNo > BackLog.sequenceNumber) {
+                const nextQuery = this.buffer.get(BackLog.sequenceNumber + 1);
+                if (nextQuery) {
+                  log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`);
+                  await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
+                  this.buffer.del(nextQuery.sequenceNumber);
+                  if (this.lastBufferSeqNo === nextQuery.sequenceNumber && this.buffer.size > 0) this.buffer.clear();
+                } else {
+                  // there is a gap, ask master for the missing sequence number and wxit the loop
+                  log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
+                  this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + 1);
+                  break;
+                }
+              }
+            } else if (sequenceNumber > BackLog.sequenceNumber + 1) {
+              if (this.buffer.get(sequenceNumber) === null) {
+                this.buffer.put(sequenceNumber, {
+                  query, sequenceNumber, timestamp, connId,
+                });
+                if (this.lastBufferSeqNo < sequenceNumber) this.lastBufferSeqNo = sequenceNumber;
+                log.info(`pushing seqNo ${sequenceNumber} to the buffer`);
+              }
             }
-          } else {
-            // await BackLog.pushQuery(query, sequenceNumber, timestamp, true);
           }
         });
         this.masterWSConn.on('updateKey', async (key, value) => {

@@ -108,22 +108,23 @@ class BackLog {
             // eslint-disable-next-line no-await-in-loop
             await timer.setTimeout(10);
           }
-
-          this.writeLock = true;
-          if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
-          const seqForThis = this.sequenceNumber;
-          let result2 = null;
-          if (connId === false) {
-            result2 = await this.UserDBClient.query(query);
-          } else {
-            result2 = await ConnectionPool.getConnectionById(connId).query(query);
+          if (seq === 0 || this.sequenceNumber + 1 === seq) {
+            this.writeLock = true;
+            if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+            const seqForThis = this.sequenceNumber;
+            let result2 = null;
+            if (connId === false) {
+              result2 = await this.UserDBClient.query(query);
+            } else {
+              result2 = await ConnectionPool.getConnectionById(connId).query(query);
+            }
+            await this.BLClient.execute(
+              `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+              [seqForThis, query, timestamp],
+            );
+            this.writeLock = false;
+            return [result2, seqForThis, timestamp];
           }
-          await this.BLClient.execute(
-            `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
-            [seqForThis, query, timestamp],
-          );
-          this.writeLock = false;
-          return [result2, seqForThis, timestamp];
         }
         /*
         if (seq === 0 || this.sequenceNumber + 1 === seq) {
