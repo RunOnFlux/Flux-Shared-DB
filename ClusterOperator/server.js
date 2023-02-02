@@ -26,7 +26,7 @@ function startUI() {
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
-  fs.appendFile('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
+  fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
