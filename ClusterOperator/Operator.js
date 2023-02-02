@@ -399,7 +399,8 @@ class Operator {
         const index = BackLog.sequenceNumber;
         const response = await fluxAPI.getBackLog(index, this.masterWSConn);
         masterSN = response.sequenceNumber;
-        log.info(`sync backlog from ${index} to ${index + response.records.length}`);
+        const percent = Math.reound((index / masterSN) * 1000);
+        log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}${' '.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
