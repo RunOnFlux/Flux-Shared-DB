@@ -234,7 +234,7 @@ class Operator {
       // log.info(`DB auth from ${param.remoteIP}`);
       // log.info(JSON.stringify(param));
       if (this.status !== 'OK') {
-        log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
+        // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
       const remoteIp = param.remoteIP;
