@@ -1,4 +1,5 @@
 const buffer = require('memory-cache');
+const log = require('../lib/log');
 
 const request = {
   query: 'select * from table',
@@ -14,3 +15,4 @@ console.log(buffer.size());
 buffer.put(123, request);
 buffer.clear();
 console.log(buffer.size());
+log.error('tttt', { class: 't' });

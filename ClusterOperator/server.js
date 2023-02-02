@@ -53,6 +53,9 @@ function startUI() {
       if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
         res.send(`<html><style>
         .t {color:#2cb92c;}
+        .yellow {color:yellow;}
+        .red {color:red;}
+        .green {color:green;}
         .m {margin-left:10px;}
         </style><body style="
           font-family: monospace;
@@ -240,7 +243,7 @@ async function initServer() {
       });
       socket.on('shareKeys', async (pubKey, callback) => {
         const nodeip = utill.convertIP(socket.handshake.address);
-        log.info(`shareKeys from ${nodeip}`);
+        // log.info(`shareKeys from ${nodeip}`);
         let nodeKey = null;
         if (!(`N${nodeip}` in Operator.keys)) {
           Operator.keys = await BackLog.getAllKeys();

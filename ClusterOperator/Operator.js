@@ -231,7 +231,7 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      log.info(`DB auth from ${param.remoteIP}`);
+      // log.info(`DB auth from ${param.remoteIP}`);
       // log.info(JSON.stringify(param));
       if (this.status !== 'OK') {
         log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
@@ -581,7 +581,7 @@ class Operator {
             return this.findMaster();
           }
         }
-        log.info(`Master node is ${this.masterNode}`);
+        log.info(`Master node is ${this.masterNode}`, 'yellow');
         return this.masterNode;
       }
       log.info('DB_APPNAME environment variabele is not defined.');
