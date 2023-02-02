@@ -395,7 +395,7 @@ class BackLog {
       log.error(e);
     }
     this.buffer = [];
-    log.info('Key pushed.');
+    // log.info('Key pushed.');
   }
 
   /**

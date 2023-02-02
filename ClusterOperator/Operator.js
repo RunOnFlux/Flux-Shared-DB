@@ -127,7 +127,7 @@ class Operator {
           this.initMasterConnection();
         });
         this.masterWSConn.on('disconnect', async () => {
-          log.info('disconnected from master...');
+          log.info('disconnected from master...', 'red');
           this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
@@ -142,13 +142,13 @@ class Operator {
               while (this.lastBufferSeqNo > BackLog.sequenceNumber) {
                 const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
                 if (nextQuery) {
-                  log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`);
+                  log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
                   buffer.del(nextQuery.sequenceNumber);
                   if (this.lastBufferSeqNo === nextQuery.sequenceNumber && buffer.size > 0) buffer.clear();
                 } else {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
-                  log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`);
+                  log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`, 'magenta');
                   missingQueryBuffer.put(BackLog.sequenceNumber + 1, true, 5000);
                   this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + 1);
                   break;
@@ -159,11 +159,11 @@ class Operator {
                 buffer.put(sequenceNumber, {
                   query, sequenceNumber, timestamp, connId,
                 });
-                log.info(`pushing seqNo ${sequenceNumber} to the buffer`);
+                log.info(`pushing seqNo ${sequenceNumber} to the buffer`, 'magenta');
                 let i = 1;
                 while (buffer.get(BackLog.sequenceNumber + i) === null && i < 10) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
-                    log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`);
+                    log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
                     this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + i);
                     i += 1;

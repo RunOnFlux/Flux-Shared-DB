@@ -56,6 +56,8 @@ function startUI() {
         .yellow {color:yellow;}
         .red {color:red;}
         .green {color:green;}
+        .magenta {color:magenta;}
+        .cyan {color:cyan;}
         .m {margin-left:10px;}
         </style><body style="
           font-family: monospace;
