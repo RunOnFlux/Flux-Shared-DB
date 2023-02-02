@@ -119,7 +119,7 @@ function startUI() {
     const whiteList = config.whiteListedIps.split(',');
     let secret = req.body;
     let value = BackLog.pushKey(`k_${secret.key}`, secret.value, true);
-    console.log(secret.key);
+    // console.log(secret.key);
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         secret = req.body;

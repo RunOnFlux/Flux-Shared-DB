@@ -384,7 +384,7 @@ class Operator {
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
-        console.log(keys);
+        // console.log(keys);
         // eslint-disable-next-line guard-for-in
         for (const key in keys) {
           BackLog.pushKey(key, keys[key]);
