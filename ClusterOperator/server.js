@@ -214,7 +214,7 @@ async function initServer() {
       socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
         const result = await BackLog.pushQuery(query);
-        log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
+        // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
         // cache write queries for 20 seconds

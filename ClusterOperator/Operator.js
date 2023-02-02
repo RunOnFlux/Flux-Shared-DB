@@ -231,8 +231,8 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      log.info('Auth Info:');
-      log.info(JSON.stringify(param));
+      log.info(`DB auth from ${param.remoteIP}`);
+      // log.info(JSON.stringify(param));
       if (this.status !== 'OK') {
         log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
@@ -257,7 +257,6 @@ class Operator {
   * @param {string} query [description]
   */
   static async sendWriteQuery(query, connId) {
-    // log.info(`write query: ${query}`);
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
@@ -269,7 +268,7 @@ class Operator {
         });
       }
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
-      log.info(`sending query to slaves: ${JSON.stringify(result)}`);
+      // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
       return result[0];
     }
@@ -309,6 +308,7 @@ class Operator {
             // log.info(`got Query from ${id}: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
+              // log.info(`write query from local DB port`);
               await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);

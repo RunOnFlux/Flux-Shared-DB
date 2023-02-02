@@ -19,5 +19,5 @@ module.exports = {
   AppName: process.env.CLIENT_APPNAME || '',
   version: '1.1.7',
   whiteListedIps: process.env.WHITELIST || '::1',
-  debugMode: 'off',
+  debugMode: false,
 };

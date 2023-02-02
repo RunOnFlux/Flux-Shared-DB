@@ -62,7 +62,7 @@ class DBClient {
   * [disableSocketWrite]
   */
   disableSocketWrite() {
-    log.info(`socket write disabled for ${this.socketId}`);
+    // log.info(`socket write disabled for ${this.socketId}`);
     this.enableSocketWrite = false;
     this.socketId = null;
   }
