@@ -54,7 +54,7 @@ function startUI() {
         res.send(`<html><style>
         .t {color:#2cb92c;}
         .yellow {color:yellow;}
-        .red {color:red;}
+        .red {color:#ff8100;}
         .green {color:green;}
         .magenta {color:magenta;}
         .cyan {color:cyan;}
