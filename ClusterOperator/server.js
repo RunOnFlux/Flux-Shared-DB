@@ -229,7 +229,7 @@ async function initServer() {
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
-        log.info(`${ip} asking for seqNo: ${index}`);
+        log.info(`${ip} asking for seqNo: ${index}`, 'magenta');
         let record = queryCache.get(index);
         let connId = false;
         if (record) {
