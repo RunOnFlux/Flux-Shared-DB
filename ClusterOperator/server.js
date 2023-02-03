@@ -235,10 +235,12 @@ async function initServer() {
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
         } else {
-          record = await BackLog.getLog(index)[0];
+          record = await BackLog.getLog(index);
         }
+        log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
+        log.info(`sending query: ${JSON.stringify(record[0])}`, 'magenta');
+        log.info(`record type: ${Array.isArray(record)}`, 'magenta');
         if (record) {
-          log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         }
         callback({ status: Operator.status });

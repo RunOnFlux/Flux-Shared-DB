@@ -139,20 +139,11 @@ class Operator {
             if (sequenceNumber === BackLog.sequenceNumber + 1) {
               const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
               // push queries from buffer until there is a gap or the buffer is empty
-              while (this.lastBufferSeqNo > BackLog.sequenceNumber) {
+              while (buffer.get(BackLog.sequenceNumber + 1) !== null) {
                 const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
-                if (nextQuery) {
-                  log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
-                  await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  buffer.del(nextQuery.sequenceNumber);
-                  if (this.lastBufferSeqNo === nextQuery.sequenceNumber && buffer.size > 0) buffer.clear();
-                } else {
-                  // there is a gap, ask master for the missing sequence number and wxit the loop
-                  log.info(`-missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`, 'magenta');
-                  missingQueryBuffer.put(BackLog.sequenceNumber + 1, true, 5000);
-                  fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
-                  break;
-                }
+                log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
+                await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
+                buffer.del(nextQuery.sequenceNumber);
               }
             } else if (sequenceNumber > BackLog.sequenceNumber + 1) {
               if (buffer.get(sequenceNumber) === null) {
