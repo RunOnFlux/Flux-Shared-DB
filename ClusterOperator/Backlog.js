@@ -183,7 +183,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const totalRecords = await this.BLClient.execute('SELECT * FROM ? ORDER BY seq WHERE seq >=? LIMIT ?', [config.dbBacklogCollection, startFrom, pageSize]);
+        const totalRecords = await this.BLClient.execute(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq>=? LIMIT ?`, [startFrom, pageSize]);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return totalRecords;
       }
