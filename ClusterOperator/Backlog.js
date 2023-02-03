@@ -194,6 +194,28 @@ class BackLog {
   }
 
   /**
+  * [getLogs]
+  * @param {int} index [description]
+  * @return {object}
+  */
+  static async getLog(index) {
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=?`, [index]);
+        // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        return record;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return [];
+  }
+
+  /**
   * [getTotalLogsCount]
   * @return {int}
   */

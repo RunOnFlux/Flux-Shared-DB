@@ -235,7 +235,7 @@ async function initServer() {
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
         } else {
-          record = await BackLog.getLogs(index, 1)[0];
+          record = await BackLog.getLog(index);
         }
         if (record) {
           log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
