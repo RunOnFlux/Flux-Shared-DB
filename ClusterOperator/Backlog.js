@@ -108,11 +108,11 @@ class BackLog {
             // eslint-disable-next-line no-await-in-loop
             await timer.setTimeout(10);
           }
+          log.info(`executing ${seq}, ${this.sequenceNumber + 1}`);
           if (seq === 0 || this.sequenceNumber + 1 === seq) {
             this.writeLock = true;
             if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
             const seqForThis = this.sequenceNumber;
-            log.info(`executing ${seqForThis}`);
             let result2 = null;
             if (connId === false) {
               result2 = await this.UserDBClient.query(query);
