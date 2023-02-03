@@ -62,6 +62,8 @@ class Operator {
 
   static firstBufferSeqNo = 0;
 
+  static prevWriteQuery = '';
+
   /**
   * [initLocalDB]
   */
@@ -260,6 +262,11 @@ class Operator {
   * @param {string} query [description]
   */
   static async sendWriteQuery(query, connId) {
+    if (query === this.operator.prevWriteQuery && query.startsWith('SET SESSION')) {
+      log.warn(`duplicate query ${query}`);
+      return null;
+    }
+    this.operator.prevWriteQuery = query;
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
