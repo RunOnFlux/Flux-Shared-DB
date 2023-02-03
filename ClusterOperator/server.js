@@ -237,11 +237,14 @@ async function initServer() {
         } else {
           record = await BackLog.getLog(index);
         }
-        log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
-        log.info(`sending query: ${JSON.stringify(record[0])}`, 'magenta');
-        log.info(`record type: ${Array.isArray(record)}`, 'magenta');
         if (record) {
-          socket.emit('query', record.query, record.seq, record.timestamp, connId);
+          log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
+          log.info(`record type: ${Array.isArray(record)}`, 'magenta');
+          if (Array.isArray(record)) {
+            socket.emit('query', record[0].query, record[0].seq, record[0].timestamp, false);
+          } else {
+            socket.emit('query', record.query, record.seq, record.timestamp, connId);
+          }
         }
         callback({ status: Operator.status });
       });
