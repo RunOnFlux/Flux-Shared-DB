@@ -147,7 +147,7 @@ class Operator {
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
-                while (buffer.get(BackLog.sequenceNumber + i) === null && i < 10) {
+                while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
