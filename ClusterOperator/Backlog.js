@@ -205,7 +205,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=?`, [index]);
+        const record = await this.BLClient.execute(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=?`, [index]);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
       }
