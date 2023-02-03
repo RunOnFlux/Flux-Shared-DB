@@ -224,7 +224,7 @@ async function initServer() {
         socket.emit('query', query, result[1], result[2], connId);
         // cache write queries for 20 seconds
         queryCache.put(result[1], {
-          query, sequenceNumber: result[1], timestamp: result[2], connId, ip,
+          query, seq: result[1], timestamp: result[2], connId, ip,
         }, 1000 * 20);
         callback({ status: Operator.status, result: result[0] });
       });
@@ -235,11 +235,11 @@ async function initServer() {
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
         } else {
-          record = await BackLog.getLog(index);
+          record = await BackLog.getLog(index)[0];
         }
         if (record) {
           log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
-          socket.emit('query', record.query, record.sequenceNumber, record.timestamp, connId);
+          socket.emit('query', record.query, record.seq, record.timestamp, connId);
         }
         callback({ status: Operator.status });
       });

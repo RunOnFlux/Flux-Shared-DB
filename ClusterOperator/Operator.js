@@ -148,7 +148,7 @@ class Operator {
                   if (this.lastBufferSeqNo === nextQuery.sequenceNumber && buffer.size > 0) buffer.clear();
                 } else {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
-                  log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`, 'magenta');
+                  log.info(`-missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`, 'magenta');
                   missingQueryBuffer.put(BackLog.sequenceNumber + 1, true, 5000);
                   fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
                   break;
