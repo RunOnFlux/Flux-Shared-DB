@@ -238,8 +238,8 @@ async function initServer() {
           record = await BackLog.getLogs(index, 1)[0];
         }
         if (record) {
-          log.info(`sending query: ${JSON.stringify(record)}`);
-          socket.emit('query', record.query, record.seq, record.timestamp, connId);
+          log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
+          socket.emit('query', record.query, record.sequenceNumber, record.timestamp, connId);
         }
         callback({ status: Operator.status });
       });
