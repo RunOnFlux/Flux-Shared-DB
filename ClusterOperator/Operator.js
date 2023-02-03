@@ -150,7 +150,7 @@ class Operator {
                   // there is a gap, ask master for the missing sequence number and wxit the loop
                   log.info(`missing seqNo ${BackLog.sequenceNumber + 1}, asking master to resend`, 'magenta');
                   missingQueryBuffer.put(BackLog.sequenceNumber + 1, true, 5000);
-                  this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + 1);
+                  this.emit('askQuery', BackLog.sequenceNumber + 1);
                   break;
                 }
               }
@@ -165,7 +165,7 @@ class Operator {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                    this.masterWSConn.emit('askQuery', BackLog.sequenceNumber + i);
+                    this.emit('askQuery', BackLog.sequenceNumber + i);
                     i += 1;
                   }
                 }
