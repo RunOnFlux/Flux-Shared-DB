@@ -110,9 +110,9 @@ class BackLog {
           }
           if (seq === 0 || this.sequenceNumber + 1 === seq) {
             this.writeLock = true;
-            // log.info(`pushing ${seq}`);
             if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
             const seqForThis = this.sequenceNumber;
+            log.info(`executing ${seqForThis}`);
             let result2 = null;
             if (connId === false) {
               result2 = await this.UserDBClient.query(query);
