@@ -521,7 +521,7 @@ class Operator {
         this.findMaster();
       }
       // check connection stability
-      if (this.connectionDrops > 5) {
+      if (this.connectionDrops > 3) {
         this.ghosted = true;
         log.info(`health check! connection drops: ${this.connectionDrops}`, 'red');
         log.info('Ghosted', 'red');
