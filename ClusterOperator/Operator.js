@@ -64,6 +64,10 @@ class Operator {
 
   static prevWriteQuery = '';
 
+  static connectionDrops = 0;
+
+  static ghosted = false;
+
   /**
   * [initLocalDB]
   */
@@ -130,6 +134,7 @@ class Operator {
         });
         this.masterWSConn.on('disconnect', async () => {
           log.info('disconnected from master...', 'red');
+          this.connectionDrops += 1;
           this.masterWSConn.removeAllListeners();
           await this.findMaster();
           this.initMasterConnection();
@@ -238,7 +243,7 @@ class Operator {
     try {
       // log.info(`DB auth from ${param.remoteIP}`);
       // log.info(JSON.stringify(param));
-      if (this.status !== 'OK') {
+      if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
@@ -486,6 +491,7 @@ class Operator {
     try {
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
+      // update node list
       const ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       let appIPList = [];
       if (config.DBAppName === config.AppName) {
@@ -510,12 +516,18 @@ class Operator {
         if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
         this.AppNodes.push(appIPList[i].ip);
       }
-      // log.info(`cluster ip's: ${JSON.stringify(nodeList)}`);
-      // log.info(`app ip's: ${JSON.stringify(this.AppNodes)}`);
       if (this.masterNode && !checkMasterIp) {
         log.info('master removed from the list, should find a new master');
         this.findMaster();
       }
+      // check connection stability
+      log.info(`health check! connection drops: ${this.connectionDrops}`, 'green');
+      if (this.connectionDrops > 8) {
+        this.ghosted = true;
+      } else if (this.ghosted) {
+        this.ghosted = false;
+      }
+      this.connectionDrops = 0;
     } catch (err) {
       log.error(err);
     }
