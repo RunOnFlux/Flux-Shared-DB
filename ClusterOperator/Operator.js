@@ -521,11 +521,13 @@ class Operator {
         this.findMaster();
       }
       // check connection stability
-      log.info(`health check! connection drops: ${this.connectionDrops}`, 'red');
       if (this.connectionDrops > 8) {
         this.ghosted = true;
+        log.info(`health check! connection drops: ${this.connectionDrops}`, 'red');
         log.info('Ghosted', 'red');
       } else if (this.ghosted) {
+        log.info(`health check! connection drops: ${this.connectionDrops}`, 'green');
+        log.info('Ghosting removed', 'red');
         this.ghosted = false;
       }
       this.connectionDrops = 0;
