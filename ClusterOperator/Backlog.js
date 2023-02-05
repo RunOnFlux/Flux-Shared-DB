@@ -1,6 +1,6 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-const timer = require('timers/promises');
+// const timer = require('timers/promises');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
@@ -308,7 +308,7 @@ class BackLog {
         for (const record of records) {
           log.info(`executing seq(${record.seq})`);
           try {
-            // eslint-disable-next-line no-await-in-loop
+            // eslint-disable-next-line no-await-in-loop, no-unused-vars
             const result = await this.UserDBClient.query(record.query);
           } catch (e) {
             log.error(e);
