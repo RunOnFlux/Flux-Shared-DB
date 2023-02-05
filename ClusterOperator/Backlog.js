@@ -20,7 +20,7 @@ class BackLog {
 
   static UserDBClient = null;
 
-  static writeLock = false;
+  // static writeLock = false;
 
   /**
   * [createBacklog]
@@ -115,15 +115,15 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
-          let result2 = null;
+          let result = null;
           if (connId === false) {
-            result2 = await this.UserDBClient.query(query);
+            result = await this.UserDBClient.query(query);
           } else {
-            result2 = await ConnectionPool.getConnectionById(connId).query(query);
+            result = await ConnectionPool.getConnectionById(connId).query(query);
           }
           log.info(`executed ${seqForThis}`);
           // this.writeLock = false;
-          return [result2, seqForThis, timestamp];
+          return [result, seqForThis, timestamp];
           // }
         }
         /*
@@ -162,8 +162,8 @@ class BackLog {
         } */
       }
     } catch (e) {
-      this.writeLock = false;
-      log.error('error executing query');
+      // this.writeLock = false;
+      log.error(`error executing query, ${query}, ${seq}`);
       log.error(e);
     }
     return [];
