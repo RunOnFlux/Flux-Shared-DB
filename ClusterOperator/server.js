@@ -61,7 +61,7 @@ function startUI() {
         .m {margin-left:10px;}
         </style><body style="
           font-family: monospace;
-          background-color: #404048;
+          background-color: #2a2a32;
           color: white;
           font-size: 12;
           ">FluxDB Debug Screen<br>${fs.readFileSync(logFile).toString()}</body></html>`);
