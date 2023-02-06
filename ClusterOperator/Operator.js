@@ -445,9 +445,15 @@ class Operator {
       this.OpNodes = [];
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
-        // eslint-disable-next-line prefer-destructuring
-        if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ ip: ipList[i].ip, active: null, seqNo: 0 });
+        let upnp = false;
+        if (ipList[i].ip.includes(':')) {
+          upnp = true;
+          // eslint-disable-next-line prefer-destructuring
+          ipList[i].ip = ipList[i].ip.split(':')[0];
+        }
+        this.OpNodes.push({
+          ip: ipList[i].ip, active: null, seqNo: 0, upnp,
+        });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
         // eslint-disable-next-line prefer-destructuring
@@ -558,7 +564,13 @@ class Operator {
         this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
         const masterSeqNo = this.OpNodes[0].seqNo;
         for (let i = 0; i < this.OpNodes.length; i += 1) {
-          if (this.OpNodes[i].active && this.OpNodes[i].seqNo === masterSeqNo) this.masterCandidates.push(this.OpNodes[i].ip);
+          if (this.OpNodes[i].active && this.OpNodes[i].seqNo === masterSeqNo) {
+            if (this.OpNodes[i].upnp) {
+              this.masterCandidates.push(this.OpNodes[i].ip);
+            } else {
+              this.masterCandidates.unshift(this.OpNodes[i].ip);
+            }
+          }
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
