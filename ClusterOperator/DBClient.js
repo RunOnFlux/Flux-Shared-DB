@@ -90,6 +90,32 @@ class DBClient {
   }
 
   /**
+  * [reconnect]
+  */
+  async reconnect() {
+    if (!this.connected) {
+      if (config.dbType === 'mysql') {
+        try {
+          this.connection = await mySql.createConnection({
+            password: Security.getKey(),
+            user: config.dbUser,
+            stream: this.stream,
+          });
+          this.connection.once('error', async () => {
+            this.connected = false;
+            log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
+            await this.reconnect();
+          });
+          this.connected = true;
+          this.setDB(this.InitDB);
+        } catch (err) {
+          log.error(err);
+        }
+      }
+    }
+  }
+
+  /**
   * [query]
   * @param {string} query [description]
   */
@@ -99,8 +125,7 @@ class DBClient {
       try {
         if (!this.connected) {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
-          await this.init();
-          this.setDB(this.InitDB);
+          await this.reconnect();
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
