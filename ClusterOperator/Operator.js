@@ -336,6 +336,7 @@ class Operator {
             } else if (queryItem[1] === 's') {
               // eslint-disable-next-line prefer-destructuring
               this.operator.sessionQueries[id] = queryItem[0];
+              this.sendOK({ message: 'OK' });
               // log.info(`result: ${JSON.stringify(result)}`);
             } else {
               // forward it to the local DB
