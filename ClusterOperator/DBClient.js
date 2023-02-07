@@ -76,11 +76,13 @@ class DBClient {
   */
   async init() {
     this.connected = false;
+    this.stream = null;
     if (config.dbType === 'mysql') {
       await this.createSrtream();
       while (this.stream.readyState !== 'open') {
-        await timer.setTimeout(50);
+        this.stream = null;
         await this.createSrtream();
+        await timer.setTimeout(50);
       }
       this.stream.on('data', (data) => {
         this.rawCallback(data);
