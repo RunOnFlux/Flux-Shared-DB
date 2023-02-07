@@ -72,6 +72,7 @@ class DBClient {
   * [init]
   */
   async init() {
+    this.connected = false;
     if (config.dbType === 'mysql') {
       await this.createSrtream();
       this.stream.on('data', (data) => {
@@ -129,8 +130,7 @@ class DBClient {
     if (config.dbType === 'mysql') {
       // log.info(`running Query: ${query}`);
       try {
-        log.info(`stream state: ${this.stream.readyState}`);
-        if (!this.connected) {
+        if (!this.connected || this.stream.readyState !== 'open') {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
           this.setDB(this.InitDB);
@@ -161,7 +161,7 @@ class DBClient {
   async execute(query, params, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
-        if (!this.connected) {
+        if (!this.connected || this.stream.readyState !== 'open') {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
           this.setDB(this.InitDB);
