@@ -324,10 +324,10 @@ class Operator {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               // log.info(`write query from local DB port`);
-              if (this.sessionQueries[id] !== undefined) {
+              if (this.operator.sessionQueries[id] !== undefined) {
                 // combine queries
-                queryItem[0] = `${this.sessionQueries[id]}; ${queryItem[0]}`;
-                this.sessionQueries[id] = undefined;
+                queryItem[0] = `${this.operator.sessionQueries[id]}; ${queryItem[0]}`;
+                this.operator.sessionQueries[id] = undefined;
               }
               await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
@@ -335,7 +335,7 @@ class Operator {
               // this.sendOK({ message: 'OK' });
             } else if (queryItem[1] === 's') {
               // eslint-disable-next-line prefer-destructuring
-              this.sessionQueries[id] = queryItem[0];
+              this.operator.sessionQueries[id] = queryItem[0];
               // log.info(`result: ${JSON.stringify(result)}`);
             } else {
               // forward it to the local DB
