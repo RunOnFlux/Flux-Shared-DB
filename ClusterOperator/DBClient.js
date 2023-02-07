@@ -140,7 +140,7 @@ class DBClient {
     if (config.dbType === 'mysql') {
       // log.info(`running Query: ${query}`);
       try {
-        log.info(`stream.readyState: ${this.stream.readyState}, ${this.connected}`);
+        // log.info(`stream.readyState: ${this.stream.readyState}, ${this.connected}`);
         if (!this.connected || this.stream.readyState !== 'open') {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
@@ -172,7 +172,7 @@ class DBClient {
   async execute(query, params, rawResult = false) {
     if (config.dbType === 'mysql') {
       try {
-        log.info(`stream.readyState: ${this.stream.readyState}, ${this.connected}`);
+        // log.info(`stream.readyState: ${this.stream.readyState}, ${this.connected}`);
         if (!this.connected || this.stream.readyState !== 'open') {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
