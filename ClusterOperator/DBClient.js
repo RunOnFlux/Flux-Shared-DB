@@ -31,6 +31,7 @@ class DBClient {
         resolve(stream);
       });
       stream.once('error', (err) => {
+        this.connected = false;
         stream.removeListener('connection', resolve);
         stream.removeListener('data', resolve);
         reject(err);
@@ -76,6 +77,10 @@ class DBClient {
       this.stream.on('data', (data) => {
         this.rawCallback(data);
       });
+      this.stream.once('error', () => {
+        this.connected = false;
+        log.info(`Connecten to ${this.InitDB} DB was lost`);
+      });
       this.connection = await mySql.createConnection({
         password: Security.getKey(),
         user: config.dbUser,
@@ -94,6 +99,7 @@ class DBClient {
   */
   async reconnect() {
     if (!this.connected) {
+      log.info('reconnecting to DB...');
       if (config.dbType === 'mysql') {
         try {
           this.connection = await mySql.createConnection({
@@ -125,7 +131,8 @@ class DBClient {
       try {
         if (!this.connected) {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
-          await this.reconnect();
+          await this.init();
+          this.setDB(this.InitDB);
         }
         if (rawResult) {
           const [rows, fields, err] = await this.connection.query(query);
@@ -154,7 +161,9 @@ class DBClient {
     if (config.dbType === 'mysql') {
       try {
         if (!this.connected) {
+          log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
+          this.setDB(this.InitDB);
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
         if (err) log.error(`Error executing query: ${JSON.stringify(err)}`);
@@ -195,6 +204,7 @@ class DBClient {
       }, (err) => {
         if (err) {
           // console.log('Error changing database', err);
+          this.connected = false;
         }
       });
     }
