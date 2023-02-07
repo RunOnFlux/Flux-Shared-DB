@@ -324,11 +324,11 @@ class Operator {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               // log.info(`write query from local DB port`);
-              if (this.operator.sessionQueries[id] !== undefined) {
+              /* if (this.operator.sessionQueries[id] !== undefined) {
                 // combine queries
                 queryItem[0] = `${this.operator.sessionQueries[id]}; ${queryItem[0]}`;
                 this.operator.sessionQueries[id] = undefined;
-              }
+              } */
               await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
