@@ -170,15 +170,17 @@ class Operator {
                 });
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`, 'magenta');
                 this.lastBufferSeqNo = sequenceNumber;
-                /* let i = 1;
-                while (buffer.get(BackLog.sequenceNumber + i) === null && i < 10) {
-                  if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
-                    log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
-                    missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                    fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
-                    i += 1;
+                if (buffer.get(BackLog.sequenceNumber + 1) === null && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
+                  let i = 1;
+                  while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
+                    if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
+                      log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
+                      missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
+                      fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
+                      i += 1;
+                    }
                   }
-                } */
+                }
               }
             }
           } else if (this.status === 'SYNC') {
