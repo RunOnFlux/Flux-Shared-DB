@@ -129,6 +129,7 @@ class DBClient {
     if (config.dbType === 'mysql') {
       // log.info(`running Query: ${query}`);
       try {
+        log.info(`stream state: ${this.stream.readyState}`);
         if (!this.connected) {
           log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
