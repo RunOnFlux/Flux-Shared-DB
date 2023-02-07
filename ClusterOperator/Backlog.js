@@ -1,7 +1,6 @@
-/* eslint-disable no-await-in-loop */
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-const timer = require('timers/promises');
+// const timer = require('timers/promises');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
@@ -104,12 +103,12 @@ class BackLog {
           );
           return [null, seq, timestamp];
         } else {
-          // wait if DB clients are not connected
-          if (connId === false) {
-            while (this.UserDBClient.connected === false || this.BLClient.connected === false) await timer.setTimeout(50);
-          } else {
-            while (ConnectionPool.getConnectionById(connId).connected === false || this.BLClient.connected === false) await timer.setTimeout(50);
-          }
+          // wait in queue
+          // while (this.writeLock) {
+          //  await timer.setTimeout(10);
+          // }
+          // if (seq === 0 || this.sequenceNumber + 1 === seq) {
+          // this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
           await this.BLClient.execute(

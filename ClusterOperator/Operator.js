@@ -68,8 +68,6 @@ class Operator {
 
   static ghosted = false;
 
-  static sessionQueries = {};
-
   /**
   * [initLocalDB]
   */
@@ -150,11 +148,9 @@ class Operator {
               // push queries from buffer until there is a gap or the buffer is empty
               while (buffer.get(BackLog.sequenceNumber + 1) !== null && buffer.get(BackLog.sequenceNumber + 1) !== undefined) {
                 const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
-                if (nextQuery.sequenceNumber !== undefined) {
-                  log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
-                  await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  buffer.del(nextQuery.sequenceNumber);
-                }
+                log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
+                await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
+                buffer.del(nextQuery.sequenceNumber);
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
@@ -174,17 +170,15 @@ class Operator {
                 });
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`, 'magenta');
                 this.lastBufferSeqNo = sequenceNumber;
-                if (buffer.get(BackLog.sequenceNumber + 1) === null && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
-                  let i = 1;
-                  while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
-                    if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
-                      log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
-                      missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                      fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
-                      i += 1;
-                    }
+                /* let i = 1;
+                while (buffer.get(BackLog.sequenceNumber + i) === null && i < 10) {
+                  if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
+                    log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
+                    missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
+                    fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
+                    i += 1;
                   }
-                }
+                } */
               }
             }
           } else if (this.status === 'SYNC') {
@@ -326,20 +320,10 @@ class Operator {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               // log.info(`write query from local DB port`);
-              /* if (this.operator.sessionQueries[id] !== undefined) {
-                // combine queries
-                queryItem[0] = `${this.operator.sessionQueries[id]}; ${queryItem[0]}`;
-                this.operator.sessionQueries[id] = undefined;
-              } */
               await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
               // this.sendOK({ message: 'OK' });
-            } else if (queryItem[1] === 's') {
-              // eslint-disable-next-line prefer-destructuring
-              this.operator.sessionQueries[id] = queryItem[0];
-              this.sendOK({ message: 'OK' });
-              // log.info(`result: ${JSON.stringify(result)}`);
             } else {
               // forward it to the local DB
               // eslint-disable-next-line prefer-const
