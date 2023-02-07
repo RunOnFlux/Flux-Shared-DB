@@ -105,11 +105,13 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           // wait if DB clients are not connected
+          /*
           if (connId === false) {
             while (this.UserDBClient.connected === false || this.BLClient.connected === false) await timer.setTimeout(50);
           } else {
             while (ConnectionPool.getConnectionById(connId).connected === false || this.BLClient.connected === false) await timer.setTimeout(50);
           }
+          */
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
           await this.BLClient.execute(
