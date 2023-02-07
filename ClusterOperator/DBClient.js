@@ -95,6 +95,7 @@ class DBClient {
         password: Security.getKey(),
         user: config.dbUser,
         stream: this.stream,
+        multipleStatements: true,
       });
       this.connection.once('error', () => {
         this.connected = false;
@@ -117,6 +118,7 @@ class DBClient {
             password: Security.getKey(),
             user: config.dbUser,
             stream: this.stream,
+            multipleStatements: true,
           });
           this.connection.once('error', async () => {
             this.connected = false;
