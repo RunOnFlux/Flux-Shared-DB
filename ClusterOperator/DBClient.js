@@ -1,5 +1,7 @@
+/* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const mySql = require('mysql2/promise');
+const timer = require('timers/promises');
 const net = require('net');
 const config = require('./config');
 const Security = require('./Security');
@@ -25,13 +27,14 @@ class DBClient {
       port: config.dbPort,
     });
     const { stream } = this;
+    let { connected } = this;
     return new Promise((resolve, reject) => {
-      stream.once('connect', () => {
+      stream.once('ready', () => {
         stream.removeListener('error', reject);
         resolve(stream);
       });
       stream.once('error', (err) => {
-        this.connected = false;
+        connected = false;
         stream.removeListener('connection', resolve);
         stream.removeListener('data', resolve);
         reject(err);
@@ -75,6 +78,10 @@ class DBClient {
     this.connected = false;
     if (config.dbType === 'mysql') {
       await this.createSrtream();
+      while (this.stream.readyState !== 'open') {
+        await timer.setTimeout(50);
+        await this.createSrtream();
+      }
       this.stream.on('data', (data) => {
         this.rawCallback(data);
       });
@@ -92,6 +99,7 @@ class DBClient {
         log.info(`Connecten to ${this.InitDB} DB was lost`);
       });
       this.connected = true;
+      log.info('stablished db connection');
     }
   }
 
