@@ -102,7 +102,7 @@ class BackLog {
             [seq, query, timestamp],
           );
           return [null, seq, timestamp];
-        } else {
+        } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
           // wait in queue
           // while (this.writeLock) {
           //  await timer.setTimeout(10);
@@ -122,7 +122,7 @@ class BackLog {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
           log.info(`executed ${seqForThis}`);
-          this.writeLock = false;
+          // this.writeLock = false;
           return [result, seqForThis, timestamp];
           // }
         }
