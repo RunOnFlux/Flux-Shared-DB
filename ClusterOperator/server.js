@@ -251,7 +251,7 @@ async function initServer() {
           record = await BackLog.getLog(index);
         }
         if (record) {
-          log.info(`sending query: ${JSON.stringify(record)}`, 'magenta');
+          log.info(`sending query: ${index}`, 'magenta');
           log.info(`record type: ${Array.isArray(record)}`, 'magenta');
           if (Array.isArray(record)) {
             socket.emit('query', record[0].query, record[0].seq, record[0].timestamp, false);

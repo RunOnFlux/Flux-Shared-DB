@@ -85,7 +85,7 @@ class Operator {
         BackLog.UserDBClient = this.localDB;
         BackLog.UserDBClient.setDB(config.dbInitDB);
         log.info(`${config.dbInitDB} database created on local DB.`);
-        await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
+        await ConnectionPool.init({ numberOfConnections: 20, maxConnections: 200, db: config.dbInitDB });
       } catch (err) {
         log.info(err);
       }
@@ -348,7 +348,7 @@ class Operator {
             // log.info(`got Query from ${id}: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
-              log.info(`${id},${queryItem[0]}`);
+              // log.info(`${id},${queryItem[0]}`);
               if (this.operator.sessionQueries[id] !== undefined) {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
