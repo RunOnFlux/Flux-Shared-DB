@@ -323,7 +323,7 @@ class Operator {
             // log.info(`got Query from ${id}: ${queryItem}`);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
-              // log.info(`write query from local DB port`);
+              log.info(`${id},${queryItem[0]}`);
               await this.sendWriteQuery(queryItem[0], id);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
