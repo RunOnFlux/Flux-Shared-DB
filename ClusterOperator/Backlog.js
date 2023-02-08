@@ -103,11 +103,6 @@ class BackLog {
           );
           return [null, seq, timestamp];
         } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
-          // wait in queue
-          // while (this.writeLock) {
-          //  await timer.setTimeout(10);
-          // }
-          // if (seq === 0 || this.sequenceNumber + 1 === seq) {
           this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
@@ -122,9 +117,8 @@ class BackLog {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
           log.info(`executed ${seqForThis}`);
-          // this.writeLock = false;
+          this.writeLock = false;
           return [result, seqForThis, timestamp];
-          // }
         }
         /*
         if (seq === 0 || this.sequenceNumber + 1 === seq) {
@@ -162,7 +156,7 @@ class BackLog {
         } */
       }
     } catch (e) {
-      // this.writeLock = false;
+      this.writeLock = false;
       log.error(`error executing query, ${query}, ${seq}`);
       log.error(e);
     }
