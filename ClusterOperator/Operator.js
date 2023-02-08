@@ -68,6 +68,10 @@ class Operator {
 
   static ghosted = false;
 
+  static masterQueue = [];
+
+  static ticket = 0;
+
   /**
   * [initLocalDB]
   */
@@ -84,6 +88,14 @@ class Operator {
         log.info(err);
       }
     }
+  }
+
+  /**
+  * [initLocalDB]
+  */
+  static getTicket() {
+    this.ticket += 1;
+    return this.ticket;
   }
 
   /**
@@ -280,6 +292,17 @@ class Operator {
             resolve(response.result);
           });
         });
+      }
+      if (BackLog.writeLock) {
+        const myTicket = this.getTicket();
+        log.info(`put into queue, ticketNO: ${myTicket}`, 'cyan');
+        this.masterQueue.push(myTicket);
+        while (BackLog.writeLock || this.masterQueue[0] !== myTicket) {
+          await timer.setTimeout(10);
+        }
+        BackLog.writeLock = true;
+        this.masterQueue.shift();
+        log.info(`out of queue: ${myTicket}`, 'cyan');
       }
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);

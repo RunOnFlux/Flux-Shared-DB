@@ -20,7 +20,7 @@ class BackLog {
 
   static UserDBClient = null;
 
-  // static writeLock = false;
+  static writeLock = false;
 
   /**
   * [createBacklog]
@@ -108,7 +108,7 @@ class BackLog {
           //  await timer.setTimeout(10);
           // }
           // if (seq === 0 || this.sequenceNumber + 1 === seq) {
-          // this.writeLock = true;
+          this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
           await this.BLClient.execute(
@@ -122,7 +122,7 @@ class BackLog {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
           log.info(`executed ${seqForThis}`);
-          // this.writeLock = false;
+          this.writeLock = false;
           return [result, seqForThis, timestamp];
           // }
         }

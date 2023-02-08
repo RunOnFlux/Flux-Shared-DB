@@ -1,7 +1,9 @@
+/* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
 const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
+const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -218,6 +220,17 @@ async function initServer() {
       });
       socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
+        if (BackLog.writeLock) {
+          const myTicket = Operator.getTicket();
+          log.info(`put into queue, ticketNO: ${myTicket}`, 'cyan');
+          Operator.masterQueue.push(myTicket);
+          while (BackLog.writeLock || Operator.masterQueue[0] !== myTicket) {
+            await timer.setTimeout(10);
+          }
+          BackLog.writeLock = true;
+          Operator.masterQueue.shift();
+          log.info(`out of queue: ${myTicket}`, 'cyan');
+        }
         const result = await BackLog.pushQuery(query);
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
