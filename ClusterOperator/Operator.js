@@ -294,14 +294,14 @@ class Operator {
         });
       }
       if (BackLog.writeLock) {
-        const myTicket = this.getTicket();
+        const myTicket = this.operator.getTicket();
         log.info(`put into queue, ticketNO: ${myTicket}`, 'cyan');
-        this.masterQueue.push(myTicket);
-        while (BackLog.writeLock || this.masterQueue[0] !== myTicket) {
+        this.operator.masterQueue.push(myTicket);
+        while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
           await timer.setTimeout(10);
         }
         BackLog.writeLock = true;
-        this.masterQueue.shift();
+        this.operator.masterQueue.shift();
         log.info(`out of queue: ${myTicket}`, 'cyan');
       }
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
