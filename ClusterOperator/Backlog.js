@@ -113,7 +113,7 @@ class BackLog {
           let result = null;
           if (connId === false) {
             result = await this.UserDBClient.query(query);
-          } else {
+          } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
           log.info(`executed ${seqForThis}`);
