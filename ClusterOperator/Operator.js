@@ -265,12 +265,15 @@ class Operator {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
-      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
       const remoteIp = param.remoteIP;
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === this.authorizedApp || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
+        return true;
+      }
+      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
+      if (remoteIp === this.authorizedApp) {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
@@ -296,17 +299,19 @@ class Operator {
           });
         });
       }
+      /*
       if (BackLog.writeLock) {
         const myTicket = this.operator.getTicket();
-        log.info(`put into queue, ticketNO: ${myTicket}`, 'cyan');
+        log.info(`put into queue, ticketNO: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
         this.operator.masterQueue.push(myTicket);
         while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
           await timer.setTimeout(10);
         }
         BackLog.writeLock = true;
         this.operator.masterQueue.shift();
-        log.info(`out of queue: ${myTicket}`, 'cyan');
+        log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
       }
+      */
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
