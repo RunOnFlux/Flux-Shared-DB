@@ -175,9 +175,11 @@ function auth(ip) {
 * @param {string} ip [description]
 */
 async function validate(ip) {
-  const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
-  if (validateApp) return true;
+  if (Operator.AppNodes.includes(ip)) return true;
   return false;
+  // const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
+  // if (validateApp) return true;
+  // return false;
 }
 /**
 * [initServer]
@@ -297,6 +299,15 @@ async function initServer() {
         keysToSend[`N${Operator.myIP}`] = Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`);
         callback({ status: Operator.status, keys: Security.encryptComm(JSON.stringify(keysToSend)) });
       });
+      socket.on('resetMaster', async (callback) => {
+        if (Operator.IamMaster) {
+          Object.keys(io.sockets.sockets).forEach((s) => {
+            io.sockets.sockets[s].disconnect(true);
+          });
+          Operator.findMaster();
+        }
+        callback({ status: Operator.status });
+      });
     } else {
       // log.info(`rejected from ${ip}`);
       socket.disconnect();
@@ -304,7 +315,7 @@ async function initServer() {
     if (await validate(ip)) {
       // log.info(`auth: ${ip} is validated`);
     } else {
-      // log.info(`validation failed for ${ip}`);
+      log.info(`validation failed for ${ip}`, 'red');
       socket.disconnect();
     }
   });

@@ -585,6 +585,7 @@ class Operator {
   */
   static async findMaster() {
     try {
+      this.status = 'INIT';
       this.masterNode = null;
       // get dbappspecs
       if (config.DBAppName) {
