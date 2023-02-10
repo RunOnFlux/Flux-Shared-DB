@@ -85,7 +85,7 @@ class Operator {
         BackLog.UserDBClient = this.localDB;
         BackLog.UserDBClient.setDB(config.dbInitDB);
         log.info(`${config.dbInitDB} database created on local DB.`);
-        await ConnectionPool.init({ numberOfConnections: 20, maxConnections: 200, db: config.dbInitDB });
+        await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
       } catch (err) {
         log.info(err);
       }

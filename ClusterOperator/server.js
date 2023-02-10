@@ -60,6 +60,7 @@ function startUI() {
         .green {color:green;}
         .magenta {color:magenta;}
         .cyan {color:cyan;}
+        .lb {color:#00d0ff;}
         .m {margin-left:10px;}
         </style><body style="
           font-family: monospace;
