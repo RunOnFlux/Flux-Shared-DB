@@ -355,22 +355,28 @@ class Operator {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
+              log.info(`incoming write ${id}`);
               if (this.operator.sessionQueries[id] !== undefined) {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
               }
               await this.sendWriteQuery(queryItem[0], id);
+              log.info(`finish write ${id}`);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
               // this.sendOK({ message: 'OK' });
             } else if (queryItem[1] === 's') {
               // eslint-disable-next-line prefer-destructuring
               this.operator.sessionQueries[id] = queryItem[0];
+              log.info(`incoming set session ${id}`);
               await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
+              log.info(`finish set session ${id}`);
             } else {
               // forward it to the local DB
               // eslint-disable-next-line prefer-const
+              log.info(`incoming read ${id}`);
               await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
+              log.info(`finish read ${id}`);
               // log.info(`result: ${JSON.stringify(result)}`);
             }
             // log.info(result);
