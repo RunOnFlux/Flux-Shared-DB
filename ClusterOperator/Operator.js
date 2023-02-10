@@ -265,6 +265,7 @@ class Operator {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
+      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
       const remoteIp = param.remoteIP;
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
