@@ -272,7 +272,7 @@ class Operator {
       if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
         return true;
       }
-      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
+      // if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
       if (remoteIp === this.authorizedApp) {
         return true;
       }
