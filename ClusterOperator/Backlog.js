@@ -22,6 +22,8 @@ class BackLog {
 
   static writeLock = false;
 
+  static executeLogs = true;
+
   /**
   * [createBacklog]
   * @param {object} params [description]
@@ -116,7 +118,7 @@ class BackLog {
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
-          log.info(`executed ${seqForThis}`);
+          if (this.executeLogs) log.info(`executed ${seqForThis}`);
           this.writeLock = false;
           return [result, seqForThis, timestamp];
         }

@@ -461,10 +461,12 @@ class Operator {
         masterSN = response.sequenceNumber;
         const percent = Math.round((index / masterSN) * 1000);
         log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+        BackLog.executeLogs = false;
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+        BackLog.executeLogs = true;
       }
       if (copyBuffer) await BackLog.moveBufferToBacklog();
       this.status = 'OK';
