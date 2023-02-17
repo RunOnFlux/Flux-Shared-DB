@@ -299,10 +299,10 @@ class Operator {
           });
         });
       }
-      /*
+
       if (BackLog.writeLock) {
         const myTicket = this.operator.getTicket();
-        log.info(`put into queue, ticketNO: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
+        log.info(`put into queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
         this.operator.masterQueue.push(myTicket);
         while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
           await timer.setTimeout(10);
@@ -311,7 +311,7 @@ class Operator {
         this.operator.masterQueue.shift();
         log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
       }
-      */
+
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
