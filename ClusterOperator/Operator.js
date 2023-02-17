@@ -357,8 +357,8 @@ class Operator {
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
               if (this.operator.sessionQueries[id] !== undefined) {
-                this.operator.sessionQueries[id] = undefined;
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
+                this.operator.sessionQueries[id] = undefined;
               }
               await this.sendWriteQuery(queryItem[0], id);
               // log.info(`finish write ${id}`);

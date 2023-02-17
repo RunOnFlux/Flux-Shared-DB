@@ -104,7 +104,7 @@ class BackLog {
             [seq, query, timestamp],
           );
           return [null, seq, timestamp];
-        } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
+        } else {
           this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
