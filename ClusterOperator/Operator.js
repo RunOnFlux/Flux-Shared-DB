@@ -272,7 +272,7 @@ class Operator {
       if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
         return true;
       }
-      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
+      // if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
       if (remoteIp === this.authorizedApp) {
         return true;
       }
@@ -302,10 +302,10 @@ class Operator {
       /*
       if (BackLog.writeLock) {
         const myTicket = this.operator.getTicket();
-        log.info(`put into queue, ticketNO: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
+        log.info(`put into queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
         this.operator.masterQueue.push(myTicket);
         while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
-          await timer.setTimeout(10);
+          await timer.setTimeout(5);
         }
         BackLog.writeLock = true;
         this.operator.masterQueue.shift();
@@ -357,8 +357,8 @@ class Operator {
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
               if (this.operator.sessionQueries[id] !== undefined) {
-                await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
+                await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
               }
               await this.sendWriteQuery(queryItem[0], id);
               // log.info(`finish write ${id}`);
@@ -461,12 +461,17 @@ class Operator {
         masterSN = response.sequenceNumber;
         const percent = Math.round((index / masterSN) * 1000);
         log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+        // log.info(JSON.stringify(response.records));
+        BackLog.executeLogs = false;
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+        BackLog.executeLogs = true;
       }
+      log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
+      log.info('Status OK', 'green');
       this.status = 'OK';
     }
   }

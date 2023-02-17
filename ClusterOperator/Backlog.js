@@ -22,6 +22,8 @@ class BackLog {
 
   static writeLock = false;
 
+  static executeLogs = true;
+
   /**
   * [createBacklog]
   * @param {object} params [description]
@@ -110,14 +112,14 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
+          if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          this.writeLock = false;
           let result = null;
           if (connId === false) {
             result = await this.UserDBClient.query(query);
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
-          log.info(`executed ${seqForThis}`);
-          this.writeLock = false;
           return [result, seqForThis, timestamp];
         }
         /*
@@ -177,7 +179,7 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} ORDER BY seq LIMIT ${startFrom},${pageSize}`);
-        // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${totalRecords.length}`);
         return totalRecords;
       }
     } catch (e) {
