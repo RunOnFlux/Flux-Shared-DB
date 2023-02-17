@@ -112,14 +112,14 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
+          if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          this.writeLock = false;
           let result = null;
           if (connId === false) {
             result = await this.UserDBClient.query(query);
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
-          if (this.executeLogs) log.info(`executed ${seqForThis}`);
-          this.writeLock = false;
           return [result, seqForThis, timestamp];
         }
         /*
