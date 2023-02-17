@@ -179,7 +179,7 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} ORDER BY seq LIMIT ${startFrom},${pageSize}`);
-        // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${totalRecords.length}`);
         return totalRecords;
       }
     } catch (e) {
