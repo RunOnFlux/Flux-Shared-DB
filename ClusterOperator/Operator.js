@@ -305,7 +305,7 @@ class Operator {
         log.info(`put into queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
         this.operator.masterQueue.push(myTicket);
         while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
-          await timer.setTimeout(10);
+          await timer.setTimeout(5);
         }
         BackLog.writeLock = true;
         this.operator.masterQueue.shift();

@@ -228,7 +228,7 @@ async function initServer() {
           log.info(`put into queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
           Operator.masterQueue.push(myTicket);
           while (BackLog.writeLock || Operator.masterQueue[0] !== myTicket) {
-            await timer.setTimeout(10);
+            await timer.setTimeout(5);
           }
           BackLog.writeLock = true;
           Operator.masterQueue.shift();
