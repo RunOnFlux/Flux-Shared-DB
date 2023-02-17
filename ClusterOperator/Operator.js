@@ -259,7 +259,7 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      log.info(`DB auth from ${param.remoteIP}`);
+      // log.info(`DB auth from ${param.remoteIP}`);
       // log.info(JSON.stringify(param));
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
