@@ -461,7 +461,7 @@ class Operator {
         masterSN = response.sequenceNumber;
         const percent = Math.round((index / masterSN) * 1000);
         log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
-        log.info(JSON.stringify(response.records));
+        // log.info(JSON.stringify(response.records));
         BackLog.executeLogs = false;
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);

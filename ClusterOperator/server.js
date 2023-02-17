@@ -218,7 +218,7 @@ async function initServer() {
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getBackLog', async (start, callback) => {
-        const records = await BackLog.getLogs(start, 10);
+        const records = await BackLog.getLogs(start, 200);
         callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
       });
       socket.on('writeQuery', async (query, connId, callback) => {
