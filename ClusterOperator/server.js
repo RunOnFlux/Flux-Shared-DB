@@ -225,14 +225,14 @@ async function initServer() {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
         if (BackLog.writeLock) {
           const myTicket = Operator.getTicket();
-          log.info(`put into queue, ticketNO: ${myTicket}`, 'cyan');
+          log.info(`put into queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
           Operator.masterQueue.push(myTicket);
           while (BackLog.writeLock || Operator.masterQueue[0] !== myTicket) {
             await timer.setTimeout(10);
           }
           BackLog.writeLock = true;
           Operator.masterQueue.shift();
-          log.info(`out of queue: ${myTicket}`, 'cyan');
+          log.info(`out of queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
         }
         const result = await BackLog.pushQuery(query);
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
