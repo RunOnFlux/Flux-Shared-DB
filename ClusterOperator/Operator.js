@@ -468,7 +468,9 @@ class Operator {
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
         BackLog.executeLogs = true;
       }
+      log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
+      log.info('Status OK', 'green');
       this.status = 'OK';
     }
   }
