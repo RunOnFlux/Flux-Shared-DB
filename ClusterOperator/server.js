@@ -223,6 +223,7 @@ async function initServer() {
       });
       socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
+        /*
         if (BackLog.writeLock) {
           const myTicket = Operator.getTicket();
           log.info(`put into queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
@@ -234,6 +235,7 @@ async function initServer() {
           Operator.masterQueue.shift();
           log.info(`out of queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
         }
+        */
         const result = await BackLog.pushQuery(query);
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
