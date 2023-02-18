@@ -162,7 +162,7 @@ class Operator {
               // push queries from buffer until there is a gap or the buffer is empty
               while (buffer.get(BackLog.sequenceNumber + 1) !== null && buffer.get(BackLog.sequenceNumber + 1) !== undefined) {
                 const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
-                if (nextQuery.sequenceNumber !== undefined) {
+                if (nextQuery !== undefined && nextQuery !== null) {
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
                   buffer.del(nextQuery.sequenceNumber);
