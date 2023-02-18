@@ -8,7 +8,6 @@ const net = require('net');
 const { networkInterfaces } = require('os');
 const axios = require('axios');
 const { io } = require('socket.io-client');
-const buffer = require('memory-cache');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
@@ -73,6 +72,8 @@ class Operator {
   static ticket = 0;
 
   static sessionQueries = {};
+
+  static buffer = {};
 
   /**
   * [initLocalDB]
@@ -160,18 +161,18 @@ class Operator {
             if (sequenceNumber === BackLog.sequenceNumber + 1) {
               const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
               // push queries from buffer until there is a gap or the buffer is empty
-              while (buffer.get(BackLog.sequenceNumber + 1) !== null && buffer.get(BackLog.sequenceNumber + 1) !== undefined) {
-                const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
+              while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
+                const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
                 if (nextQuery !== undefined && nextQuery !== null) {
                   log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  buffer.del(nextQuery.sequenceNumber);
+                  this.buffer[nextQuery.sequenceNumber] = undefined;
                 }
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
-                while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
+                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
@@ -181,15 +182,15 @@ class Operator {
                 }
               }
             } else if (sequenceNumber > BackLog.sequenceNumber + 1) {
-              if (buffer.get(sequenceNumber) === null) {
-                buffer.put(sequenceNumber, {
+              if (this.buffer[sequenceNumber] === undefined) {
+                this.buffer[sequenceNumber] = {
                   query, sequenceNumber, timestamp, connId,
-                });
+                };
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`, 'magenta');
                 this.lastBufferSeqNo = sequenceNumber;
-                if (buffer.get(BackLog.sequenceNumber + 1) === null && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
+                if (this.buffer[BackLog.sequenceNumber + 1] === undefined && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
                   let i = 1;
-                  while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
+                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                       missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
