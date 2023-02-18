@@ -679,6 +679,7 @@ class Operator {
     } catch (err) {
       log.info('error while finding master');
       log.error(err);
+      return this.findMaster();
     }
     return null;
   }
