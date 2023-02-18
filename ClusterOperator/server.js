@@ -248,22 +248,26 @@ async function initServer() {
       });
       socket.on('askQuery', async (index, callback) => {
         log.info(`${ip} asking for seqNo: ${index}`, 'magenta');
-        let record = queryCache.get(index);
+        const record = queryCache.get(index);
         let connId = false;
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
-        } else {
-          record = await BackLog.getLog(index);
-        }
-        if (record) {
           log.info(`sending query: ${index}`, 'magenta');
-          log.info(`record type: ${Array.isArray(record)}`, 'magenta');
-          if (Array.isArray(record)) {
-            socket.emit('query', record[0].query, record[0].seq, record[0].timestamp, false);
-          } else {
-            socket.emit('query', record.query, record.seq, record.timestamp, connId);
-          }
+          socket.emit('query', record.query, record.seq, record.timestamp, connId);
+        } else {
+          log.warn(`query ${index} not in query cache`, 'red');
+          // record = await BackLog.getLog(index);
         }
+        // if (record) {
+
+        // log.info(`record type: ${Array.isArray(record)}`, 'magenta');
+        // if (Array.isArray(record)) {
+        // socket.emit('query', record[0].query, record[0].seq, record[0].timestamp, false);
+        // log.warn(`query ${index} not in query cache`, 'red');
+        // } else {
+
+        // }
+        // }
         callback({ status: Operator.status });
       });
       socket.on('shareKeys', async (pubKey, callback) => {
