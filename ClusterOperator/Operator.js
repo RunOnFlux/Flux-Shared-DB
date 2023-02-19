@@ -535,7 +535,7 @@ class Operator {
       }
       const activeNodePer = 100 * (activeNodes / ipList.length);
       log.info(`${activeNodePer} percent of nodes are active`);
-      if (this.myIP !== null && activeNodePer > 50) {
+      if (this.myIP !== null && activeNodePer >= 50) {
         log.info(`My ip is ${this.myIP}`);
       } else {
         log.info('Not enough active nodes, retriying again...');
