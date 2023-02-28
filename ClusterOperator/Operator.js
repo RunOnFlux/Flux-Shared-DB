@@ -353,7 +353,7 @@ class Operator {
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
-            log.query(queryItem, 'white', id);
+            // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
