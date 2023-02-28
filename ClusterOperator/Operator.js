@@ -271,7 +271,7 @@ class Operator {
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp))) {
         return true;
       }
       if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
