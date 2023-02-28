@@ -19,7 +19,7 @@ class DBClient {
   /**
   * [init]
   */
-  async createSrtream() {
+  async createStream() {
     this.stream = net.connect({
       host: config.dbHost,
       port: config.dbPort,
@@ -72,7 +72,7 @@ class DBClient {
   */
   async init() {
     if (config.dbType === 'mysql') {
-      await this.createSrtream();
+      await this.createStream();
       this.stream.on('data', (data) => {
         this.rawCallback(data);
       });
