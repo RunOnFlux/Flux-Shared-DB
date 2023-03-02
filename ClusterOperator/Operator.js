@@ -351,14 +351,15 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          // wait untill there are incomming connections
-          if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
-            break;
-          }
           // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
             // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
+              // wait untill there are incomming connections
+              if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+                log.warn(`no incomming connections: ${this.operator.serverSocket.engine.clientsCount}`, 'yellow');
+                break;
+              }
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
