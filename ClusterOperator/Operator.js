@@ -351,8 +351,9 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          if (this.operator.IamMaster) {
-            log.info(`Number of connected nodes: ${this.operator.serverSocket.engine.clientsCount}`);
+          // wait untill there are incomming connections
+          if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+            break;
           }
           // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
@@ -583,7 +584,11 @@ class Operator {
         this.AppNodes.push(appIPList[i].ip);
       }
       if (this.masterNode && !checkMasterIp) {
-        log.info('master removed from the list, should find a new master');
+        log.info('master removed from the list, should find a new master', 'yellow');
+        this.findMaster();
+      }
+      if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
+        log.info('No incomming connections, should find a new master', 'yellow');
         this.findMaster();
       }
       // check connection stability
