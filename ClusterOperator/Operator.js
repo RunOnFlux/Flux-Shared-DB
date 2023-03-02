@@ -351,7 +351,10 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
+          if (this.operator.IamMaster) {
+            log.info(`Number of connected nodes: ${this.operator.serverSocket.io.engine.clientsCount}`);
+          }
+          // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
             // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
@@ -606,6 +609,7 @@ class Operator {
     try {
       this.status = 'INIT';
       this.masterNode = null;
+      this.IamMaster = false;
       // get dbappspecs
       if (config.DBAppName) {
         await this.updateAppInfo();
