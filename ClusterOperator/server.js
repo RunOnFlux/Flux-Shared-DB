@@ -8,7 +8,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
-const e = require('express');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
