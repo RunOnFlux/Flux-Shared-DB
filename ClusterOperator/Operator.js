@@ -352,7 +352,7 @@ class Operator {
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           if (this.operator.IamMaster) {
-            log.info(`Number of connected nodes: ${this.operator.serverSocket.io.engine.clientsCount}`);
+            log.info(`Number of connected nodes: ${this.operator.serverSocket.engine.clientsCount}`);
           }
           // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
