@@ -271,7 +271,7 @@ class Operator {
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp))) {
         return true;
       }
       if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
@@ -351,10 +351,15 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
+          // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
-            // log.info(`got Query from ${id}: ${queryItem}`);
+            // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
+              // wait untill there are incomming connections
+              if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+                log.warn(`no incomming connections: ${this.operator.serverSocket.engine.clientsCount}`, 'yellow');
+                break;
+              }
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
@@ -580,7 +585,11 @@ class Operator {
         this.AppNodes.push(appIPList[i].ip);
       }
       if (this.masterNode && !checkMasterIp) {
-        log.info('master removed from the list, should find a new master');
+        log.info('master removed from the list, should find a new master', 'yellow');
+        this.findMaster();
+      }
+      if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
+        log.info('No incomming connections, should find a new master', 'yellow');
         this.findMaster();
       }
       // check connection stability
@@ -606,6 +615,7 @@ class Operator {
     try {
       this.status = 'INIT';
       this.masterNode = null;
+      this.IamMaster = false;
       // get dbappspecs
       if (config.DBAppName) {
         await this.updateAppInfo();
