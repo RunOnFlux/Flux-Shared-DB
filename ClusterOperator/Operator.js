@@ -586,11 +586,13 @@ class Operator {
       }
       if (this.masterNode && !checkMasterIp) {
         log.info('master removed from the list, should find a new master', 'yellow');
-        this.findMaster();
+        await this.findMaster();
+        this.initMasterConnection();
       }
       if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
         log.info('No incomming connections, should find a new master', 'yellow');
-        this.findMaster();
+        await this.findMaster();
+        this.initMasterConnection();
       }
       // check connection stability
       if (this.connectionDrops > 3) {
