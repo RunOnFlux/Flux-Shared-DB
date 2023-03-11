@@ -20,4 +20,5 @@ module.exports = {
   version: '1.1.12',
   whiteListedIps: process.env.WHITELIST || '::1',
   debugMode: false,
+  authMasterOnly: process.env.AUTH_MASTER_ONLY || false,
 };
