@@ -213,6 +213,18 @@ class Operator {
           await BackLog.pushKey(decKey, value);
           Operator.keys[decKey] = value;
         });
+        this.masterWSConn.on('rollBack', async (seqNo) => {
+          if (this.status === 'SYNC') {
+            this.status = 'ROLLBACK';
+            await BackLog.rollBack(seqNo);
+            this.syncLocalDB();
+          } else {
+            const tempStatus = this.status;
+            this.status = 'ROLLBACK';
+            await BackLog.rollBack(seqNo);
+            this.status = tempStatus;
+          }
+        });
       } catch (e) {
         log.error(e);
         this.masterWSConn.removeAllListeners();
@@ -320,6 +332,25 @@ class Operator {
       return result[0];
     }
     return null;
+  }
+
+  /**
+  * [rollBack]
+  * @param {int} seq [description]
+  */
+  static async rollBack(seqNo) {
+    if (this.IamMaster) {
+      this.status = 'ROLLBACK';
+      log.info(`rooling back to ${seqNo}`);
+      this.serverSocket.emit('rollback', seqNo);
+      await BackLog.rebuildDatabase(seqNo);
+      this.status = 'OK';
+    } else {
+      const { masterWSConn } = this;
+      masterWSConn.emit('rollBack', seqNo, (response) => {
+        log.info(response.result);
+      });
+    }
   }
 
   /**
@@ -471,6 +502,10 @@ class Operator {
         // log.info(JSON.stringify(response.records));
         BackLog.executeLogs = false;
         for (const record of response.records) {
+          if (this.status !== 'SYNC') {
+            log.warn('Sync proccess halted.', 'red');
+            return;
+          }
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;

@@ -311,13 +311,14 @@ class BackLog {
           }
           // eslint-disable-next-line no-await-in-loop
         }
-        await this.BLClient.execute('DELETE FROM backlog WHERE seq>? ORDER BY seq', [seqNo]);
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>?', [seqNo]);
+        await this.clearBuffer();
       }
     } catch (e) {
       log.error(e);
     }
     this.buffer = [];
-    log.info('All buffer data removed successfully.');
+    log.info(`DB and backlog rolled back to ${seqNo}`);
   }
 
   /**

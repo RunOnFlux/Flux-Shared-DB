@@ -77,8 +77,7 @@ function startUI() {
     const { seqNo } = req.query;
     if (whiteList.length && seqNo) {
       if (whiteList.includes(remoteIp)) {
-        log.info(`rooling back to ${seqNo}`);
-        BackLog.rebuildDatabase(seqNo);
+        Operator.rollBack(seqNo);
       }
     }
   });
@@ -310,6 +309,12 @@ async function initServer() {
             io.sockets.sockets[s].disconnect(true);
           });
           Operator.findMaster();
+        }
+        callback({ status: Operator.status });
+      });
+      socket.on('rollBack', async (seqNo, callback) => {
+        if (Operator.IamMaster) {
+          Operator.rollBack(seqNo);
         }
         callback({ status: Operator.status });
       });
