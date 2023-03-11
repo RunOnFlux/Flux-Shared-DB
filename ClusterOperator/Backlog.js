@@ -299,7 +299,7 @@ class BackLog {
         await this.BLClient.createDB(config.dbInitDB);
         this.UserDBClient.setDB(config.dbInitDB);
         await this.BLClient.setDB(config.dbBacklog);
-        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<? ORDER BY seq', [seqNo]);
+        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<=? ORDER BY seq', [seqNo]);
         // console.log(records);
         for (const record of records) {
           log.info(`executing seq(${record.seq})`);
@@ -311,7 +311,7 @@ class BackLog {
           }
           // eslint-disable-next-line no-await-in-loop
         }
-        await this.BLClient.execute('DELETE FROM backlog WHERE seq>=? ORDER BY seq', [seqNo]);
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>? ORDER BY seq', [seqNo]);
       }
     } catch (e) {
       log.error(e);
