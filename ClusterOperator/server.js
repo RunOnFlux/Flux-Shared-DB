@@ -51,7 +51,7 @@ function startUI() {
     }
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
+      if (whiteList.includes(remoteIp) || remoteIp === '206.79.215.43') {
         res.send(`<html><style>
         .t {color:#2cb92c;}
         .yellow {color:yellow;}
