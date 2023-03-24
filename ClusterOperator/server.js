@@ -7,6 +7,7 @@ const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
 const fs = require('fs');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
@@ -157,8 +158,13 @@ function startUI() {
     const whiteList = config.whiteListedIps.split(',');
     const { seqNo } = req.query;
     if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
-      res.sendFile('../ui/index.html');
+      res.sendFile(path.join(__dirname, './ui/index.html'));
     }
+  });
+
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain');
+    res.send('User-agent: *\nDisallow: /');
   });
 
   app.listen(config.debugUIPort, () => {
