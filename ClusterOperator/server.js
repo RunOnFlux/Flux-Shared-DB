@@ -152,6 +152,15 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
+  app.get('/', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    const { seqNo } = req.query;
+    if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
+      res.sendFile('../ui/index.html');
+    }
+  });
+
   app.listen(config.debugUIPort, () => {
     log.info(`starting interface on port ${config.debugUIPort}`);
   });
