@@ -105,6 +105,14 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
+    if (this.masterWSConn) {
+      try {
+        this.masterWSConn.removeAllListeners();
+        this.masterWSConn.disconnect();
+      } catch (err) {
+        log.error(err);
+      }
+    }
     log.info(`master node: ${this.masterNode}`);
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
