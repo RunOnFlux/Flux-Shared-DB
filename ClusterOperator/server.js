@@ -156,15 +156,12 @@ function startUI() {
   app.get('/', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
-    const { seqNo } = req.query;
-    if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
-      res.sendFile(path.join(__dirname, './ui/index.html'));
-    }
-  });
-
-  app.get('/robots.txt', (req, res) => {
-    res.type('text/plain');
-    res.send('User-agent: *\nDisallow: /');
+    console.log(remoteIp);
+    console.log(whiteList);
+    console.log(whiteList.includes(remoteIp));
+    //if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
+      res.sendFile(path.join(__dirname, '../ui/index.html'));
+    //}
   });
 
   app.listen(config.debugUIPort, () => {
@@ -352,10 +349,10 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.findMaster();
+  // await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
-    Operator.initMasterConnection();
+    // Operator.initMasterConnection();
   }
   setInterval(async () => {
     Operator.doHealthCheck();

@@ -1,1 +1,93 @@
-testing
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Flux Shared DB Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+	<!-- Add Bootstrap stylesheet -->
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+	<!-- Add Font Awesome stylesheet -->
+ 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-datetimepicker/2.5.20/jquery.datetimepicker.full.min.js" integrity="sha512-AIOTidJAcHBH2G/oZv9viEGXRqDNmfdPVPYOYKGy3fti0xIplnlgMHUGfuNRzC6FkzIo0iIxgFnr9RikFxK+sw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-datetimepicker/2.5.20/jquery.datetimepicker.css" integrity="sha512-bYPO5jmStZ9WI2602V2zaivdAnbAhtfzmxnEGh9RwtlI00I9s8ulGe4oBa5XxiC6tCITJH/QG70jswBhbLkxPw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* Set styles for the icons */
+		.navbar i {
+			margin-right: 10px;
+		}
+    body {
+      background-color: #ededed;
+    }
+	</style>
+</head>
+<body>
+	<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Flux DB</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-database"></i>DB
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="#"><i class="fas fa-history"></i>Time Machine</a></li>
+              <li><a class="dropdown-item" href="#"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
+              <li><a class="dropdown-item" href="#"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
+              <li><a class="dropdown-item" href="#"><i class="fas fa-play"></i>Query</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-cog"></i>System
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="#"><i class="fas fa-file-alt"></i>Logs</a></li>
+              <li><a class="dropdown-item" href="#"><i class="fas fa-cog"></i>Settings</a></li>
+            </ul>
+          </li>
+
+        </ul>
+        <form class="d-flex">
+          <button class="btn btn-outline-light">Log Out</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <div class="container-fluid">
+    <div class="card m-3 p-4">
+      <h2><i class="fas fa-history"></i> Time Machine</h1>
+      <p class="text-secondary">Adjust the slider to choose a date, followed by selecting 'Query' from the backlog.</p>
+      <div>
+        <div style="overflow:hidden;">
+          <div class="form-group">
+              <div class="row">
+                  <div class="col-md-12">
+                      <div id="datetimepicker13"></div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      </div>
+    </div>
+</div>
+</body>
+</html>
+<script>
+  $(function () {
+    let now = new Date();
+    let weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    $('#datetimepicker13').datetimepicker({
+        inline: true,
+        maxDate: now,
+        minDate: weekAgo,
+    })
+
+  });
+</script>

@@ -2,6 +2,7 @@
 const timer = require('timers/promises');
 const md5 = require('md5');
 const fluxAPI = require('../lib/fluxAPI');
+const log = require('../lib/log');
 
 async function testFluxAPI() {
   const DBAppName = 'dbfluxtest4';
@@ -55,6 +56,20 @@ async function testFluxAPI2() {
   console.log(`validation time is ${endTime - startTime} milliseconds`);
   console.log(validity);
 }
+async function testFluxAPI3() {
+  while(true){
+    ipList = await fluxAPI.getApplicationIP('wordpress1678039648505');
+    let ips = [];
+    for (let i = 0; i < ipList.length; i++) {
+      ips.push(ipList[i].ip);
+    }
+    log.info(ips);
+    await timer.setTimeout(50000);
+  }
+
+}
 
 //testFluxAPI();
-testFluxAPI2();
+//testFluxAPI2();
+testFluxAPI3();
+

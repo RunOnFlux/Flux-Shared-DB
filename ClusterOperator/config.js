@@ -17,7 +17,7 @@ module.exports = {
   DBAppName: process.env.DB_APPNAME || 'wordpressonflux',
   AppName: process.env.CLIENT_APPNAME || '',
   version: '1.1.13',
-  whiteListedIps: process.env.WHITELIST || '::1',
-  debugMode: false,
+  whiteListedIps: process.env.WHITELIST || '127.0.0.1',
+  debugMode: true,
   authMasterOnly: process.env.AUTH_MASTER_ONLY || false,
 };

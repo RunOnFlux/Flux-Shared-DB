@@ -1,5 +1,8 @@
 .DS_Store
 node_modules/
 db/
-logs.txt
+info.txt
+debug.txt
+warnings.txt
+errors.txt
 dev/
