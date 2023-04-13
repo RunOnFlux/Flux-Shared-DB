@@ -555,26 +555,28 @@ class Operator {
       } else {
         appIPList = await fluxAPI.getApplicationIP(config.AppName);
       }
-      this.OpNodes = [];
-      this.AppNodes = [];
-      let checkMasterIp = false;
-      const nodeList = [];
-      for (let i = 0; i < ipList.length; i += 1) {
-        // extraxt ip from upnp nodes
-        nodeList.push(ipList[i].ip);
-        // eslint-disable-next-line prefer-destructuring
-        if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ ip: ipList[i].ip, active: null });
-        if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
-      }
-      for (let i = 0; i < appIPList.length; i += 1) {
-        // eslint-disable-next-line prefer-destructuring
-        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
-        this.AppNodes.push(appIPList[i].ip);
-      }
-      if (this.masterNode && !checkMasterIp) {
-        log.info('master removed from the list, should find a new master');
-        this.findMaster();
+      if (appIPList.length > 0) {
+        this.OpNodes = [];
+        this.AppNodes = [];
+        let checkMasterIp = false;
+        const nodeList = [];
+        for (let i = 0; i < ipList.length; i += 1) {
+          // extraxt ip from upnp nodes
+          nodeList.push(ipList[i].ip);
+          // eslint-disable-next-line prefer-destructuring
+          if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+          this.OpNodes.push({ ip: ipList[i].ip, active: null });
+          if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+        }
+        for (let i = 0; i < appIPList.length; i += 1) {
+          // eslint-disable-next-line prefer-destructuring
+          if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+          this.AppNodes.push(appIPList[i].ip);
+        }
+        if (this.masterNode && !checkMasterIp) {
+          log.info('master removed from the list, should find a new master');
+          this.findMaster();
+        }
       }
       // check connection stability
       if (this.connectionDrops > 3) {
