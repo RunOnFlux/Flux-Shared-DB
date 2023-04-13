@@ -2,4 +2,6 @@
 node_modules/
 db/
 logs.txt
+debug.txt
+info.txt
 dev/
