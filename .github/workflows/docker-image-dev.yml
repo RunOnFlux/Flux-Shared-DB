@@ -2,9 +2,9 @@ name: Docker Image Dev CI
 
 on:
   push:
-    branches: [ "dev2" ]
+    branches: [ "development" ]
   pull_request:
-    branches: [ "dev2" ]
+    branches: [ "development" ]
 
 jobs:
 
@@ -26,4 +26,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/fluxdb:dev
+          tags: runonflux/shared-db:dev
+

@@ -8,7 +8,6 @@ const net = require('net');
 const { networkInterfaces } = require('os');
 const axios = require('axios');
 const { io } = require('socket.io-client');
-const buffer = require('memory-cache');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
 const dbClient = require('./DBClient');
@@ -73,6 +72,8 @@ class Operator {
   static ticket = 0;
 
   static sessionQueries = {};
+
+  static buffer = {};
 
   /**
   * [initLocalDB]
@@ -160,17 +161,18 @@ class Operator {
             if (sequenceNumber === BackLog.sequenceNumber + 1) {
               const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
               // push queries from buffer until there is a gap or the buffer is empty
-              while (buffer.get(BackLog.sequenceNumber + 1) !== null && buffer.get(BackLog.sequenceNumber + 1) !== undefined) {
-                const nextQuery = buffer.get(BackLog.sequenceNumber + 1);
-                if (nextQuery.sequenceNumber !== undefined) {
+              while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
+                const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
+                if (nextQuery !== undefined && nextQuery !== null) {
+                  log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  buffer.del(nextQuery.sequenceNumber);
+                  this.buffer[nextQuery.sequenceNumber] = undefined;
                 }
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
-                while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
+                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
@@ -180,15 +182,15 @@ class Operator {
                 }
               }
             } else if (sequenceNumber > BackLog.sequenceNumber + 1) {
-              if (buffer.get(sequenceNumber) === null) {
-                buffer.put(sequenceNumber, {
+              if (this.buffer[sequenceNumber] === undefined) {
+                this.buffer[sequenceNumber] = {
                   query, sequenceNumber, timestamp, connId,
-                });
+                };
                 log.info(`pushing seqNo ${sequenceNumber} to the buffer`, 'magenta');
                 this.lastBufferSeqNo = sequenceNumber;
-                if (buffer.get(BackLog.sequenceNumber + 1) === null && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
+                if (this.buffer[BackLog.sequenceNumber + 1] === undefined && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
                   let i = 1;
-                  while ((buffer.get(BackLog.sequenceNumber + i) === null || buffer.get(BackLog.sequenceNumber + 1) === undefined) && i < 10) {
+                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                       missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
@@ -272,7 +274,7 @@ class Operator {
       if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
         return true;
       }
-      if (!this.operator.IamMaster && config.AppName.includes('wordpress')) return false;
+      if (!this.operator.IamMaster && (config.AppName.includes('wordpress') || config.authMasterOnly)) return false;
       if (remoteIp === this.authorizedApp) {
         return true;
       }
@@ -302,10 +304,10 @@ class Operator {
       /*
       if (BackLog.writeLock) {
         const myTicket = this.operator.getTicket();
-        log.info(`put into queue, ticketNO: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
+        log.info(`put into queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
         this.operator.masterQueue.push(myTicket);
         while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
-          await timer.setTimeout(10);
+          await timer.setTimeout(5);
         }
         BackLog.writeLock = true;
         this.operator.masterQueue.shift();
@@ -349,10 +351,15 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
+          // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
-            // log.info(`got Query from ${id}: ${queryItem}`);
+            // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
+              // wait untill there are incomming connections
+              if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+                log.warn(`no incomming connections: ${this.operator.serverSocket.engine.clientsCount}`, 'yellow');
+                break;
+              }
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
@@ -461,12 +468,17 @@ class Operator {
         masterSN = response.sequenceNumber;
         const percent = Math.round((index / masterSN) * 1000);
         log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+        // log.info(JSON.stringify(response.records));
+        BackLog.executeLogs = false;
         for (const record of response.records) {
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+        BackLog.executeLogs = true;
       }
+      log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
+      log.info('Status OK', 'green');
       this.status = 'OK';
     }
   }
@@ -528,7 +540,7 @@ class Operator {
       }
       const activeNodePer = 100 * (activeNodes / ipList.length);
       log.info(`${activeNodePer} percent of nodes are active`);
-      if (this.myIP !== null && activeNodePer > 50) {
+      if (this.myIP !== null && activeNodePer >= 50) {
         log.info(`My ip is ${this.myIP}`);
       } else {
         log.info('Not enough active nodes, retriying again...');
@@ -601,6 +613,7 @@ class Operator {
     try {
       this.status = 'INIT';
       this.masterNode = null;
+      this.IamMaster = false;
       // get dbappspecs
       if (config.DBAppName) {
         await this.updateAppInfo();
@@ -674,6 +687,7 @@ class Operator {
     } catch (err) {
       log.info('error while finding master');
       log.error(err);
+      return this.findMaster();
     }
     return null;
   }

@@ -22,6 +22,8 @@ class BackLog {
 
   static writeLock = false;
 
+  static executeLogs = true;
+
   /**
   * [createBacklog]
   * @param {object} params [description]
@@ -43,7 +45,7 @@ class BackLog {
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
         if (tableList.length === 0) {
           log.info('Backlog table not defined yet, creating backlog table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
+          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
           await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
             MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
@@ -56,7 +58,7 @@ class BackLog {
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogBuffer}'`);
         if (tableList.length === 0) {
           log.info('Backlog buffer table not defined yet, creating buffer table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=MyISAM;`);
+          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
           await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
             MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
             ADD PRIMARY KEY (\`seq\`),
@@ -68,7 +70,7 @@ class BackLog {
           WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbOptions}'`);
         if (tableList.length === 0) {
           log.info('Backlog options table not defined yet, creating options table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=MyISAM;`);
+          await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=InnoDB;`);
         } else {
           log.info('Backlog options table already exists, moving on...');
         }
@@ -102,7 +104,7 @@ class BackLog {
             [seq, query, timestamp],
           );
           return [null, seq, timestamp];
-        } else if (seq === 0 || this.sequenceNumber + 1 === seq) {
+        } else {
           this.writeLock = true;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
@@ -110,14 +112,14 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
+          if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          this.writeLock = false;
           let result = null;
           if (connId === false) {
             result = await this.UserDBClient.query(query);
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query);
           }
-          log.info(`executed ${seqForThis}`);
-          this.writeLock = false;
           return [result, seqForThis, timestamp];
         }
         /*
@@ -176,8 +178,8 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} ORDER BY seq LIMIT ${startFrom},${pageSize}`);
-        // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${totalRecords.length}`);
         return totalRecords;
       }
     } catch (e) {
