@@ -25,6 +25,7 @@ function startUI() {
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: false }));
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -72,13 +73,50 @@ function startUI() {
     }
   });
 
-  app.get('/rollback', (req, res) => {
+  app.post('/rollback', async (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
-    const { seqNo } = req.query;
+    let { seqNo } = req.body;
+    seqNo = seqNo || req.query.seqNo;
+    console.log(req.body);
+    console.log(seqNo);
     if (whiteList.length && seqNo) {
       if (whiteList.includes(remoteIp)) {
-        Operator.rollBack(seqNo);
+        console.log(seqNo);
+        await Operator.rollBack(seqNo);
+        res.send({ status: 'OK' });
+      }
+    }
+  });
+
+  app.get('/stats', (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(Operator.OpNodes);
+      }
+    }
+  });
+
+  app.get('/getLogDateRange', async (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(await BackLog.getDateRange());
+      }
+    }
+  });
+
+  app.get('/getLogsByTime', async (req, res) => {
+    const remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    const { starttime } = req.query;
+    const { length } = req.query;
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(await BackLog.getLogsByTime(starttime, length));
       }
     }
   });
@@ -159,9 +197,9 @@ function startUI() {
     console.log(remoteIp);
     console.log(whiteList);
     console.log(whiteList.includes(remoteIp));
-    //if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
+    if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
-    //}
+    }
   });
 
   app.listen(config.debugUIPort, () => {
@@ -349,10 +387,10 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  // await Operator.findMaster();
+  await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
-    // Operator.initMasterConnection();
+    Operator.initMasterConnection();
   }
   setInterval(async () => {
     Operator.doHealthCheck();

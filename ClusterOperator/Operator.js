@@ -224,12 +224,12 @@ class Operator {
         this.masterWSConn.on('rollBack', async (seqNo) => {
           if (this.status === 'SYNC') {
             this.status = 'ROLLBACK';
-            await BackLog.rollBack(seqNo);
+            await BackLog.rebuildDatabase(seqNo);
             this.syncLocalDB();
           } else {
             const tempStatus = this.status;
             this.status = 'ROLLBACK';
-            await BackLog.rollBack(seqNo);
+            await BackLog.rebuildDatabase(seqNo);
             this.status = tempStatus;
           }
         });
