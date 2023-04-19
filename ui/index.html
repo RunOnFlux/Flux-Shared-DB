@@ -36,20 +36,28 @@
       cursor: pointer;
       border-top: solid 1px #e3e3e3;
     }
+    .query-h {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      background-color: #efefef;
+      padding: 0px 15px 0px 15px;
+    }
     .selected {
       background-color: #525252;
       color: white;
     }
     .q-date {
-      flex-shrink: 0;
-      margin-left: 10px;
+      flex-grow: 1;
       white-space: nowrap;
     }
     .q-text {
-      flex-grow: 1;
+      flex-shrink: 0;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      margin-left: 10px;
     }
     .fs-7 {
       font-size: 12px;
@@ -80,7 +88,7 @@
               <i class="fas fa-database"></i>DB
             </a>
             <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <li><a class="dropdown-item menu-link " data-page="time-machine" href="#time-machine"><i class="fas fa-history"></i>Time Machine</a></li>
+              <li><a class="dropdown-item menu-link " data-page="time-machine" href="#time-machine"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
               <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
               <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
               <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-play"></i>Run Query</a></li>
@@ -107,7 +115,7 @@
   <div class="container-fluid d-none mt-3" id="time-machine">
     <div class="card">
       <div class="card-header">
-      <h3 class="m-0"><i class="fas fa-history"></i> Time Machine</h3>
+      <h3 class="m-0"><i class="fas fa-history"></i> Point-in-time Recovery</h3>
       </div>
       <div class="card-body">
         <div style="overflow:hidden;">
@@ -222,27 +230,30 @@
           let startDate = new Date(data.min_timestamp);
           let endDate = new Date(data.max_timestamp);
           let dp = $('.datepicker-tm').datepicker({
-            timepicker: true,
             language: 'en',
             inline: true,
             minDate: startDate,
             maxDate: endDate,
-            hoursStep: 4,
-            maxMinutes: 0,
             onSelect: function (date , formattedDate, datepicker) {
               let d = new Date(date);
-              console.log(d.getTimezoneOffset() );
-              var timestamp = Math.floor(d.getTime() + d.getTimezoneOffset() * 60000);
-              console.log(timestamp);
+              //console.log(d.getTimezoneOffset() );
+              var timestamp = Math.floor(d.getTime());
               $.ajax({
-                  type: 'GET', dataType:"json", url: 'http://' + window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=14400000`,
+                  type: 'GET', dataType:"json", url: 'http://' + window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=86400000`,
                   success: function (data, status, xhr) {
-                    console.log('data: ', data);
-                    $('.queries-tm').html('');
-                    for (const record of data) {
-                      let date = new Date(record.timestamp);
-                      $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${record.seq}"><span onClick="querySelectP(event)" class="q-text">${escapeHtml(record.query)}</span><span onClick="querySelectP(event)" class="q-date">${date.toLocaleString()}</span></div>`)
+                    // console.log('data: ', data);
+                    let points = 0;
+                    $('.queries-tm').html(`<div class="query-h"><span class="q-date">Total <span id="total-records"></span> sessions found</span><span class="q-text">Number of operations</span></div>`);
+                    for (let i = 0; i < data.length; i+=1) {
+                      if (data[i].query.toLowerCase().startsWith('set sess')){
+                        points +=1;
+                        let ops = 1;
+                        while (i + 1 < data.length && !data[i + 1].query.toLowerCase().startsWith('set sess')) { i += 1; ops +=1 }
+                        let date = new Date(data[i].timestamp);
+                        $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${data[i].seq}"><span onClick="querySelectP(event)" class="q-date">${data[i].seq}<span style="margin-left: 20px;"></span>${date.toLocaleString()}</span><span onClick="querySelectP(event)" class="q-text">${ops}</span></div>`)
+                      }
                     }
+                    $('#total-records').html(points);
                   }
                 });
 

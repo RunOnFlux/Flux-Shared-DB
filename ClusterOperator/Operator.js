@@ -222,6 +222,7 @@ class Operator {
           Operator.keys[decKey] = value;
         });
         this.masterWSConn.on('rollBack', async (seqNo) => {
+          log.info(`rollback request from master, rewinding to ${seqNo}`);
           if (this.status === 'SYNC') {
             this.status = 'ROLLBACK';
             await BackLog.rebuildDatabase(seqNo);
@@ -347,17 +348,19 @@ class Operator {
   * @param {int} seq [description]
   */
   static async rollBack(seqNo) {
-    if (this.IamMaster) {
-      this.status = 'ROLLBACK';
-      log.info(`rooling back to ${seqNo}`);
-      this.serverSocket.emit('rollback', seqNo);
-      await BackLog.rebuildDatabase(seqNo);
-      this.status = 'OK';
-    } else {
-      const { masterWSConn } = this;
-      masterWSConn.emit('rollBack', seqNo, (response) => {
-        log.info(response.result);
-      });
+    if (this.status !== 'ROLLBACK') {
+      if (this.IamMaster) {
+        this.status = 'ROLLBACK';
+        log.info(`rolling back to ${seqNo}`);
+        this.serverSocket.emit('rollback', seqNo);
+        await BackLog.rebuildDatabase(seqNo);
+        this.status = 'OK';
+      } else {
+        const { masterWSConn } = this;
+        masterWSConn.emit('rollBack', seqNo, (response) => {
+          log.info(response.result);
+        });
+      }
     }
   }
 
