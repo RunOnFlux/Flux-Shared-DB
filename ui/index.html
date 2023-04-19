@@ -23,6 +23,7 @@
       background-color: #fff;
     }
     .query {
+      font-size: 15px;
       height: 30px;
       width: 100%;
       display: flex;
@@ -49,21 +50,20 @@
       color: white;
     }
     .q-date {
-      flex-grow: 1;
+      flex-shrink: 0;
       white-space: nowrap;
     }
     .q-text {
-      flex-shrink: 0;
+      flex-grow: 1;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
-      margin-left: 10px;
     }
     .fs-7 {
       font-size: 12px;
     }
     .queries-tm {
-    height: 600px;
+    height: 700px;
     overflow-y: scroll;
     }
     .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
@@ -243,14 +243,14 @@
                   success: function (data, status, xhr) {
                     // console.log('data: ', data);
                     let points = 0;
-                    $('.queries-tm').html(`<div class="query-h"><span class="q-date">Total <span id="total-records"></span> sessions found</span><span class="q-text">Number of operations</span></div>`);
+                    $('.queries-tm').html(`<div class="query-h"><span class="q-text">Total <span id="total-records"></span> sessions found</span><span class="q-date">Date and Time</span></div>`);
                     for (let i = 0; i < data.length; i+=1) {
                       if (data[i].query.toLowerCase().startsWith('set sess')){
                         points +=1;
                         let ops = 1;
                         while (i + 1 < data.length && !data[i + 1].query.toLowerCase().startsWith('set sess')) { i += 1; ops +=1 }
                         let date = new Date(data[i].timestamp);
-                        $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${data[i].seq}"><span onClick="querySelectP(event)" class="q-date">${data[i].seq}<span style="margin-left: 20px;"></span>${date.toLocaleString()}</span><span onClick="querySelectP(event)" class="q-text">${ops}</span></div>`)
+                        $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${data[i].seq}"><span onClick="querySelectP(event)" class="q-text"><i onClick="dn(event)" class="fas fa-circle text-warning"></i> ${data[i].seq}</span><span onClick="querySelectP(event)" class="q-date">${ops} Ops - ${date.toLocaleString()}</span></div>`)
                       }
                     }
                     $('#total-records').html(points);
@@ -300,6 +300,10 @@
     var seq = target.parentElement.getAttribute('data-seq');
     console.log(seq);
     document.getElementById("tm-rewind").setAttribute("data-seq", seq);
+  }
+  function dn(e) {
+    e.preventDefault();
+    e.stopPropagation();
   }
   function rewind(seq) {
 
