@@ -194,9 +194,6 @@ function startUI() {
   app.get('/', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
-    console.log(remoteIp);
-    console.log(whiteList);
-    console.log(whiteList.includes(remoteIp));
     if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     }
