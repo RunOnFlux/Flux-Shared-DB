@@ -357,11 +357,14 @@ class Operator {
         this.status = 'OK';
       } else {
         const { masterWSConn } = this;
-        masterWSConn.emit('rollBack', seqNo, (response) => {
-          log.info(response.result);
+        return new Promise((resolve) => {
+          masterWSConn.emit('rollBack', seqNo, (response) => {
+            resolve(response.result);
+          });
         });
       }
     }
+    return null;
   }
 
   /**
