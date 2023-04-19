@@ -352,7 +352,7 @@ class Operator {
       if (this.IamMaster) {
         this.status = 'ROLLBACK';
         log.info(`rolling back to ${seqNo}`);
-        this.serverSocket.emit('rollback', seqNo);
+        this.serverSocket.emit('rollBack', seqNo);
         await BackLog.rebuildDatabase(seqNo);
         this.status = 'OK';
       } else {
