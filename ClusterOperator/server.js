@@ -166,7 +166,10 @@ function auth(ip) {
   if (whiteList.length && whiteList.includes(ip)) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
-  if (idx === -1) return false;
+  if (idx === -1) {
+    log.info(`Unauthorized IP: ${ip}, authorized list: ${JSON.stringify(Operator.OpNodes)}`, 'red');
+    return false;
+  }
   return true;
 }
 /**
