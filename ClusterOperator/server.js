@@ -74,8 +74,11 @@ function startUI() {
   });
 
   app.post('/rollback', async (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
     let { seqNo } = req.body;
     seqNo = seqNo || req.query.seqNo;
     console.log(req.body);
@@ -90,8 +93,11 @@ function startUI() {
   });
 
   app.get('/stats', (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         res.send(Operator.OpNodes);
@@ -100,8 +106,11 @@ function startUI() {
   });
 
   app.get('/getLogDateRange', async (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         res.send(await BackLog.getDateRange());
@@ -110,8 +119,11 @@ function startUI() {
   });
 
   app.get('/getLogsByTime', async (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
     const { starttime } = req.query;
     const { length } = req.query;
     if (whiteList.length) {
