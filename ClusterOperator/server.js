@@ -192,8 +192,11 @@ function startUI() {
   });
 
   app.get('/', (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
     log.info(JSON.stringify(req.headers));
     log.info(`UI access from ${remoteIp}`);
     if ((whiteList.length && whiteList.includes(remoteIp))) {
