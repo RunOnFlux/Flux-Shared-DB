@@ -197,8 +197,8 @@ function startUI() {
     if (req.headers['x-forwarded-for']) {
       remoteIp = req.headers['x-forwarded-for'];
     }
-    log.info(JSON.stringify(req.headers));
-    log.info(`UI access from ${remoteIp}`);
+    // log.info(JSON.stringify(req.headers));
+    // log.info(`UI access from ${remoteIp}`);
     if ((whiteList.length && whiteList.includes(remoteIp))) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
