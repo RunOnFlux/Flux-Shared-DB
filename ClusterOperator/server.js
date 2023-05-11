@@ -196,6 +196,8 @@ function startUI() {
     const whiteList = config.whiteListedIps.split(',');
     if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
+    } else {
+      res.send('Permission Denied.');
     }
   });
 
