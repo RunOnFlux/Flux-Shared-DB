@@ -9,7 +9,7 @@ module.exports = {
   dbBacklogBuffer: 'backlog_buffer',
   dbOptions: 'options',
   dbInitDB: process.env.INIT_DB_NAME || 'test_db',
-  externalDBPort: 3307,
+  externalDBPort: process.env.EXT_DB_PORT || 3307,
   apiPort: 7071,
   debugUIPort: 8008,
   containerDBPort: process.env.DB_PORT || 33949,
