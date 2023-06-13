@@ -1,7 +1,6 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
-const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
 const timer = require('timers/promises');
 const express = require('express');
@@ -18,6 +17,24 @@ const config = require('./config');
 const Security = require('./Security');
 const fluxAPI = require('../lib/fluxAPI');
 
+/**
+* [auth]
+* @param {string} ip [description]
+*/
+function auth(ip) {
+  const whiteList = config.whiteListedIps.split(',');
+  if (whiteList.length && whiteList.includes(ip)) return true;
+  // only operator nodes can connect
+  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
+  if (idx === -1) return false;
+  return true;
+}
+/**
+* [authUser]
+*/
+function authUser() {
+  return false;
+}
 /**
 * Starts UI service
 */
@@ -211,28 +228,20 @@ function startUI() {
     }
     // log.info(JSON.stringify(req.headers));
     // log.info(`UI access from ${remoteIp}`);
-    if ((whiteList.length && whiteList.includes(remoteIp))) {
+    if (authUser()) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
-      res.send('Permission Denied.');
+      res.sendFile(path.join(__dirname, '../ui/login.html'));
     }
+  });
+
+  app.get('/assets/zelID.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
 
   app.listen(config.debugUIPort, () => {
     log.info(`starting interface on port ${config.debugUIPort}`);
   });
-}
-/**
-* [auth]
-* @param {string} ip [description]
-*/
-function auth(ip) {
-  const whiteList = config.whiteListedIps.split(',');
-  if (whiteList.length && whiteList.includes(ip)) return true;
-  // only operator nodes can connect
-  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
-  if (idx === -1) return false;
-  return true;
 }
 /**
 * [validate]
@@ -403,7 +412,7 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.findMaster();
+  //await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
     Operator.initMasterConnection();
