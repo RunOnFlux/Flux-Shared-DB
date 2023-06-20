@@ -8,9 +8,11 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const qs = require('qs');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
+const IdService = require('./IdService');
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
@@ -34,6 +36,29 @@ function auth(ip) {
 */
 function authUser() {
   return false;
+}
+/**
+ * To check if a parameter is an object and if not, return an empty object.
+ * @param {*} parameter Parameter of any type.
+ * @returns {object} Returns the original parameter if it is an object or returns an empty object.
+ */
+function ensureObject(parameter) {
+  if (typeof parameter === 'object') {
+    return parameter;
+  }
+  if (!parameter) {
+    return {};
+  }
+  let param;
+  try {
+    param = JSON.parse(parameter);
+  } catch (e) {
+    param = qs.parse(parameter);
+  }
+  if (typeof param !== 'object') {
+    return {};
+  }
+  return param;
 }
 /**
 * Starts UI service
@@ -218,6 +243,28 @@ function startUI() {
       }
     }
     res.status(404).send('Key not found');
+  });
+
+  app.get('/runonflux.io/', (req, res) => {
+    console.log("asdasd");
+    let body = '';
+    req.on('data', (data) => {
+      body += data;
+    });
+    req.on('end', async () => {
+      try {
+        const processedBody = ensureObject(body);
+        const address = processedBody.zelid || processedBody.address;
+        const { signature } = processedBody;
+        const message = processedBody.loginPhrase || processedBody.message;
+        console.log(address);
+        console.log(signature);
+        console.log(message);
+      } catch (error) {
+        log.error(error);
+      }
+      res.send('OK');
+    });
   });
 
   app.get('/', (req, res) => {
@@ -412,7 +459,7 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  //await Operator.findMaster();
+  await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
     Operator.initMasterConnection();
