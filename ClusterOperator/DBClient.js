@@ -93,7 +93,7 @@ class DBClient {
   * [query]
   * @param {string} query [description]
   */
-  async query(query, rawResult = false) {
+  async query(query, rawResult = false, fullQuery = '') {
     if (config.dbType === 'mysql') {
       // log.info(`running Query: ${query}`);
       try {
@@ -109,11 +109,11 @@ class DBClient {
         // eslint-disable-next-line no-else-return
         } else {
           const [rows, err] = await this.connection.query(query);
-          if (err && err.toString().includes('Error')) log.error(`Error running query: ${err.toString()}, ${query}`, 'red');
+          if (err && err.toString().includes('Error')) log.error(`Error running query: ${err.toString()}, ${fullQuery}`, 'red');
           return rows;
         }
       } catch (err) {
-        if (err && err.toString().includes('Error')) log.error(`Error running query: ${err.toString()}, ${query}`, 'red');
+        if (err && err.toString().includes('Error')) log.error(`Error running query: ${err.toString()}, ${fullQuery}`, 'red');
         return [null, null, err];
       }
     }
@@ -125,17 +125,18 @@ class DBClient {
   * @param {string} query [description]
   * @param {array} params [description]
   */
-  async execute(query, params, rawResult = false) {
+  async execute(query, params, rawResult = false, fullQuery = '') {
     if (config.dbType === 'mysql') {
       try {
         if (!this.connected) {
           await this.init();
         }
         const [rows, fields, err] = await this.connection.execute(query, params);
-        if (err) log.error(`Error executing query: ${JSON.stringify(err)}`);
+        if (err && err.toString().includes('Error')) log.error(`Error executing query: ${err.toString()}, ${fullQuery}`, 'red');
         if (rawResult) return [rows, fields, err];
         return rows;
       } catch (err) {
+        if (err && err.toString().includes('Error')) log.error(`Error executing query: ${err.toString()}, ${fullQuery}`, 'red');
         return [null, null, err];
       }
     }

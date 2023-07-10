@@ -290,7 +290,7 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query, connId) {
+  static async sendWriteQuery(query, connId, fullQuery) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
@@ -314,7 +314,7 @@ class Operator {
         log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
       }
       */
-      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
+      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
       return result[0];
@@ -367,7 +367,7 @@ class Operator {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
               }
-              await this.sendWriteQuery(queryItem[0], id);
+              await this.sendWriteQuery(queryItem[0], id, query);
               // log.info(`finish write ${id}`);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);

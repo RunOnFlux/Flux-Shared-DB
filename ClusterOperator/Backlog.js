@@ -87,7 +87,7 @@ class BackLog {
   * @param {int} timestamp [description]
   * @return {Array}
   */
-  static async pushQuery(query, seq = 0, timestamp, buffer = false, connId = false) {
+  static async pushQuery(query, seq = 0, timestamp, buffer = false, connId = false, fullQuery = '') {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
@@ -116,9 +116,9 @@ class BackLog {
           this.writeLock = false;
           let result = null;
           if (connId === false) {
-            result = await this.UserDBClient.query(query);
+            result = await this.UserDBClient.query(query, false, fullQuery);
           } else if (connId >= 0) {
-            result = await ConnectionPool.getConnectionById(connId).query(query);
+            result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
           }
           return [result, seqForThis, timestamp];
         }
