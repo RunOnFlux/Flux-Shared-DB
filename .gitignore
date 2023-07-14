@@ -4,4 +4,6 @@ db/
 logs.txt
 debug.txt
 info.txt
+errors.txt
+warnings.txt
 dev/
