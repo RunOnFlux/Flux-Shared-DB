@@ -245,7 +245,7 @@ async function initServer() {
         // cache write queries for 20 seconds
         queryCache.put(result[1], {
           query, seq: result[1], timestamp: result[2], connId, ip,
-        }, 1000 * 20);
+        }, 1000 * 60);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
@@ -258,7 +258,8 @@ async function initServer() {
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
           log.warn(`query ${index} not in query cache`, 'red');
-          // record = await BackLog.getLog(index);
+          const BLRecord = await BackLog.getLog(index);
+          log.info(JSON.stringify(BLRecord), 'red');
         }
         // if (record) {
 
