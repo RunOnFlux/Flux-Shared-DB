@@ -1,6 +1,7 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
 // const timer = require('timers/promises');
+const queryCache = require('memory-cache');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
@@ -23,6 +24,8 @@ class BackLog {
   static writeLock = false;
 
   static executeLogs = true;
+
+  static BLqueryCache = queryCache;
 
   /**
   * [createBacklog]
@@ -113,6 +116,9 @@ class BackLog {
             [seqForThis, query, timestamp],
           );
           if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          this.BLqueryCache.put(seqForThis, {
+            query, seq: seqForThis, timestamp, connId, ip: false,
+          }, 1000 * 30);
           this.writeLock = false;
           let result = null;
           if (connId === false) {

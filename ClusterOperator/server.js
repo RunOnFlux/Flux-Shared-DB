@@ -258,8 +258,12 @@ async function initServer() {
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
           log.warn(`query ${index} not in query cache`, 'red');
-          const BLRecord = await BackLog.getLog(index);
+          let BLRecord = BackLog.BLqueryCache.get(index);
           log.info(JSON.stringify(BLRecord), 'red');
+          if (!BLRecord) {
+            BLRecord = BackLog.getLog(index);
+            log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
+          }
         }
         // if (record) {
 
