@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
 const { Server } = require('socket.io');
+const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -245,8 +246,7 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
-  app.get('/runonflux.io/', (req, res) => {
-    console.log("asdasd");
+  app.get('/verifylogin/', (req, res) => {
     let body = '';
     req.on('data', (data) => {
       body += data;
@@ -254,9 +254,11 @@ function startUI() {
     req.on('end', async () => {
       try {
         const processedBody = ensureObject(body);
-        const address = processedBody.zelid || processedBody.address;
-        const { signature } = processedBody;
-        const message = processedBody.loginPhrase || processedBody.message;
+        const address = await fluxAPI.getApplicationOwner(config.AppName);
+        let { signature } = processedBody;
+        if (!signature) signature = req.query.signature;
+        const message = processedBody.loginPhrase || processedBody.message || req.query.message;
+        //console.log(req);
         console.log(address);
         console.log(signature);
         console.log(message);
@@ -265,6 +267,10 @@ function startUI() {
       }
       res.send('OK');
     });
+  });
+
+  app.get('/loginphrase/', (req, res) => {
+    res.send(IdService.getLoginPhrase());
   });
 
   app.get('/', (req, res) => {
@@ -285,7 +291,11 @@ function startUI() {
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
-
+  //https
+  //  .createServer(app)
+  //  .listen(443, () => {
+  //    log.info(`starting interface on port ${config.debugUIPort}`);
+  //  });
   app.listen(config.debugUIPort, () => {
     log.info(`starting interface on port ${config.debugUIPort}`);
   });
@@ -459,13 +469,13 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.findMaster();
+  //await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
     Operator.initMasterConnection();
   }
   setInterval(async () => {
-    Operator.doHealthCheck();
+    //Operator.doHealthCheck();
   }, 120000);
 }
 
