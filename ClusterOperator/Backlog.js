@@ -126,6 +126,9 @@ class BackLog {
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
           }
+          if (query.toLowerCase().startsWith('create')) {
+            log.warn(`Create query result: ${JSON.stringify(result)}`);
+          }
           return [result, seqForThis, timestamp];
         }
         /*
