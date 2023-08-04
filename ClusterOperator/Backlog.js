@@ -126,6 +126,9 @@ class BackLog {
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
           }
+          if (query.toLowerCase().startsWith('create')) {
+            log.warn(`Create query result: ${JSON.stringify(result)}`);
+          }
           return [result, seqForThis, timestamp];
         }
         /*
@@ -206,7 +209,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.execute(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=?`, [index]);
+        const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
       }
