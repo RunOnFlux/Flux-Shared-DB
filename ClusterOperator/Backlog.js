@@ -121,13 +121,18 @@ class BackLog {
           }, 1000 * 30);
           this.writeLock = false;
           let result = null;
+          if (query.toLowerCase().startsWith('create')) {
+            // Fixes SQL error when creating tables
+            // eslint-disable-next-line no-param-reassign
+            query = `SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';${query}`;
+          }
           if (connId === false) {
             result = await this.UserDBClient.query(query, false, fullQuery);
           } else if (connId >= 0) {
             result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
           }
-          if (query.toLowerCase().startsWith('create')) {
-            log.warn(`Create query result: ${JSON.stringify(result)}`);
+          if (Array.isArray(result) && result[2]) {
+            log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
           }
           return [result, seqForThis, timestamp];
         }
