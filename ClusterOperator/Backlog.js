@@ -121,14 +121,15 @@ class BackLog {
           }, 1000 * 30);
           this.writeLock = false;
           let result = null;
+          let setSession = false;
           if (query.toLowerCase().startsWith('create')) {
-            // Fixes SQL error when creating tables
-            // eslint-disable-next-line no-param-reassign
-            query = `SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';${query}`;
+            setSession = true;
           }
           if (connId === false) {
+            if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
             result = await this.UserDBClient.query(query, false, fullQuery);
           } else if (connId >= 0) {
+            if (setSession) await ConnectionPool.getConnectionById(connId).query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
             result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
           }
           if (Array.isArray(result) && result[2]) {
