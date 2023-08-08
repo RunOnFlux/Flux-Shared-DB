@@ -109,9 +109,10 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
+          let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
-          await this.BLClient.execute(
+          const BLResult = await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
@@ -120,20 +121,24 @@ class BackLog {
             query, seq: seqForThis, timestamp, connId, ip: false,
           }, 1000 * 30);
           this.writeLock = false;
-          let result = null;
-          let setSession = false;
-          if (query.toLowerCase().startsWith('create')) {
-            setSession = true;
-          }
-          if (connId === false) {
-            if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
-            result = await this.UserDBClient.query(query, false, fullQuery);
-          } else if (connId >= 0) {
-            if (setSession) await ConnectionPool.getConnectionById(connId).query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
-            result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
-          }
-          if (Array.isArray(result) && result[2]) {
-            log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+          // Abort query execution if there is an error in backlog insert
+          if (Array.isArray(BLResult) && BLResult[2]) {
+            log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
+          } else {
+            let setSession = false;
+            if (query.toLowerCase().startsWith('create')) {
+              setSession = true;
+            }
+            if (connId === false) {
+              if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              result = await this.UserDBClient.query(query, false, fullQuery);
+            } else if (connId >= 0) {
+              if (setSession) await ConnectionPool.getConnectionById(connId).query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
+            }
+            if (Array.isArray(result) && result[2]) {
+              log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+            }
           }
           return [result, seqForThis, timestamp];
         }

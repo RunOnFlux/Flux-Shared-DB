@@ -317,7 +317,7 @@ class Operator {
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
-      return result[0];
+      return result;
     }
     return null;
   }
