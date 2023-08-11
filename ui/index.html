@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Flux Shared DB Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+	<!-- Add Bootstrap stylesheet -->
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+	<!-- Add Font Awesome stylesheet -->
+ 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
+   <style>
+    /* Set styles for the icons */
+		.navbar i {
+			margin-right: 10px;
+		}
+    body {
+      background-color: #ededed;
+    }
+    .card-header {
+      background-color: #fff;
+    }
+    .query {
+      font-size: 15px;
+      height: 30px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      /*background-color: #efefef;*/
+      padding: 0px 15px 0px 15px;
+      /*margin-bottom: 1px;*/
+      cursor: pointer;
+      border-top: solid 1px #e3e3e3;
+    }
+    .query-h {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      background-color: #efefef;
+      padding: 0px 15px 0px 15px;
+    }
+    .selected {
+      background-color: #525252;
+      color: white;
+    }
+    .q-date {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .q-text {
+      flex-grow: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .fs-7 {
+      font-size: 12px;
+    }
+    .queries-tm {
+    height: 700px;
+    overflow-y: scroll;
+    }
+    .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
+    background: #4e4e4e;
+    }
+	</style>
+</head>
+<body>
+	<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Flux DB</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link menu-link" data-page="dashboard" aria-current="page" href="#dashboard"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-database"></i>DB
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item menu-link " data-page="time-machine" href="#time-machine"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
+              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
+              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
+              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-play"></i>Run Query</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-cog"></i>System
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-file-alt"></i>Logs</a></li>
+              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-cog"></i>Settings</a></li>
+            </ul>
+          </li>
+
+        </ul>
+        <form class="d-flex d-none">
+          <button class="btn btn-outline-light">Log Out</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid d-none mt-3" id="time-machine">
+    <div class="card">
+      <div class="card-header">
+      <h3 class="m-0"><i class="fas fa-history"></i> Point-in-time Recovery</h3>
+      </div>
+      <div class="card-body">
+        <div style="overflow:hidden;">
+          <div class="form-group">
+              <div class="row">
+                  <div class="col-xxl-2 col-xl-12" style="overflow:hidden;">
+                    <p class="text-secondary fs-5">1. Choose a Date</p>
+                    <div class="datepicker-tm"></div>
+                  </div>
+                  <div class="col-xxl-8 col-xl-12">
+                    <p class="text-secondary fs-5">2. Choose Recovery Point</p>
+                    <div class="queries-tm">
+                    </div>
+                  </div>
+                  <div class="col-xxl-2 col-xl-12">
+                    <p class="text-secondary fs-5">3. Rewind</p>
+                    <button type="button" class="btn btn-dark" id="tm-rewind"><i class="fas fa-history"></i> Rewind Database</button>
+                    <p class="text-secondary fs-7 mt-2">Caution! this action is irreversible and will permanently rewind your database to the selected date-time. All rewind points after the selected date will be removed.</p>
+                    <div class="d-none" id="tm-progress">
+                      <div class="spinner-border" style="width: 1rem; height: 1rem; border: 0.2em solid #000; border-right-color: transparent;" role="status">
+                      <span class="visually-hidden"></span>
+                      </div>
+                      <span>Rewind in proggress, Please wait...</span>
+                    </div>
+                    <div class="d-none" id="tm-progress-done">
+                      <span><i class="fas fa-check-double text-success"></i> Rewind Finished</span>
+                    </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid d-none" id="dashboard">
+    <div class="card m-3 p-4">
+      <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+    </div>
+  </div>
+
+  <div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          ...
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">No</button>
+          <button type="button" class="btn btn-dark">Yes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+<script>
+
+  function init() {
+    let baseUrl = new URL(window.location.href);
+    window.apiURL = baseUrl.hostname + ':' + baseUrl.port;
+    let fragment = baseUrl.hash;
+    window.lock = false;
+    
+    // Menu & Page manager
+    let activePage = "dash";
+    if (fragment != '') activePage = fragment.substring(1);
+    startPage(activePage, apiURL);
+    $('.menu-link.active').removeClass('active');
+    $(`*[data-page="${activePage}"` ).addClass('active');
+    $('#' + activePage).removeClass('d-none');
+    $('.menu-link').click(function() {
+      if(window.lock) return;
+      let newPage = $(this).data('page');
+      $('#' + activePage).toggleClass('d-none');
+      $('#' + newPage).toggleClass('d-none');
+      $('.menu-link.active').removeClass('active');
+      $(this).addClass('active');
+      activePage = newPage;
+      startPage(newPage, apiURL);
+    });
+
+    $('#tm-rewind').click(function() {
+      let seq = $(this).data('seq');
+      if (seq) {
+        $('#confirm-modal').modal('show');
+        $('#confirm-modal .modal-body').html('<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible, Are you sure?</span> ');
+        document.getElementById("confirm-modal").setAttribute('data-callback', 'rewind');
+        document.getElementById("confirm-modal").setAttribute('data-param', seq);
+      }
+    });
+
+    $('#confirm-modal .btn-dark').click(function() {
+      let callback = document.getElementById("confirm-modal").getAttribute('data-callback');
+      let param = document.getElementById("confirm-modal").getAttribute('data-param');
+      window[callback](param);
+      $('#confirm-modal').modal('hide');
+    });
+
+  }
+  
+  function startPage(page){
+    console.log(page);
+    if(page === 'time-machine'){
+      $.ajax({
+        type: 'GET', dataType:"json", url: 'http://' + window.apiURL + '/getLogDateRange',
+        success: function (data, status, xhr) {
+          console.log('data: ', data);
+          let startDate = new Date(data.min_timestamp);
+          let endDate = new Date(data.max_timestamp);
+          let dp = $('.datepicker-tm').datepicker({
+            language: 'en',
+            inline: true,
+            minDate: startDate,
+            maxDate: endDate,
+            onSelect: function (date , formattedDate, datepicker) {
+              let d = new Date(date);
+              //console.log(d.getTimezoneOffset() );
+              var timestamp = Math.floor(d.getTime());
+              $.ajax({
+                  type: 'GET', dataType:"json", url: 'http://' + window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=86400000`,
+                  success: function (data, status, xhr) {
+                    // console.log('data: ', data);
+                    let points = 0;
+                    $('.queries-tm').html(`<div class="query-h"><span class="q-text">Total <span id="total-records"></span> sessions found</span><span class="q-date">Date and Time</span></div>`);
+                    for (let i = 0; i < data.length; i+=1) {
+                      if (data[i].query.toLowerCase().startsWith('set sess')){
+                        points +=1;
+                        let ops = 1;
+                        while (i + 1 < data.length && !data[i + 1].query.toLowerCase().startsWith('set sess')) { i += 1; ops +=1 }
+                        let date = new Date(data[i].timestamp);
+                        $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${data[i].seq}"><span onClick="querySelectP(event)" class="q-text"><i onClick="dn(event)" class="fas fa-circle text-warning"></i> ${data[i].seq}</span><span onClick="querySelectP(event)" class="q-date">${ops} Ops - ${date.toLocaleString()}</span></div>`)
+                      }
+                    }
+                    $('#total-records').html(points);
+                  }
+                });
+
+              
+            },
+            
+          });
+
+
+        }
+      });
+    }
+  }
+  function escapeHtml(unsafe)
+  {
+      return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+  }
+  function querySelect(e) {
+    if(window.lock) return;
+    e = e || window.event;
+    console.log(e);
+    var target = e.target || e.srcElement;
+    $('.query').removeClass('selected');
+    target.classList.add("selected");
+    var seq = target.getAttribute('data-seq');
+    $('#tm-rewind').data('seq', seq);
+    console.log(seq);
+    document.getElementById("tm-rewind").setAttribute("data-seq", seq);
+  }
+  function querySelectP(e) {
+    if(window.lock) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e = e || window.event;
+    console.log(e);
+    var target = e.target || e.srcElement;
+    $('.query').removeClass('selected');
+    target.parentElement.classList.add("selected");
+    var seq = target.parentElement.getAttribute('data-seq');
+    console.log(seq);
+    document.getElementById("tm-rewind").setAttribute("data-seq", seq);
+  }
+  function dn(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function rewind(seq) {
+
+    document.getElementById("tm-rewind").disabled = true;
+    $('#tm-progress').removeClass('d-none');
+    $('#tm-progress-done').addClass('d-none');
+    window.lock = true;
+    console.log(seq);
+    $.ajax({
+      type: 'POST', url: 'http://' + window.apiURL + `/rollback`, data: {seqNo: seq},
+      success: function (data, status, xhr) {
+        console.log('data: ', data);
+        document.getElementById("tm-rewind").disabled = false;
+        window.lock = false;
+        $('#tm-progress').addClass('d-none');
+        $('#tm-progress-done').removeClass('d-none');
+      }
+    });
+
+  }
+  init();
+</script>

@@ -1,6 +1,7 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
 // const timer = require('timers/promises');
+const queryCache = require('memory-cache');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
@@ -23,6 +24,8 @@ class BackLog {
   static writeLock = false;
 
   static executeLogs = true;
+
+  static BLqueryCache = queryCache;
 
   /**
   * [createBacklog]
@@ -87,7 +90,7 @@ class BackLog {
   * @param {int} timestamp [description]
   * @return {Array}
   */
-  static async pushQuery(query, seq = 0, timestamp, buffer = false, connId = false) {
+  static async pushQuery(query, seq = 0, timestamp, buffer = false, connId = false, fullQuery = '') {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
@@ -106,19 +109,36 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
+          let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
           const seqForThis = this.sequenceNumber;
-          await this.BLClient.execute(
+          const BLResult = await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
           if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          this.BLqueryCache.put(seqForThis, {
+            query, seq: seqForThis, timestamp, connId, ip: false,
+          }, 1000 * 30);
           this.writeLock = false;
-          let result = null;
-          if (connId === false) {
-            result = await this.UserDBClient.query(query);
-          } else if (connId >= 0) {
-            result = await ConnectionPool.getConnectionById(connId).query(query);
+          // Abort query execution if there is an error in backlog insert
+          if (Array.isArray(BLResult) && BLResult[2]) {
+            log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
+          } else {
+            let setSession = false;
+            if (query.toLowerCase().startsWith('create')) {
+              setSession = true;
+            }
+            if (connId === false) {
+              if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              result = await this.UserDBClient.query(query, false, fullQuery);
+            } else if (connId >= 0) {
+              if (setSession) await ConnectionPool.getConnectionById(connId).query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
+            }
+            if (Array.isArray(result) && result[2]) {
+              log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+            }
           }
           return [result, seqForThis, timestamp];
         }
@@ -189,6 +209,28 @@ class BackLog {
   }
 
   /**
+  * [getLogsByTime]
+  * @param {int} startFrom [description]
+  * @param {int} length [description]
+  * @return {Array}
+  */
+  static async getLogsByTime(startFrom, length) {
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const totalRecords = await this.BLClient.execute(`SELECT seq, LEFT(query,10) as query, timestamp FROM ${config.dbBacklogCollection} WHERE timestamp >= ? AND timestamp < ? ORDER BY seq`, [startFrom, Number(startFrom) + Number(length)]);
+        return totalRecords;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return [];
+  }
+
+  /**
   * [getLogs]
   * @param {int} index [description]
   * @return {object}
@@ -200,9 +242,31 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.execute(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=?`, [index]);
+
+        const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return [];
+  }
+
+  /**
+  * [getDateRange]
+  * @return {object}
+  */
+  static async getDateRange() {
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const record = await this.BLClient.execute(`SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM ${config.dbBacklogCollection}`);
+        log.info(record);
+        return record[0];
       }
     } catch (e) {
       log.error(e);
@@ -299,7 +363,7 @@ class BackLog {
         await this.BLClient.createDB(config.dbInitDB);
         this.UserDBClient.setDB(config.dbInitDB);
         await this.BLClient.setDB(config.dbBacklog);
-        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<? ORDER BY seq', [seqNo]);
+        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<=? ORDER BY seq', [seqNo]);
         // console.log(records);
         for (const record of records) {
           log.info(`executing seq(${record.seq})`);
@@ -311,13 +375,14 @@ class BackLog {
           }
           // eslint-disable-next-line no-await-in-loop
         }
-        await this.BLClient.execute('DELETE FROM backlog WHERE seq>=? ORDER BY seq', [seqNo]);
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>?', [seqNo]);
+        await this.clearBuffer();
       }
     } catch (e) {
       log.error(e);
     }
     this.buffer = [];
-    log.info('All buffer data removed successfully.');
+    log.info(`DB and backlog rolled back to ${seqNo}`);
   }
 
   /**
