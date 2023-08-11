@@ -209,6 +209,28 @@ class BackLog {
   }
 
   /**
+  * [getLogsByTime]
+  * @param {int} startFrom [description]
+  * @param {int} length [description]
+  * @return {Array}
+  */
+  static async getLogsByTime(startFrom, length) {
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const totalRecords = await this.BLClient.execute(`SELECT seq, LEFT(query,10) as query, timestamp FROM ${config.dbBacklogCollection} WHERE timestamp >= ? AND timestamp < ? ORDER BY seq`, [startFrom, Number(startFrom) + Number(length)]);
+        return totalRecords;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return [];
+  }
+
+  /**
   * [getLogs]
   * @param {int} index [description]
   * @return {object}
@@ -220,9 +242,31 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
+
         const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    return [];
+  }
+
+  /**
+  * [getDateRange]
+  * @return {object}
+  */
+  static async getDateRange() {
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        const record = await this.BLClient.execute(`SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM ${config.dbBacklogCollection}`);
+        log.info(record);
+        return record[0];
       }
     } catch (e) {
       log.error(e);
@@ -319,7 +363,7 @@ class BackLog {
         await this.BLClient.createDB(config.dbInitDB);
         this.UserDBClient.setDB(config.dbInitDB);
         await this.BLClient.setDB(config.dbBacklog);
-        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<? ORDER BY seq', [seqNo]);
+        const records = await this.BLClient.execute('SELECT * FROM backlog WHERE seq<=? ORDER BY seq', [seqNo]);
         // console.log(records);
         for (const record of records) {
           log.info(`executing seq(${record.seq})`);
@@ -331,13 +375,14 @@ class BackLog {
           }
           // eslint-disable-next-line no-await-in-loop
         }
-        await this.BLClient.execute('DELETE FROM backlog WHERE seq>=? ORDER BY seq', [seqNo]);
+        await this.BLClient.execute('DELETE FROM backlog WHERE seq>?', [seqNo]);
+        await this.clearBuffer();
       }
     } catch (e) {
       log.error(e);
     }
     this.buffer = [];
-    log.info('All buffer data removed successfully.');
+    log.info(`DB and backlog rolled back to ${seqNo}`);
   }
 
   /**

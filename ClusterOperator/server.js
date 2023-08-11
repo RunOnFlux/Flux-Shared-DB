@@ -1,16 +1,18 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
-const { App } = require('uWebSockets.js');
 const { Server } = require('socket.io');
 const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
 const fs = require('fs');
+const qs = require('qs');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
+const IdService = require('./IdService');
 const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
@@ -18,12 +20,54 @@ const Security = require('./Security');
 const fluxAPI = require('../lib/fluxAPI');
 
 /**
+* [auth]
+* @param {string} ip [description]
+*/
+function auth(ip) {
+  const whiteList = config.whiteListedIps.split(',');
+  if (whiteList.length && whiteList.includes(ip)) return true;
+  // only operator nodes can connect
+  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
+  if (idx === -1) return false;
+  return true;
+}
+/**
+* [authUser]
+*/
+function authUser() {
+  return false;
+}
+/**
+ * To check if a parameter is an object and if not, return an empty object.
+ * @param {*} parameter Parameter of any type.
+ * @returns {object} Returns the original parameter if it is an object or returns an empty object.
+ */
+function ensureObject(parameter) {
+  if (typeof parameter === 'object') {
+    return parameter;
+  }
+  if (!parameter) {
+    return {};
+  }
+  let param;
+  try {
+    param = JSON.parse(parameter);
+  } catch (e) {
+    param = qs.parse(parameter);
+  }
+  if (typeof param !== 'object') {
+    return {};
+  }
+  return param;
+}
+/**
 * Starts UI service
 */
 function startUI() {
   const app = express();
   app.use(cors());
   app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: false }));
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -51,7 +95,7 @@ function startUI() {
     }
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45') {
+      if (whiteList.includes(remoteIp) || remoteIp === '206.79.215.43' || remoteIp === '45.89.52.198') {
         res.send(`<html><style>
         .t {color:#2cb92c;}
         .yellow {color:yellow;}
@@ -71,14 +115,62 @@ function startUI() {
     }
   });
 
-  app.get('/rollback', (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
+  app.post('/rollback', async (req, res) => {
+    let remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
-    const { seqNo } = req.query;
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
+    let { seqNo } = req.body;
+    seqNo = seqNo || req.query.seqNo;
+    console.log(req.body);
+    console.log(seqNo);
     if (whiteList.length && seqNo) {
       if (whiteList.includes(remoteIp)) {
-        log.info(`rooling back to ${seqNo}`);
-        BackLog.rebuildDatabase(seqNo);
+        console.log(seqNo);
+        await Operator.rollBack(seqNo);
+        res.send({ status: 'OK' });
+      }
+    }
+  });
+
+  app.get('/stats', (req, res) => {
+    let remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(Operator.OpNodes);
+      }
+    }
+  });
+
+  app.get('/getLogDateRange', async (req, res) => {
+    let remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(await BackLog.getDateRange());
+      }
+    }
+  });
+
+  app.get('/getLogsByTime', async (req, res) => {
+    let remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
+    const { starttime } = req.query;
+    const { length } = req.query;
+    if (whiteList.length) {
+      if (whiteList.includes(remoteIp)) {
+        res.send(await BackLog.getLogsByTime(starttime, length));
       }
     }
   });
@@ -151,6 +243,47 @@ function startUI() {
       }
     }
     res.status(404).send('Key not found');
+  });
+
+  app.get('/runonflux.io/', (req, res) => {
+    console.log("asdasd");
+    let body = '';
+    req.on('data', (data) => {
+      body += data;
+    });
+    req.on('end', async () => {
+      try {
+        const processedBody = ensureObject(body);
+        const address = processedBody.zelid || processedBody.address;
+        const { signature } = processedBody;
+        const message = processedBody.loginPhrase || processedBody.message;
+        console.log(address);
+        console.log(signature);
+        console.log(message);
+      } catch (error) {
+        log.error(error);
+      }
+      res.send('OK');
+    });
+  });
+
+  app.get('/', (req, res) => {
+    let remoteIp = utill.convertIP(req.ip);
+    const whiteList = config.whiteListedIps.split(',');
+    if (req.headers['x-forwarded-for']) {
+      remoteIp = req.headers['x-forwarded-for'];
+    }
+    // log.info(JSON.stringify(req.headers));
+    // log.info(`UI access from ${remoteIp}`);
+    if (authUser()) {
+      res.sendFile(path.join(__dirname, '../ui/index.html'));
+    } else {
+      res.sendFile(path.join(__dirname, '../ui/login.html'));
+    }
+  });
+
+  app.get('/assets/zelID.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
 
   app.listen(config.debugUIPort, () => {
@@ -318,6 +451,12 @@ async function initServer() {
             io.sockets.sockets[s].disconnect(true);
           });
           Operator.findMaster();
+        }
+        callback({ status: Operator.status });
+      });
+      socket.on('rollBack', async (seqNo, callback) => {
+        if (Operator.IamMaster) {
+          Operator.rollBack(seqNo);
         }
         callback({ status: Operator.status });
       });

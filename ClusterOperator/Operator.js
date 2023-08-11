@@ -105,6 +105,14 @@ class Operator {
   * [initMasterConnection]
   */
   static initMasterConnection() {
+    if (this.masterWSConn) {
+      try {
+        this.masterWSConn.removeAllListeners();
+        this.masterWSConn.disconnect();
+      } catch (err) {
+        log.error(err);
+      }
+    }
     log.info(`master node: ${this.masterNode}`);
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
@@ -213,6 +221,19 @@ class Operator {
           await BackLog.pushKey(decKey, value);
           Operator.keys[decKey] = value;
         });
+        this.masterWSConn.on('rollBack', async (seqNo) => {
+          log.info(`rollback request from master, rewinding to ${seqNo}`);
+          if (this.status === 'SYNC') {
+            this.status = 'ROLLBACK';
+            await BackLog.rebuildDatabase(seqNo);
+            this.syncLocalDB();
+          } else {
+            const tempStatus = this.status;
+            this.status = 'ROLLBACK';
+            await BackLog.rebuildDatabase(seqNo);
+            this.status = tempStatus;
+          }
+        });
       } catch (e) {
         log.error(e);
         this.masterWSConn.removeAllListeners();
@@ -261,17 +282,22 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      // log.info(`DB auth from ${param.remoteIP}`);
-      // log.info(JSON.stringify(param));
+      log.debug(`DB auth from ${param.remoteIP}`);
+      log.debug(JSON.stringify(param));
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
+        return false;
+      }
+      // wait untill there are incomming connections
+      if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+        log.warn('no incomming connections: refusing DB client auth', 'yellow');
         return false;
       }
       const remoteIp = param.remoteIP;
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
         return true;
       }
       if (!this.operator.IamMaster && (config.AppName.includes('wordpress') || config.authMasterOnly)) return false;
@@ -323,6 +349,30 @@ class Operator {
   }
 
   /**
+  * [rollBack]
+  * @param {int} seq [description]
+  */
+  static async rollBack(seqNo) {
+    if (this.status !== 'ROLLBACK') {
+      if (this.IamMaster) {
+        this.status = 'ROLLBACK';
+        log.info(`rolling back to ${seqNo}`);
+        this.serverSocket.emit('rollBack', seqNo);
+        await BackLog.rebuildDatabase(seqNo);
+        this.status = 'OK';
+      } else {
+        const { masterWSConn } = this;
+        return new Promise((resolve) => {
+          masterWSConn.emit('rollBack', seqNo, (response) => {
+            resolve(response.result);
+          });
+        });
+      }
+    }
+    return null;
+  }
+
+  /**
   * [setServerSocket]
   * @param {socket} socket [description]
   */
@@ -355,11 +405,6 @@ class Operator {
           for (const queryItem of analyzedQueries) {
             // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
-              // wait untill there are incomming connections
-              if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
-                log.warn(`no incomming connections: ${this.operator.serverSocket.engine.clientsCount}`, 'yellow');
-                break;
-              }
               // forward it to the master node
               // log.info(`${id},${queryItem[0]}`);
               //  log.info(`incoming write ${id}`);
@@ -471,6 +516,10 @@ class Operator {
         // log.info(JSON.stringify(response.records));
         BackLog.executeLogs = false;
         for (const record of response.records) {
+          if (this.status !== 'SYNC') {
+            log.warn('Sync proccess halted.', 'red');
+            return;
+          }
           await BackLog.pushQuery(record.query, record.seq, record.timestamp);
         }
         if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
