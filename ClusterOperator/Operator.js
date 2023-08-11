@@ -316,7 +316,7 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query, connId) {
+  static async sendWriteQuery(query, connId, fullQuery) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
@@ -340,10 +340,10 @@ class Operator {
         log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
       }
       */
-      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId);
+      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
-      return result[0];
+      return result;
     }
     return null;
   }
@@ -412,7 +412,7 @@ class Operator {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
               }
-              await this.sendWriteQuery(queryItem[0], id);
+              await this.sendWriteQuery(queryItem[0], id, query);
               // log.info(`finish write ${id}`);
               // this.localDB.enableSocketWrite = false;
               // let result = await this.localDB.query(queryItem[0], true);
@@ -616,32 +616,34 @@ class Operator {
       } else {
         appIPList = await fluxAPI.getApplicationIP(config.AppName);
       }
-      this.OpNodes = [];
-      this.AppNodes = [];
-      let checkMasterIp = false;
-      const nodeList = [];
-      for (let i = 0; i < ipList.length; i += 1) {
-        // extraxt ip from upnp nodes
-        nodeList.push(ipList[i].ip);
-        // eslint-disable-next-line prefer-destructuring
-        if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-        this.OpNodes.push({ ip: ipList[i].ip, active: null });
-        if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
-      }
-      for (let i = 0; i < appIPList.length; i += 1) {
-        // eslint-disable-next-line prefer-destructuring
-        if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
-        this.AppNodes.push(appIPList[i].ip);
-      }
-      if (this.masterNode && !checkMasterIp) {
-        log.info('master removed from the list, should find a new master', 'yellow');
-        await this.findMaster();
-        this.initMasterConnection();
-      }
-      if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
-        log.info('No incomming connections, should find a new master', 'yellow');
-        await this.findMaster();
-        this.initMasterConnection();
+      if (appIPList.length > 0) {
+        this.OpNodes = [];
+        this.AppNodes = [];
+        let checkMasterIp = false;
+        const nodeList = [];
+        for (let i = 0; i < ipList.length; i += 1) {
+          // extraxt ip from upnp nodes
+          nodeList.push(ipList[i].ip);
+          // eslint-disable-next-line prefer-destructuring
+          if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
+          this.OpNodes.push({ ip: ipList[i].ip, active: null });
+          if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
+        }
+        for (let i = 0; i < appIPList.length; i += 1) {
+          // eslint-disable-next-line prefer-destructuring
+          if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
+          this.AppNodes.push(appIPList[i].ip);
+        }
+        if (this.masterNode && !checkMasterIp) {
+          log.info('master removed from the list, should find a new master', 'yellow');
+          await this.findMaster();
+          this.initMasterConnection();
+        }
+        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
+          log.info('No incomming connections, should find a new master', 'yellow');
+          await this.findMaster();
+          this.initMasterConnection();
+        }
       }
       // check connection stability
       if (this.connectionDrops > 3) {

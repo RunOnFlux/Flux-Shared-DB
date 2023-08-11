@@ -301,6 +301,21 @@ function startUI() {
   });
 }
 /**
+* [auth]
+* @param {string} ip [description]
+*/
+function auth(ip) {
+  const whiteList = config.whiteListedIps.split(',');
+  if (whiteList.length && whiteList.includes(ip)) return true;
+  // only operator nodes can connect
+  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
+  if (idx === -1) {
+    log.info(`Unauthorized IP: ${ip}, authorized list: ${JSON.stringify(Operator.OpNodes)}`, 'red');
+    return false;
+  }
+  return true;
+}
+/**
 * [validate]
 * @param {string} ip [description]
 */
@@ -318,7 +333,7 @@ async function initServer() {
   Security.init();
   startUI();
   await Operator.init();
-  const io = new Server(config.apiPort);
+  const io = new Server(config.apiPort, { transports: ['websocket', 'polling'] });
   // const app = new App();
   // io.attachApp(app);
   Operator.setServerSocket(io);
@@ -373,7 +388,7 @@ async function initServer() {
         // cache write queries for 20 seconds
         queryCache.put(result[1], {
           query, seq: result[1], timestamp: result[2], connId, ip,
-        }, 1000 * 20);
+        }, 1000 * 60);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
@@ -386,7 +401,12 @@ async function initServer() {
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
           log.warn(`query ${index} not in query cache`, 'red');
-          // record = await BackLog.getLog(index);
+          let BLRecord = BackLog.BLqueryCache.get(index);
+          log.info(JSON.stringify(BLRecord), 'red');
+          if (!BLRecord) {
+            BLRecord = BackLog.getLog(index);
+            log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
+          }
         }
         // if (record) {
 
