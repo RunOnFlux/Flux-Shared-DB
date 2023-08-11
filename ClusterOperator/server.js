@@ -258,7 +258,6 @@ function startUI() {
         let { signature } = processedBody;
         if (!signature) signature = req.query.signature;
         const message = processedBody.loginPhrase || processedBody.message || req.query.message;
-        //console.log(req);
         console.log(address);
         console.log(signature);
         console.log(message);
@@ -291,7 +290,7 @@ function startUI() {
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
-  //https
+  // https
   //  .createServer(app)
   //  .listen(443, () => {
   //    log.info(`starting interface on port ${config.debugUIPort}`);
@@ -299,21 +298,6 @@ function startUI() {
   app.listen(config.debugUIPort, () => {
     log.info(`starting interface on port ${config.debugUIPort}`);
   });
-}
-/**
-* [auth]
-* @param {string} ip [description]
-*/
-function auth(ip) {
-  const whiteList = config.whiteListedIps.split(',');
-  if (whiteList.length && whiteList.includes(ip)) return true;
-  // only operator nodes can connect
-  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
-  if (idx === -1) {
-    log.info(`Unauthorized IP: ${ip}, authorized list: ${JSON.stringify(Operator.OpNodes)}`, 'red');
-    return false;
-  }
-  return true;
 }
 /**
 * [validate]
@@ -489,13 +473,13 @@ async function initServer() {
   });
  */
   log.info(`Api Server started on port ${config.apiPort}`);
-  //await Operator.findMaster();
+  await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
     Operator.initMasterConnection();
   }
   setInterval(async () => {
-    //Operator.doHealthCheck();
+    Operator.doHealthCheck();
   }, 120000);
 }
 
