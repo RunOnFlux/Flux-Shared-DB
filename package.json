@@ -6,22 +6,26 @@
   "dependencies": {
     "@babel/eslint-parser": "^7.5.4",
     "axios": "^0.27.2",
+    "bitcoinjs-message": "^2.2.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dbgate-query-splitter": "^4.9.0",
     "express": "^4.18.2",
     "express-ws": "^5.0.2",
+    "https": "^1.0.0",
     "md5": "^2.3.0",
     "memory-cache": "^0.2.0",
     "mysql": "^2.18.1",
     "mysql2": "^2.3.3",
+    "nano-ethereum-signer": "^0.1.2",
     "path": "^0.12.7",
     "qs": "^6.11.2",
     "socket.io": "^4.5.1",
     "socket.io-client": "^4.5.1",
     "timers": "^0.1.1",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.4.0",
-    "ws": "^8.7.0"
+    "ws": "^8.7.0",
+    "zeltrezjs": "^2.12.0"
   },
   "devDependencies": {
     "eslint": "^8.14.0",
