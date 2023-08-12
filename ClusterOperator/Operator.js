@@ -282,8 +282,8 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      log.debug(`DB auth from ${param.remoteIP}`);
-      log.debug(JSON.stringify(param));
+      // log.debug(`DB auth from ${param.remoteIP}`);
+      // log.debug(JSON.stringify(param));
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
@@ -297,9 +297,10 @@ class Operator {
       if (this.authorizedApp === null) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '206.79.215.43') {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
         return true;
       }
+      // apps only can connect to the master node
       if (!this.operator.IamMaster && (config.AppName.includes('wordpress') || config.authMasterOnly)) return false;
       if (remoteIp === this.authorizedApp) {
         return true;
