@@ -8,7 +8,7 @@ class IdService {
   /**
   * [generateLoginPhrase]
   */
-  static async generateLoginPhrase() {
+  static generateLoginPhrase() {
     const timestamp = new Date().getTime();
     const phrase = timestamp + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     return phrase;
@@ -17,14 +17,14 @@ class IdService {
   /**
   * [getLoginPhrase]
   */
-  static async getLoginPhrase() {
-    return this.loginPhrases[1];
+  static getLoginPhrase() {
+    return this.loginPhrases[0];
   }
 
   /**
   * [updateLoginPhrase]
   */
-  static async updateLoginPhrase() {
+  static updateLoginPhrase() {
     this.loginPhrases.push(this.generateLoginPhrase());
     this.loginPhrases.shift();
   }

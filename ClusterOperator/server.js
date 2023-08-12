@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
 const { Server } = require('socket.io');
+const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -95,7 +96,7 @@ function startUI() {
     }
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if (whiteList.includes(remoteIp) || remoteIp === '206.79.215.43' || remoteIp === '45.89.52.198') {
+      if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45' || remoteIp === '45.89.52.198') {
         res.send(`<html><style>
         .t {color:#2cb92c;}
         .yellow {color:yellow;}
@@ -245,8 +246,7 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
-  app.get('/runonflux.io/', (req, res) => {
-    console.log("asdasd");
+  app.get('/verifylogin/', (req, res) => {
     let body = '';
     req.on('data', (data) => {
       body += data;
@@ -254,9 +254,10 @@ function startUI() {
     req.on('end', async () => {
       try {
         const processedBody = ensureObject(body);
-        const address = processedBody.zelid || processedBody.address;
-        const { signature } = processedBody;
-        const message = processedBody.loginPhrase || processedBody.message;
+        const address = await fluxAPI.getApplicationOwner(config.AppName);
+        let { signature } = processedBody;
+        if (!signature) signature = req.query.signature;
+        const message = processedBody.loginPhrase || processedBody.message || req.query.message;
         console.log(address);
         console.log(signature);
         console.log(message);
@@ -265,6 +266,10 @@ function startUI() {
       }
       res.send('OK');
     });
+  });
+
+  app.get('/loginphrase/', (req, res) => {
+    res.send(IdService.getLoginPhrase());
   });
 
   app.get('/', (req, res) => {
@@ -285,25 +290,14 @@ function startUI() {
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
-
+  // https
+  //  .createServer(app)
+  //  .listen(443, () => {
+  //    log.info(`starting interface on port ${config.debugUIPort}`);
+  //  });
   app.listen(config.debugUIPort, () => {
     log.info(`starting interface on port ${config.debugUIPort}`);
   });
-}
-/**
-* [auth]
-* @param {string} ip [description]
-*/
-function auth(ip) {
-  const whiteList = config.whiteListedIps.split(',');
-  if (whiteList.length && whiteList.includes(ip)) return true;
-  // only operator nodes can connect
-  const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
-  if (idx === -1) {
-    log.info(`Unauthorized IP: ${ip}, authorized list: ${JSON.stringify(Operator.OpNodes)}`, 'red');
-    return false;
-  }
-  return true;
 }
 /**
 * [validate]
