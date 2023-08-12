@@ -35,7 +35,9 @@ function auth(ip) {
 /**
 * [authUser]
 */
-function authUser() {
+function authUser(ip) {
+  const whiteList = config.whiteListedIps.split(',');
+  if (whiteList.length && whiteList.includes(ip)) return true;
   return false;
 }
 /**
@@ -274,13 +276,12 @@ function startUI() {
 
   app.get('/', (req, res) => {
     let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
     if (req.headers['x-forwarded-for']) {
       remoteIp = req.headers['x-forwarded-for'];
     }
     // log.info(JSON.stringify(req.headers));
     // log.info(`UI access from ${remoteIp}`);
-    if (authUser()) {
+    if (authUser(remoteIp)) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
       res.sendFile(path.join(__dirname, '../ui/login.html'));
