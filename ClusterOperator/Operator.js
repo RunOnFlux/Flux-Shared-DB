@@ -509,22 +509,25 @@ class Operator {
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
-        const index = Number(BackLog.sequenceNumber) + 1;
-        const response = await fluxAPI.getBackLog(index, this.masterWSConn);
-        masterSN = response.sequenceNumber;
-        const percent = Math.round((index / masterSN) * 1000);
-        log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
-        // log.info(JSON.stringify(response.records));
-        BackLog.executeLogs = false;
-        for (const record of response.records) {
-          if (this.status !== 'SYNC') {
-            log.warn('Sync proccess halted.', 'red');
-            return;
+        try {
+          const index = Number(BackLog.sequenceNumber) + 1;
+          const response = await fluxAPI.getBackLog(index, this.masterWSConn);
+          masterSN = response.sequenceNumber;
+          const percent = Math.round((index / masterSN) * 1000);
+          log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+          BackLog.executeLogs = false;
+          for (const record of response.records) {
+            if (this.status !== 'SYNC') {
+              log.warn('Sync proccess halted.', 'red');
+              return;
+            }
+            await BackLog.pushQuery(record.query, record.seq, record.timestamp);
           }
-          await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+          if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+          BackLog.executeLogs = true;
+        } catch (err) {
+          log.error(err);
         }
-        if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
-        BackLog.executeLogs = true;
       }
       log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
