@@ -513,8 +513,6 @@ class Operator {
           const index = Number(BackLog.sequenceNumber) + 1;
           const response = await fluxAPI.getBackLog(index, this.masterWSConn);
           masterSN = response.sequenceNumber;
-          const percent = Math.round((index / masterSN) * 1000);
-          log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           BackLog.executeLogs = false;
           for (const record of response.records) {
             if (this.status !== 'SYNC') {
@@ -525,6 +523,9 @@ class Operator {
           }
           if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
           BackLog.executeLogs = true;
+          const percent = Math.round((index / masterSN) * 1000);
+          log.info(`${index}, ${masterSN}, ${percent}`);
+          log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
         } catch (err) {
           log.error(err);
         }
