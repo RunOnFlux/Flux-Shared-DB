@@ -510,8 +510,8 @@ class Operator {
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
-          const index = Number(BackLog.sequenceNumber) + 1;
-          const response = await fluxAPI.getBackLog(index, this.masterWSConn);
+          const index = BackLog.sequenceNumber;
+          const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
           masterSN = response.sequenceNumber;
           BackLog.executeLogs = false;
           for (const record of response.records) {
