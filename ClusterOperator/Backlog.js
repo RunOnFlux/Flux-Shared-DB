@@ -125,15 +125,10 @@ class BackLog {
           if (Array.isArray(BLResult) && BLResult[2]) {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
           } else {
-            let setSession = false;
-            if (query.toLowerCase().startsWith('create')) {
-              setSession = false;
-            }
             if (connId === false) {
-              if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              if (query.toLowerCase().startsWith('create')) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
               result = await this.UserDBClient.query(query, false, fullQuery);
             } else if (connId >= 0) {
-              if (setSession) await ConnectionPool.getConnectionById(connId).query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
             if (Array.isArray(result) && result[2]) {
@@ -242,7 +237,6 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-
         const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
