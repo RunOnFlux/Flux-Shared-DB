@@ -127,7 +127,7 @@ class BackLog {
           } else {
             let setSession = false;
             if (query.toLowerCase().startsWith('create')) {
-              setSession = true;
+              setSession = false;
             }
             if (connId === false) {
               if (setSession) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
