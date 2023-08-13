@@ -509,7 +509,7 @@ class Operator {
       let masterSN = BackLog.sequenceNumber + 1;
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
-        const index = BackLog.sequenceNumber + 1;
+        const index = Number(BackLog.sequenceNumber) + 1;
         const response = await fluxAPI.getBackLog(index, this.masterWSConn);
         masterSN = response.sequenceNumber;
         const percent = Math.round((index / masterSN) * 1000);
