@@ -456,23 +456,16 @@ async function initServer() {
         callback({ status: Operator.status });
       });
     } else {
-      // log.info(`rejected from ${ip}`);
+      log.warn(`rejected from ${ip}`);
       socket.disconnect();
     }
     if (await validate(ip)) {
       // log.info(`auth: ${ip} is validated`);
     } else {
-      log.info(`validation failed for ${ip}`, 'red');
+      log.warn(`validation failed for ${ip}`, 'red');
       socket.disconnect();
     }
   });
-  /*
-  app.listen(config.apiPort, (token) => {
-    if (!token) {
-      log.warn(`port ${config.apiPort} already in use`);
-    }
-  });
- */
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
