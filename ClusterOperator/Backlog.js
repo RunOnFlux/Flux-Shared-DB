@@ -7,6 +7,7 @@ const config = require('./config');
 const log = require('../lib/log');
 const Security = require('./Security');
 const ConnectionPool = require('../lib/ConnectionPool');
+const utill = require('../lib/utill');
 
 class BackLog {
   static buffer = [];
@@ -195,8 +196,9 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
-        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${totalRecords.length}`);
-        return totalRecords;
+        const trimedRecords = utill.trimArrayToSize(totalRecords, 3 * 1024 * 1024);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
+        return trimedRecords;
       }
     } catch (e) {
       log.error(e);

@@ -318,7 +318,7 @@ async function initServer() {
   Security.init();
   startUI();
   await Operator.init();
-  const io = new Server(config.apiPort, { transports: ['websocket', 'polling'] });
+  const io = new Server(config.apiPort, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
   // const app = new App();
   // io.attachApp(app);
   Operator.setServerSocket(io);
