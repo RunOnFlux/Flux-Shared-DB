@@ -110,11 +110,11 @@ $(document).ready(function() {
   $("#login-btn").click(function() {
     let loginPhrase = $("#h-message").val();
     let signature = $("#h-signature").val();
-    const callbackValue = `${window.apiURL}/verifymanuallogin?signature=${signature}&loginphrase=${loginPhrase}`;
+    const url = `${window.apiURL}/verifylogin`;
     $.ajax({
-      url: callbackValue,
-      crossDomain: true,
-      type: "GET",
+      url: url,
+      type: "POST",
+      data: {message: loginPhrase, signature: signature},
       success: function (data, status, xhr) {
         console.log('data: ', data);
         if(data==='OK'){

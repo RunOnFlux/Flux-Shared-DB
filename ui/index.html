@@ -105,9 +105,9 @@
           </li>
 
         </ul>
-        <form class="d-flex d-none">
-          <button class="btn btn-outline-light">Log Out</button>
-        </form>
+        
+          <button class="btn btn-outline-light" id="logout-btn">Log Out</button>
+       
       </div>
     </div>
   </nav>
@@ -217,6 +217,16 @@
       let param = document.getElementById("confirm-modal").getAttribute('data-param');
       window[callback](param);
       $('#confirm-modal').modal('hide');
+    });
+
+    $('#logout-btn').click(function() {
+      $.ajax({
+      type: 'get', url: window.apiURL + `/logout`,
+      success: function (data, status, xhr) {
+        console.log(data);
+        if(data==='OK') window.location.replace(window.apiURL);
+      }
+    });
     });
 
   }

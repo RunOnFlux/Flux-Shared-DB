@@ -36,9 +36,16 @@ function auth(ip) {
 /**
 * [authUser]
 */
-function authUser(ip) {
-  const whiteList = config.whiteListedIps.split(',');
-  if (whiteList.length && whiteList.includes(ip)) return true;
+function authUser(req) {
+  let remoteIp = utill.convertIP(req.ip);
+  if (!remoteIp) remoteIp = req.socket.address().address;
+  let loginphrase = false;
+  if (req.cookies.loginphrase) {
+    loginphrase = req.cookies.loginphrase;
+  }
+  if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
+    return true;
+  }
   return false;
 }
 /**
@@ -121,17 +128,12 @@ function startUI() {
   });
 
   app.post('/rollback', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    let { seqNo } = req.body;
-    seqNo = seqNo || req.query.seqNo;
-    console.log(req.body);
-    console.log(seqNo);
-    if (whiteList.length && seqNo) {
-      if (whiteList.includes(remoteIp)) {
+    if (authUser(req)) {
+      let { seqNo } = req.body;
+      seqNo = seqNo || req.query.seqNo;
+      console.log(req.body);
+      console.log(seqNo);
+      if (seqNo) {
         console.log(seqNo);
         await Operator.rollBack(seqNo);
         res.send({ status: 'OK' });
@@ -140,43 +142,33 @@ function startUI() {
   });
 
   app.get('/stats', (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
+    if (authUser(req)) {
+      res.send(Operator.OpNodes);
+      res.end();
     }
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(Operator.OpNodes);
-      }
-    }
+    res.sendStatus(403);
+    res.end();
   });
 
   app.get('/getLogDateRange', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(await BackLog.getDateRange());
-      }
+    if (authUser(req)) {
+      res.send(await BackLog.getDateRange());
+      res.end();
+    } else {
+      res.sendStatus(403);
+      res.end();
     }
   });
 
   app.get('/getLogsByTime', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    const { starttime } = req.query;
-    const { length } = req.query;
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(await BackLog.getLogsByTime(starttime, length));
-      }
+    if (authUser(req)) {
+      const { starttime } = req.query;
+      const { length } = req.query;
+      res.send(await BackLog.getLogsByTime(starttime, length));
+      res.end();
+    } else {
+      res.sendStatus(403);
+      res.end();
     }
   });
 
@@ -250,62 +242,66 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
-  app.get('/verifylogin/', (req, res) => {
-    let body = '';
+  app.post('/verifylogin/', (req, res) => {
+    let { body } = req;
+    if (body) {
+      const { signature } = body;
+      const { message } = body;
+      if (IdService.verifyLogin(message, signature)) {
+        let remoteIp = utill.convertIP(req.ip);
+        if (!remoteIp) remoteIp = req.socket.address().address;
+        IdService.addNewSession(message, remoteIp);
+        res.cookie('loginphrase', message);
+        res.send('OK');
+      } else {
+        res.send('SIGNATURE NOT VALID');
+      }
+    }
     req.on('data', (data) => {
+      console.log('verifylogin on data');
       body += data;
     });
     req.on('end', async () => {
+      console.log('verifylogin on end');
       try {
         const processedBody = ensureObject(body);
-        const address = await fluxAPI.getApplicationOwner(config.AppName);
         let { signature } = processedBody;
         if (!signature) signature = req.query.signature;
         const message = processedBody.loginPhrase || processedBody.message || req.query.message;
-        console.log(address);
         console.log(signature);
         console.log(message);
+        if (IdService.verifyLogin(message, signature)) {
+          let remoteIp = utill.convertIP(req.ip);
+          if (!remoteIp) remoteIp = req.socket.address().address;
+          IdService.addNewSession(message, remoteIp);
+          res.cookie('loginphrase', message);
+          res.send('OK');
+        } else {
+          res.send('SIGNATURE NOT VALID');
+        }
       } catch (error) {
         log.error(error);
       }
-      res.send('OK');
+      res.send('Error');
     });
-  });
-
-  app.get('/verifymanuallogin/:loginphrase?/:signature?', (req, res) => {
-    try {
-      const { loginphrase } = req.query;
-      const { signature } = req.query;
-      console.log(req.query);
-      if (IdService.verifyLogin(loginphrase, signature)) {
-        const remoteIp = utill.convertIP(req.ip);
-        IdService.addNewSession(loginphrase, remoteIp);
-        res.cookie('loginphrase', loginphrase);
-        return res.send('OK');
-      }
-      return res.send('SIGNATURE NOT VALID');
-    } catch (error) {
-      log.error(error);
-      return res ? res.json(error.message) : error.message;
-    }
   });
 
   app.get('/loginphrase/', (req, res) => {
     res.send(IdService.generateLoginPhrase());
   });
 
+  app.get('/logout/', (req, res) => {
+    if (authUser(req)) {
+      IdService.removeSession(req.cookies.loginphrase);
+      res.send('OK');
+    } else {
+      res.sendStatus(403);
+      res.end();
+    }
+  });
+
   app.get('/', (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    let loginphrase = false;
-    if (req.cookies.loginphrase) {
-      loginphrase = req.cookies.loginphrase;
-    }
-    console.log(`loginphrase: ${loginphrase}`);
-    // log.info(`UI access from ${remoteIp}`);
-    if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
+    if (authUser(req)) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
       res.sendFile(path.join(__dirname, '../ui/login.html'));
@@ -490,6 +486,7 @@ async function initServer() {
       socket.disconnect();
     }
   });
+  IdService.init();
   log.info(`Api Server started on port ${config.apiPort}`);
   // await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);

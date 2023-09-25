@@ -25,6 +25,8 @@ class IdService {
   * [addNewSession]
   */
   static addNewSession(sessionID, userParams) {
+    // eslint-disable-next-line no-param-reassign
+    if (!userParams) userParams = 'NA';
     sessions.put(sessionID, userParams, this.sessionExpireTime);
     console.log('new session added');
     console.log(sessionID);
@@ -36,10 +38,20 @@ class IdService {
   * [verifySession]
   */
   static verifySession(sessionID, userParams) {
+    // eslint-disable-next-line no-param-reassign
+    if (!userParams) userParams = 'NA';
     const value = sessions.get(sessionID);
-    console.log(value);
+    console.log(`session ${sessionID} value ${value}`);
     if (value !== userParams) return false;
     sessions.put(sessionID, userParams, this.sessionExpireTime);
+    return true;
+  }
+
+  /**
+  * [removeSession]
+  */
+  static removeSession(sessionID) {
+    sessions.del(sessionID);
     return true;
   }
 
