@@ -1,10 +1,10 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
 const sessions = require('memory-cache');
-const log = require('../lib/log');
 
 class IdService {
   static loginPhrases = [this.generateLoginPhrase(), this.generateLoginPhrase()];
+
   static sessionExpireTime = 30 * 60 * 1000;
 
   /**
