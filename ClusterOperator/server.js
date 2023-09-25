@@ -6,6 +6,7 @@ const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -69,6 +70,7 @@ function ensureObject(parameter) {
 function startUI() {
   const app = express();
   app.use(cors());
+  app.use(cookieParser());
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
@@ -270,8 +272,26 @@ function startUI() {
     });
   });
 
+  app.get('/verifymanuallogin/:loginphrase?/:signature?', (req, res) => {
+    try {
+      const { loginphrase } = req.query;
+      const { signature } = req.query;
+      console.log(req.query);
+      if (IdService.verifyLogin(loginphrase, signature)) {
+        const remoteIp = utill.convertIP(req.ip);
+        IdService.addNewSession(loginphrase, remoteIp);
+        res.cookie('loginphrase', loginphrase);
+        return res.send('OK');
+      }
+      return res.send('SIGNATURE NOT VALID');
+    } catch (error) {
+      log.error(error);
+      return res ? res.json(error.message) : error.message;
+    }
+  });
+
   app.get('/loginphrase/', (req, res) => {
-    res.send(IdService.getLoginPhrase());
+    res.send(IdService.generateLoginPhrase());
   });
 
   app.get('/', (req, res) => {
@@ -279,9 +299,13 @@ function startUI() {
     if (req.headers['x-forwarded-for']) {
       remoteIp = req.headers['x-forwarded-for'];
     }
-    // log.info(JSON.stringify(req.headers));
+    let loginphrase = false;
+    if (req.cookies.loginphrase) {
+      loginphrase = req.cookies.loginphrase;
+    }
+    console.log(`loginphrase: ${loginphrase}`);
     // log.info(`UI access from ${remoteIp}`);
-    if (authUser(remoteIp)) {
+    if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
       res.sendFile(path.join(__dirname, '../ui/login.html'));
@@ -467,10 +491,10 @@ async function initServer() {
     }
   });
   log.info(`Api Server started on port ${config.apiPort}`);
-  await Operator.findMaster();
+  // await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);
   if (!Operator.IamMaster) {
-    Operator.initMasterConnection();
+    // Operator.initMasterConnection();
   }
   setInterval(async () => {
     Operator.doHealthCheck();

@@ -179,12 +179,12 @@
 
   function init() {
     let baseUrl = new URL(window.location.href);
-    window.apiURL = baseUrl.hostname + ':' + baseUrl.port;
+    window.apiURL = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
     let fragment = baseUrl.hash;
     window.lock = false;
     
     // Menu & Page manager
-    let activePage = "dash";
+    let activePage = "dashboard";
     if (fragment != '') activePage = fragment.substring(1);
     startPage(activePage, apiURL);
     $('.menu-link.active').removeClass('active');
@@ -193,6 +193,7 @@
     $('.menu-link').click(function() {
       if(window.lock) return;
       let newPage = $(this).data('page');
+      console.log(newPage);
       $('#' + activePage).toggleClass('d-none');
       $('#' + newPage).toggleClass('d-none');
       $('.menu-link.active').removeClass('active');
@@ -224,7 +225,7 @@
     console.log(page);
     if(page === 'time-machine'){
       $.ajax({
-        type: 'GET', dataType:"json", url: 'http://' + window.apiURL + '/getLogDateRange',
+        type: 'GET', dataType:"json", url: window.apiURL + '/getLogDateRange',
         success: function (data, status, xhr) {
           console.log('data: ', data);
           let startDate = new Date(data.min_timestamp);
@@ -239,7 +240,7 @@
               //console.log(d.getTimezoneOffset() );
               var timestamp = Math.floor(d.getTime());
               $.ajax({
-                  type: 'GET', dataType:"json", url: 'http://' + window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=86400000`,
+                  type: 'GET', dataType:"json", url: window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=86400000`,
                   success: function (data, status, xhr) {
                     // console.log('data: ', data);
                     let points = 0;
@@ -313,7 +314,7 @@
     window.lock = true;
     console.log(seq);
     $.ajax({
-      type: 'POST', url: 'http://' + window.apiURL + `/rollback`, data: {seqNo: seq},
+      type: 'POST', url: window.apiURL + `/rollback`, data: {seqNo: seq},
       success: function (data, status, xhr) {
         console.log('data: ', data);
         document.getElementById("tm-rewind").disabled = false;

@@ -98,31 +98,35 @@
 <script>
 $(document).ready(function() {
   let baseUrl = new URL(window.location.href);
-  window.apiURL = baseUrl.hostname + ':' + baseUrl.port;
+  window.apiURL = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
+  console.log(window.apiURL);
   $("#app_login").click(function() {
     console.log("app_login");
     let loginPhrase = '123';
-    const callbackValue = `http://${window.apiURL}/verifylogin`;
+    const callbackValue = `${window.apiURL}/verifylogin`;
     console.log(`zel:?action=sign&message=${loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
     window.location.replace(`zel:?action=sign&message=${loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
   });
   $("#login-btn").click(function() {
     let loginPhrase = $("#h-message").val();
     let signature = $("#h-signature").val();
-    const callbackValue = `http://${window.apiURL}/verifylogin?signature=${signature}&message=${loginPhrase}`;
+    const callbackValue = `${window.apiURL}/verifymanuallogin?signature=${signature}&loginphrase=${loginPhrase}`;
     $.ajax({
       url: callbackValue,
       crossDomain: true,
       type: "GET",
       success: function (data, status, xhr) {
         console.log('data: ', data);
+        if(data==='OK'){
+          window.location.replace(window.apiURL);
+        }
       }
     })
 
   });
   function fetchLoginPhrase(){
     $.ajax({
-      url: `http://${window.apiURL}/loginphrase`,
+      url: `${window.apiURL}/loginphrase`,
       crossDomain: true,
       type: "GET",
       success: function (data, status, xhr) {
