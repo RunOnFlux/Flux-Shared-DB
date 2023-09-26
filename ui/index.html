@@ -320,7 +320,7 @@
     }
   }
   async function generateClusterStats(){
-    try{
+    try{   
       const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
       console.log(nodelist.data);
       if(Array.isArray(nodelist.data)){
@@ -328,7 +328,7 @@
         let html = '';
         for( let i = 0; i< nodelist.data.length; i += 1){
           try{
-            const nodeStatus = await axios.get(`http://${nodelist.data[i].ip}:${window.port}/status`, { timeout: 2000, headers: {loginphrase: window.loginphrase} });
+            const nodeStatus = await axios.get(`http://${nodelist.data[i].ip}:${window.port}/status`, { timeout: 2000 });
             html += `<tr><th scope="row">${i+1}</th><td>${nodelist.data[i].ip}</td><td>${nodeStatus.data.sequenceNumber}</td><td>${nodeStatus.data.masterIP}</td><td>${nodeStatus.data.status}</td></tr>`;
             console.log(nodeStatus.data);
           } catch (err){

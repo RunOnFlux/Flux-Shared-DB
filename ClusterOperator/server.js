@@ -152,6 +152,8 @@ function startUI() {
     }
   });
   app.get('/status', (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With');
     res.send({
       status: Operator.status,
       sequenceNumber: BackLog.sequenceNumber,
