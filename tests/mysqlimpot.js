@@ -8,13 +8,13 @@ const importer = new Importer({
 });
 
 importer.onProgress((progress) => {
-  const percent = Math.floor(progress.bytes_processed / progress.total_bytes * 10000) / 100;
+  const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
   console.log(`${percent}% Completed`);
 });
 importer.setEncoding('utf8');
 importer.import('./dumps/dump.sql').then(() => {
-  const files_imported = importer.getImported();
-  console.log(`${files_imported.length} SQL file(s) imported.`);
+  const filesImported = importer.getImported();
+  console.log(`${filesImported.length} SQL file(s) imported.`);
 }).catch((err) => {
   console.error(err);
 });
