@@ -19,6 +19,7 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
+const IdService = require('./IdService');
 
 // const e = require('cors');
 
@@ -221,6 +222,9 @@ class Operator {
           await BackLog.pushKey(decKey, value);
           Operator.keys[decKey] = value;
         });
+        this.masterWSConn.on('userSession', (op, key, value) => {
+          if (op === 'add') { IdService.addNewSession(key, value); } else { IdService.removeSession(key); }
+        });
         this.masterWSConn.on('rollBack', async (seqNo) => {
           log.info(`rollback request from master, rewinding to ${seqNo}`);
           if (this.status === 'SYNC') {
@@ -369,6 +373,25 @@ class Operator {
           });
         });
       }
+    }
+    return null;
+  }
+
+  /**
+  * [emitUserSession]
+  * @param {string} key [description]
+  * @param {string} value [description]
+  */
+  static async emitUserSession(op, key, value) {
+    if (this.IamMaster) {
+      this.serverSocket.emit('userSession', op, key, value);
+    } else {
+      const { masterWSConn } = this;
+      return new Promise((resolve) => {
+        masterWSConn.emit('userSession', op, key, value, (response) => {
+          resolve(response.result);
+        });
+      });
     }
     return null;
   }

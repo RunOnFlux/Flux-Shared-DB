@@ -141,9 +141,21 @@ function startUI() {
     }
   });
 
-  app.get('/stats', (req, res) => {
+  app.get('/nodelist', (req, res) => {
     if (authUser(req)) {
       res.send(Operator.OpNodes);
+      res.end();
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.get('/status', (req, res) => {
+    if (authUser(req)) {
+      res.send({
+        status: Operator.status,
+        sequenceNumber: BackLog.sequenceNumber,
+        masterIP: Operator.getMaster(),
+      });
       res.end();
     } else {
       res.status(403).render();
@@ -249,6 +261,7 @@ function startUI() {
         let remoteIp = utill.convertIP(req.ip);
         if (!remoteIp) remoteIp = req.socket.address().address;
         IdService.addNewSession(message, remoteIp);
+        Operator.emitUserSession('add', message, remoteIp);
         res.cookie('loginphrase', message);
         res.send('OK');
       } else {
@@ -272,6 +285,7 @@ function startUI() {
           let remoteIp = utill.convertIP(req.ip);
           if (!remoteIp) remoteIp = req.socket.address().address;
           IdService.addNewSession(message, remoteIp);
+          Operator.emitUserSession('add', message, remoteIp);
           res.cookie('loginphrase', message);
           res.send('OK');
         } else {
@@ -291,6 +305,7 @@ function startUI() {
   app.get('/logout/', (req, res) => {
     if (authUser(req)) {
       IdService.removeSession(req.cookies.loginphrase);
+      Operator.emitUserSession('remove', req.cookies.loginphrase, '');
       res.send('OK');
     } else {
       res.status(403).render();
@@ -473,6 +488,11 @@ async function initServer() {
         if (Operator.IamMaster) {
           Operator.rollBack(seqNo);
         }
+        callback({ status: Operator.status });
+      });
+      socket.on('userSession', async (op, key, value, callback) => {
+        if (op === 'add') { IdService.addNewSession(key, value); } else { IdService.removeSession(key); }
+        socket.broadcast.emit('userSession', op, key, value);
         callback({ status: Operator.status });
       });
     } else {
