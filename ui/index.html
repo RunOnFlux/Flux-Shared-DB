@@ -321,14 +321,14 @@
   }
   async function generateClusterStats(){
     const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
-    console.log(nodelist);
-    if(Array.isArray(nodelist)){
+    console.log(nodelist.data);
+    if(Array.isArray(nodelist.data)){
       
       let html = '';
-      for( let i = 0; i< nodelist.length; i += 1){
-        const nodeStatus = await axios.get(`${nodelist[i].ip}:${window.port}/status`, { timeout: 2000, headers: {loginphrase: window.loginphrase} });
-        html += `<tr><th scope="row">${i+1}</th><td>${nodelist[i].ip}</td><td>${nodeStatus.sequenceNumber}</td><td>${nodeStatus.masterIP}</td><td>${nodeStatus.status}</td></tr>`;
-        console.log(nodeStatus);
+      for( let i = 0; i< nodelist.data.length; i += 1){
+        const nodeStatus = await axios.get(`${nodelist.data[i].ip}:${window.port}/status`, { timeout: 2000, headers: {loginphrase: window.loginphrase} });
+        html += `<tr><th scope="row">${i+1}</th><td>${nodelist.data[i].ip}</td><td>${nodeStatus.data.sequenceNumber}</td><td>${nodeStatus.data.masterIP}</td><td>${nodeStatus.data.status}</td></tr>`;
+        console.log(nodeStatus.data);
       }
       $('#nodelist').html(html);
     }
