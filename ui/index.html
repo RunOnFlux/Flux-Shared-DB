@@ -220,7 +220,8 @@
     window.port = baseUrl.port;
     let fragment = baseUrl.hash;
     window.lock = false;
-    
+    window.loginphrase = getCookieValue('loginphrase');;
+    console.log(window.loginphrase);
     // Menu & Page manager
     let activePage = "dashboard";
     if (fragment != '') activePage = fragment.substring(1);
@@ -322,14 +323,15 @@
     const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
     console.log(nodelist);
     if(Array.isArray(nodelist)){
+      
       let html = '';
       for( let i = 0; i< nodelist.length; i += 1){
-        const nodeStatus = await axios.get(`${nodelist[i].ip}:${window.port}/status`, { timeout: 2000 });
+        const nodeStatus = await axios.get(`${nodelist[i].ip}:${window.port}/status`, { timeout: 2000, headers: {loginphrase: window.loginphrase} });
         html += `<tr><th scope="row">${i+1}</th><td>${nodelist[i].ip}</td><td>${nodeStatus.sequenceNumber}</td><td>${nodeStatus.masterIP}</td><td>${nodeStatus.status}</td></tr>`;
         console.log(nodeStatus);
       }
+      $('#nodelist').html(html);
     }
-    $('#nodelist').html(html);
   }
   function escapeHtml(unsafe)
   {
@@ -388,5 +390,8 @@
     });
 
   }
+  const getCookieValue = (name) => (
+  document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)')?.pop() || ''
+  )
   init();
 </script>

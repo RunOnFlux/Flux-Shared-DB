@@ -42,6 +42,8 @@ function authUser(req) {
   let loginphrase = false;
   if (req.cookies.loginphrase) {
     loginphrase = req.cookies.loginphrase;
+  } else {
+    loginphrase = req.headers.loginphrase;
   }
   if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
     return true;
