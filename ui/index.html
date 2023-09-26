@@ -187,6 +187,11 @@
             <tbody id="nodelist">
             </tbody>
           </table>
+          <div id="nodelist-spinner" class="d-flex justify-content-center">
+            <div class="spinner-border text-info" role="status">
+              <span class="sr-only">Loading...</span>
+            </div>
+          </div>
         </div>
       </div>
       </div>
@@ -321,6 +326,7 @@
   }
   async function generateClusterStats(){
     try{   
+      $('#nodelist-spinner').show();
       const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
       console.log(nodelist.data);
       if(Array.isArray(nodelist.data)){
@@ -337,6 +343,7 @@
         }
         $('#nodelist').html(html);
       }
+      $('#nodelist-spinner').hide();
     } catch (err){
       console.log(err);
     }
