@@ -1,4 +1,4 @@
-const mysqldump = require('mysqldump');
+const mysqldump = require('../modules/mysqldump');
 
 mysqldump({
   connection: {
@@ -17,5 +17,5 @@ mysqldump({
       verbose: false,
     },
   },
-  dumpToFile: './dump.sql',
+  dumpToFile: './dumps/dump.sql',
 });

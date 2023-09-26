@@ -1,4 +1,4 @@
-const Importer = require('mysql-import');
+const Importer = require('../modules/mysql-import');
 
 const importer = new Importer({
   host: 'localhost',
@@ -12,7 +12,7 @@ importer.onProgress((progress) => {
   console.log(`${percent}% Completed`);
 });
 importer.setEncoding('utf8');
-importer.import('./dump.sql').then(() => {
+importer.import('./dumps/dump.sql').then(() => {
   const files_imported = importer.getImported();
   console.log(`${files_imported.length} SQL file(s) imported.`);
 }).catch((err) => {

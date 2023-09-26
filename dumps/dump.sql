@@ -1,4 +1,3 @@
-
 SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
 # ------------------------------------------------------------
 # SCHEMA DUMP FOR TABLE: wp_commentmeta
@@ -5094,5 +5093,4 @@ VALUES
     0,
     'admin'
   );
-
 

@@ -8,7 +8,7 @@ const config = require('./config');
 class IdService {
   static loginPhrases = [this.generateLoginPhrase(), this.generateLoginPhrase()];
 
-  static sessionExpireTime = 30 * 60 * 1000;
+  static sessionExpireTime = 24 * 60 * 60 * 1000; // 24 hours
 
   static ownerZelID = null;
 

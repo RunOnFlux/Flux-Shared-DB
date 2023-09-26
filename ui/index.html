@@ -13,14 +13,23 @@
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
    <style>
     /* Set styles for the icons */
+    .navbar {
+			border-bottom: #ffffff41 1px solid;
+		}
 		.navbar i {
 			margin-right: 10px;
 		}
     body {
-      background-color: #ededed;
+      background: linear-gradient(-45deg, #e73c7e, #23a6d5);
+      background-size: 100% 100%;
+      height: 100vh;
     }
     .card-header {
       background-color: #fff;
+      color: #898989;
+    }
+    .card-header h3 {
+      font-weight: 100;
     }
     .query {
       font-size: 15px;
@@ -69,12 +78,17 @@
     .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
     background: #4e4e4e;
     }
+    .dropdown-menu {
+      background-color: #ffffffc9;
+      border: 1px solid rgb(88 88 88 / 15%);
+    }
 	</style>
 </head>
 <body>
-	<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+	<nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">Flux DB</a>
+      <a class="navbar-brand" href="#dashboard"><img src="/assets/flux_white-blue.svg" width="99" height="31" style="vertical-align: text-bottom;">
+         <span style="font-size: 28px;font-weight: 600;line-height: 10px;margin-left: -5px;color: #ffd600;">DB</span> <span style="letter-spacing: -1px;font-weight: 100;">Control Panel</span></a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -150,9 +164,16 @@
       </div>
     </div>
   </div>
-  <div class="container-fluid d-none" id="dashboard">
-    <div class="card m-3 p-4">
-      <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+  <div class="container-fluid d-none mt-3" id="dashboard">
+    <div class="card">
+      <div class="card-header">
+      <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
+      </div>
+      <div class="card-body">
+        <div style="overflow:hidden;">
+        </div>
+      </div>
+      </div>
     </div>
   </div>
 
@@ -274,6 +295,13 @@
           });
 
 
+        }
+      });
+    }else if(page === 'dashboard'){
+      $.ajax({
+        type: 'GET', dataType:"json", url: window.apiURL + '/stats',
+        success: function (data, status, xhr) {
+          console.log('data: ', data);
         }
       });
     }

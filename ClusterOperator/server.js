@@ -145,9 +145,9 @@ function startUI() {
     if (authUser(req)) {
       res.send(Operator.OpNodes);
       res.end();
+    } else {
+      res.status(403).render();
     }
-    res.sendStatus(403);
-    res.end();
   });
 
   app.get('/getLogDateRange', async (req, res) => {
@@ -155,8 +155,7 @@ function startUI() {
       res.send(await BackLog.getDateRange());
       res.end();
     } else {
-      res.sendStatus(403);
-      res.end();
+      res.status(403).render();
     }
   });
 
@@ -167,8 +166,7 @@ function startUI() {
       res.send(await BackLog.getLogsByTime(starttime, length));
       res.end();
     } else {
-      res.sendStatus(403);
-      res.end();
+      res.status(403).render();
     }
   });
 
@@ -295,8 +293,7 @@ function startUI() {
       IdService.removeSession(req.cookies.loginphrase);
       res.send('OK');
     } else {
-      res.sendStatus(403);
-      res.end();
+      res.status(403).render();
     }
   });
 
@@ -311,6 +308,10 @@ function startUI() {
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
+  app.get('/assets/Flux_white-blue.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
+  });
+  
   // https
   //  .createServer(app)
   //  .listen(443, () => {
