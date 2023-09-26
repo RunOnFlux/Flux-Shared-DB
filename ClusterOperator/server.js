@@ -87,6 +87,12 @@ function startUI() {
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
   fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
+  app.options('/*', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.send(200);
+  });
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
