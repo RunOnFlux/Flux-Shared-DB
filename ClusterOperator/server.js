@@ -152,16 +152,12 @@ function startUI() {
     }
   });
   app.get('/status', (req, res) => {
-    if (authUser(req)) {
-      res.send({
-        status: Operator.status,
-        sequenceNumber: BackLog.sequenceNumber,
-        masterIP: Operator.getMaster(),
-      });
-      res.end();
-    } else {
-      res.status(403).render();
-    }
+    res.send({
+      status: Operator.status,
+      sequenceNumber: BackLog.sequenceNumber,
+      masterIP: Operator.getMaster(),
+    });
+    res.end();
   });
 
   app.get('/getLogDateRange', async (req, res) => {
