@@ -10,6 +10,7 @@
    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
    <style>
     /* Set styles for the icons */
@@ -171,6 +172,21 @@
       </div>
       <div class="card-body">
         <div style="overflow:hidden;">
+          <p>DB ENGINE: MySql</p>
+          <p>Active Nodes:</p>
+          <table class="table table-bordered">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">IP</th>
+                <th scope="col">Sequence Number</th>
+                <th scope="col">Master IP</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="nodelist">
+            </tbody>
+          </table>
         </div>
       </div>
       </div>
@@ -201,6 +217,7 @@
   function init() {
     let baseUrl = new URL(window.location.href);
     window.apiURL = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
+    window.port = baseUrl.port;
     let fragment = baseUrl.hash;
     window.lock = false;
     
@@ -298,13 +315,21 @@
         }
       });
     }else if(page === 'dashboard'){
-      $.ajax({
-        type: 'GET', dataType:"json", url: window.apiURL + '/stats',
-        success: function (data, status, xhr) {
-          console.log('data: ', data);
-        }
-      });
+      generateClusterStats();
     }
+  }
+  async function generateClusterStats(){
+    const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
+    console.log(nodelist);
+    if(Array.isArray(nodelist)){
+      let html = '';
+      for( let i = 0; i< nodelist.length; i += 1){
+        const nodeStatus = await axios.get(`${nodelist[i].ip}:${window.port}/status`, { timeout: 2000 });
+        html += `<tr><th scope="row">${i+1}</th><td>${nodelist[i].ip}</td><td>${nodeStatus.sequenceNumber}</td><td>${nodeStatus.masterIP}</td><td>${nodeStatus.status}</td></tr>`;
+        console.log(nodeStatus);
+      }
+    }
+    $('#nodelist').html(html);
   }
   function escapeHtml(unsafe)
   {

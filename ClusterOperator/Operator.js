@@ -383,14 +383,16 @@ class Operator {
   * @param {string} value [description]
   */
   static async emitUserSession(op, key, value) {
-    if (this.IamMaster) {
+    if (this.IamMaster && this.serverSocket) {
       this.serverSocket.emit('userSession', op, key, value);
     } else {
       const { masterWSConn } = this;
       return new Promise((resolve) => {
-        masterWSConn.emit('userSession', op, key, value, (response) => {
-          resolve(response.result);
-        });
+        if (masterWSConn) {
+          masterWSConn.emit('userSession', op, key, value, (response) => {
+            resolve(response.result);
+          });
+        }
       });
     }
     return null;
