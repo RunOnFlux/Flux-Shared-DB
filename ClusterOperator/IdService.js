@@ -4,6 +4,7 @@ const sessions = require('memory-cache');
 const bitcoinMessage = require('bitcoinjs-message');
 const fluxAPI = require('../lib/fluxAPI');
 const config = require('./config');
+const log = require('../lib/log');
 
 class IdService {
   static loginPhrases = [this.generateLoginPhrase(), this.generateLoginPhrase()];
@@ -28,9 +29,7 @@ class IdService {
     // eslint-disable-next-line no-param-reassign
     if (!userParams) userParams = 'NA';
     sessions.put(sessionID, userParams, this.sessionExpireTime);
-    console.log('new session added');
-    console.log(sessionID);
-    console.log(userParams);
+    log.info(`new session from ${userParams}`);
     return sessionID;
   }
 
@@ -51,6 +50,7 @@ class IdService {
   * [removeSession]
   */
   static removeSession(sessionID) {
+    log.info('session logged out.');
     sessions.del(sessionID);
     return true;
   }
@@ -62,6 +62,7 @@ class IdService {
     const timestamp = new Date().getTime();
     const message = loginPhrase;
     const maxHours = 30 * 60 * 1000;
+    // check timestamp
     if (Number(message.substring(0, 13)) < (timestamp - maxHours) || Number(message.substring(0, 13)) > timestamp || message.length > 70 || message.length < 40) {
       return false;
     }
