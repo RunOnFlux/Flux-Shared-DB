@@ -1,3 +1,4 @@
+/* eslint-disable consistent-return */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
@@ -5,6 +6,7 @@ const { Server } = require('socket.io');
 const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
+const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -82,6 +84,7 @@ function startUI() {
   app.use(cookieParser());
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
+  app.use(fileUpload());
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -257,7 +260,67 @@ function startUI() {
     }
     res.status(404).send('Key not found');
   });
-
+  app.get('/listbackups', async (req, res) => {
+    if (authUser(req)) {
+      res.send(await BackLog.listSqlFiles());
+      res.end();
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.get('/getbackupfile/:filename', async (req, res) => {
+    if (authUser(req)) {
+      const { filename } = req.params;
+      res.download(path.join(__dirname, `../dumps/${filename}.sql`), `${filename}.sql`, (err) => {
+        if (err) {
+          // Handle errors, such as file not found
+          res.status(404).send('File not found');
+        }
+      });
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/upload-sql', async (req, res) => {
+    if (authUser(req)) {
+      if (!req.files || !req.files.sqlFile) {
+        return res.status(400).send('No file uploaded.');
+      }
+      const { sqlFile } = req.files;
+      const uploadPath = path.join(__dirname, '../dumps/', sqlFile.name); // Adjust the destination folder as needed
+      // Move the uploaded .sql file to the specified location
+      sqlFile.mv(uploadPath, (err) => {
+        if (err) {
+          return res.status(500).send(`Error uploading file: ${err.message}`);
+        }
+        res.send('File uploaded successfully.');
+      });
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/generatebackup', async (req, res) => {
+    if (authUser(req)) {
+      res.send(await BackLog.dumpBackup());
+      res.end();
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/deletebackup', async (req, res) => {
+    if (authUser(req)) {
+      const { body } = req;
+      console.log(body);
+      if (body) {
+        const { filename } = body;
+        console.log(filename);
+        res.send(await BackLog.deleteBackupFile(filename));
+        res.end();
+      }
+    } else {
+      res.status(403).render();
+    }
+  });
   app.post('/verifylogin/', (req, res) => {
     let { body } = req;
     if (body) {

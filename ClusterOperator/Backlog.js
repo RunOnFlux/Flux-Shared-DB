@@ -2,12 +2,15 @@
 /* eslint-disable no-restricted-syntax */
 // const timer = require('timers/promises');
 const queryCache = require('memory-cache');
+const fs = require('fs');
+const path = require('path');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
 const Security = require('./Security');
 const ConnectionPool = require('../lib/ConnectionPool');
 const utill = require('../lib/utill');
+const mysqldump = require('../modules/mysqldump');
 
 class BackLog {
   static buffer = [];
@@ -333,7 +336,7 @@ class BackLog {
   static async clearLogs() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -352,7 +355,7 @@ class BackLog {
   static async rebuildDatabase(seqNo) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -404,7 +407,7 @@ class BackLog {
   static async clearBuffer() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -425,7 +428,7 @@ class BackLog {
   static async moveBufferToBacklog() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
 
     if (config.dbType === 'mysql') {
@@ -459,7 +462,7 @@ class BackLog {
     const encryptedValue = Security.encrypt(value);
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -483,7 +486,7 @@ class BackLog {
   static async getKey(key) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -504,7 +507,7 @@ class BackLog {
   static async removeKey(key) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -526,7 +529,7 @@ class BackLog {
     const keys = {};
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -540,7 +543,89 @@ class BackLog {
     }
     return keys;
   }
-}
+
+  /**
+  * [dumpBackup]
+  */
+  static async dumpBackup() {
+    const timestamp = new Date().getTime();
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    if (this.BLClient) {
+      const startTime = Date.now(); // Record the start time
+      await mysqldump({
+        connection: {
+          host: config.dbHost,
+          port: config.dbPort,
+          user: config.dbUser,
+          password: Security.getKey(),
+          database: config.dbInitDB,
+        },
+        dump: {
+          schema: {
+            table: {
+              dropIfExist: true,
+            },
+          },
+          data: {
+            verbose: false,
+          },
+        },
+        dumpToFile: `./dumps/BU_${timestamp}.sql`,
+      });
+      const endTime = Date.now(); // Record the end time
+      log.info(`Backup file created in (${endTime - startTime} ms): BU_${timestamp}.sql`);
+    } else {
+      log.info('Can not connect to the DB');
+    }
+  }
+
+  /**
+  * [listSqlFiles]
+  */
+  static async listSqlFiles() {
+    const folderPath = './dumps/';
+    try {
+      const files = fs.readdirSync(folderPath);
+
+      const sqlFilesInfo = files.map((file) => {
+        const filePath = path.join(folderPath, file);
+        const fileStats = fs.statSync(filePath);
+        const isSqlFile = path.extname(file) === '.sql';
+
+        if (isSqlFile) {
+          return {
+            fileName: file,
+            fileSize: fileStats.size, // in bytes
+            createdDateTime: fileStats.birthtime, // creation date/time
+          };
+        } else {
+          return null; // Ignore non-SQL files
+        }
+      });
+
+      // Filter out null entries (non-SQL files) and return the result
+      return sqlFilesInfo.filter((info) => info !== null);
+    } catch (error) {
+      log.error(`Error reading folder: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+  * [deleteBackupFile]
+  */
+  static async deleteBackupFile(fileName) {
+    try {
+      fs.unlinkSync(`./dumps/${fileName}.sql`);
+      log.info(`File "${fileName}.sql" has been deleted.`);
+    } catch (error) {
+      log.error(`Error deleting file "${fileName}": ${error.message}`);
+    }
+  }
+}// end class
 
 // eslint-disable-next-line func-names
 module.exports = BackLog;
