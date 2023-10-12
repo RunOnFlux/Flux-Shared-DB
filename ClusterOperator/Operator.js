@@ -666,6 +666,8 @@ class Operator {
         }
         if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
+          this.masterNode = null;
+          this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
         }
