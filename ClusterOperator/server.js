@@ -492,7 +492,7 @@ async function initServer() {
           let BLRecord = BackLog.BLqueryCache.get(index);
           log.info(JSON.stringify(BLRecord), 'red');
           if (!BLRecord) {
-            BLRecord = BackLog.getLog(index);
+            BLRecord = await BackLog.getLog(index);
             log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
           }
         }
