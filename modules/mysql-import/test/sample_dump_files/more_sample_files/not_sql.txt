@@ -1,0 +1,3 @@
+select * from notarealtable;
+select anything form nowhere;
+insert wetwilly into ear;

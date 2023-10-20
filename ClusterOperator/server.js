@@ -1,3 +1,4 @@
+/* eslint-disable consistent-return */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-unused-vars */
@@ -5,11 +6,15 @@ const { Server } = require('socket.io');
 const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
+const RateLimit = require('express-rate-limit');
+const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const qs = require('qs');
+const sanitize = require('sanitize-filename');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
@@ -35,9 +40,18 @@ function auth(ip) {
 /**
 * [authUser]
 */
-function authUser(ip) {
-  const whiteList = config.whiteListedIps.split(',');
-  if (whiteList.length && whiteList.includes(ip)) return true;
+function authUser(req) {
+  let remoteIp = utill.convertIP(req.ip);
+  if (!remoteIp) remoteIp = req.socket.address().address;
+  let loginphrase = false;
+  if (req.cookies.loginphrase) {
+    loginphrase = req.cookies.loginphrase;
+  } else {
+    loginphrase = req.headers.loginphrase;
+  }
+  if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
+    return true;
+  }
   return false;
 }
 /**
@@ -69,13 +83,27 @@ function ensureObject(parameter) {
 function startUI() {
   const app = express();
   app.use(cors());
+  app.use(cookieParser());
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
+  app.use(fileUpload());
+  const limiter = RateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // max 100 requests per windowMs
+  });
+  // apply rate limiter to all requests
+  app.use(limiter);
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
   fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
+  app.options('/*', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.send(200);
+  });
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
@@ -119,62 +147,52 @@ function startUI() {
   });
 
   app.post('/rollback', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    let { seqNo } = req.body;
-    seqNo = seqNo || req.query.seqNo;
-    console.log(req.body);
-    console.log(seqNo);
-    if (whiteList.length && seqNo) {
-      if (whiteList.includes(remoteIp)) {
-        console.log(seqNo);
+    if (authUser(req)) {
+      let { seqNo } = req.body;
+      seqNo = seqNo || req.query.seqNo;
+      if (seqNo) {
         await Operator.rollBack(seqNo);
         res.send({ status: 'OK' });
       }
     }
   });
 
-  app.get('/stats', (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
+  app.get('/nodelist', (req, res) => {
+    if (authUser(req)) {
+      res.send(Operator.OpNodes);
+      res.end();
+    } else {
+      res.status(403).render();
     }
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(Operator.OpNodes);
-      }
-    }
+  });
+  app.get('/status', (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With');
+    res.send({
+      status: Operator.status,
+      sequenceNumber: BackLog.sequenceNumber,
+      masterIP: Operator.getMaster(),
+    });
+    res.end();
   });
 
   app.get('/getLogDateRange', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(await BackLog.getDateRange());
-      }
+    if (authUser(req)) {
+      res.send(await BackLog.getDateRange());
+      res.end();
+    } else {
+      res.status(403).render();
     }
   });
 
   app.get('/getLogsByTime', async (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    const whiteList = config.whiteListedIps.split(',');
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    const { starttime } = req.query;
-    const { length } = req.query;
-    if (whiteList.length) {
-      if (whiteList.includes(remoteIp)) {
-        res.send(await BackLog.getLogsByTime(starttime, length));
-      }
+    if (authUser(req)) {
+      const { starttime } = req.query;
+      const { length } = req.query;
+      res.send(await BackLog.getLogsByTime(starttime, length));
+      res.end();
+    } else {
+      res.status(403).render();
     }
   });
 
@@ -247,41 +265,123 @@ function startUI() {
     }
     res.status(404).send('Key not found');
   });
-
-  app.get('/verifylogin/', (req, res) => {
-    let body = '';
+  app.get('/listbackups', async (req, res) => {
+    if (authUser(req)) {
+      res.send(await BackLog.listSqlFiles());
+      res.end();
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.get('/getbackupfile/:filename', async (req, res) => {
+    if (authUser(req)) {
+      const { filename } = req.params;
+      res.download(path.join(__dirname, `../dumps/${filename}.sql`), `${filename}.sql`, (err) => {
+        if (err) {
+          // Handle errors, such as file not found
+          res.status(404).send('File not found');
+        }
+      });
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/upload-sql', async (req, res) => {
+    if (authUser(req)) {
+      if (!req.files || !req.files.sqlFile) {
+        return res.status(400).send('No file uploaded.');
+      }
+      const { sqlFile } = req.files;
+      const uploadPath = path.join(__dirname, '../dumps/', sqlFile.name); // Adjust the destination folder as needed
+      // Move the uploaded .sql file to the specified location
+      sqlFile.mv(uploadPath, (err) => {
+        if (err) {
+          return res.status(500).send(`Error uploading file: ${err.message}`);
+        }
+        res.send('File uploaded successfully.');
+      });
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/generatebackup', async (req, res) => {
+    if (authUser(req)) {
+      res.send(await BackLog.dumpBackup());
+      res.end();
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/deletebackup', async (req, res) => {
+    if (authUser(req)) {
+      const { body } = req;
+      if (body) {
+        const { filename } = body;
+        res.send(await BackLog.deleteBackupFile(filename));
+        res.end();
+      }
+    } else {
+      res.status(403).render();
+    }
+  });
+  app.post('/verifylogin/', (req, res) => {
+    let { body } = req;
+    if (body) {
+      const { signature } = body;
+      const { message } = body;
+      if (IdService.verifyLogin(message, signature)) {
+        let remoteIp = utill.convertIP(req.ip);
+        if (!remoteIp) remoteIp = req.socket.address().address;
+        IdService.addNewSession(message, remoteIp);
+        Operator.emitUserSession('add', message, remoteIp);
+        res.cookie('loginphrase', message);
+        res.send('OK');
+      } else {
+        res.send('SIGNATURE NOT VALID');
+      }
+    }
     req.on('data', (data) => {
       body += data;
     });
     req.on('end', async () => {
       try {
         const processedBody = ensureObject(body);
-        const address = await fluxAPI.getApplicationOwner(config.AppName);
         let { signature } = processedBody;
         if (!signature) signature = req.query.signature;
         const message = processedBody.loginPhrase || processedBody.message || req.query.message;
-        console.log(address);
-        console.log(signature);
-        console.log(message);
+        if (IdService.verifyLogin(message, signature)) {
+          let remoteIp = utill.convertIP(req.ip);
+          if (!remoteIp) remoteIp = req.socket.address().address;
+          IdService.addNewSession(message, remoteIp);
+          Operator.emitUserSession('add', message, remoteIp);
+          res.cookie('loginphrase', message);
+          res.send('OK');
+        } else {
+          res.send('SIGNATURE NOT VALID');
+        }
       } catch (error) {
         log.error(error);
       }
-      res.send('OK');
+      res.send('Error');
     });
   });
 
   app.get('/loginphrase/', (req, res) => {
-    res.send(IdService.getLoginPhrase());
+    res.send(IdService.generateLoginPhrase());
+  });
+
+  app.get('/logout/', (req, res) => {
+    if (authUser(req)) {
+      IdService.removeSession(req.cookies.loginphrase);
+      Operator.emitUserSession('remove', req.cookies.loginphrase, '');
+      res.send('OK');
+    } else {
+      res.status(403).render();
+    }
   });
 
   app.get('/', (req, res) => {
-    let remoteIp = utill.convertIP(req.ip);
-    if (req.headers['x-forwarded-for']) {
-      remoteIp = req.headers['x-forwarded-for'];
-    }
-    // log.info(JSON.stringify(req.headers));
-    // log.info(`UI access from ${remoteIp}`);
-    if (authUser(remoteIp)) {
+    if (authUser(req)) {
       res.sendFile(path.join(__dirname, '../ui/index.html'));
     } else {
       res.sendFile(path.join(__dirname, '../ui/login.html'));
@@ -290,6 +390,9 @@ function startUI() {
 
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
+  });
+  app.get('/assets/Flux_white-blue.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
   });
   // https
   //  .createServer(app)
@@ -318,7 +421,7 @@ async function initServer() {
   Security.init();
   startUI();
   await Operator.init();
-  const io = new Server(config.apiPort, { transports: ['websocket', 'polling'] });
+  const io = new Server(config.apiPort, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
   // const app = new App();
   // io.attachApp(app);
   Operator.setServerSocket(io);
@@ -389,7 +492,7 @@ async function initServer() {
           let BLRecord = BackLog.BLqueryCache.get(index);
           log.info(JSON.stringify(BLRecord), 'red');
           if (!BLRecord) {
-            BLRecord = BackLog.getLog(index);
+            BLRecord = await BackLog.getLog(index);
             log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
           }
         }
@@ -455,6 +558,11 @@ async function initServer() {
         }
         callback({ status: Operator.status });
       });
+      socket.on('userSession', async (op, key, value, callback) => {
+        if (op === 'add') { IdService.addNewSession(key, value); } else { IdService.removeSession(key); }
+        socket.broadcast.emit('userSession', op, key, value);
+        callback({ status: Operator.status });
+      });
     } else {
       log.warn(`rejected from ${ip}`);
       socket.disconnect();
@@ -466,6 +574,7 @@ async function initServer() {
       socket.disconnect();
     }
   });
+  IdService.init();
   log.info(`Api Server started on port ${config.apiPort}`);
   await Operator.findMaster();
   log.info(`find master finished, master is ${Operator.masterNode}`);

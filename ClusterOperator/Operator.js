@@ -19,6 +19,7 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
+const IdService = require('./IdService');
 
 // const e = require('cors');
 
@@ -221,6 +222,9 @@ class Operator {
           await BackLog.pushKey(decKey, value);
           Operator.keys[decKey] = value;
         });
+        this.masterWSConn.on('userSession', (op, key, value) => {
+          if (op === 'add') { IdService.addNewSession(key, value); } else { IdService.removeSession(key); }
+        });
         this.masterWSConn.on('rollBack', async (seqNo) => {
           log.info(`rollback request from master, rewinding to ${seqNo}`);
           if (this.status === 'SYNC') {
@@ -369,6 +373,27 @@ class Operator {
           });
         });
       }
+    }
+    return null;
+  }
+
+  /**
+  * [emitUserSession]
+  * @param {string} key [description]
+  * @param {string} value [description]
+  */
+  static async emitUserSession(op, key, value) {
+    if (this.IamMaster && this.serverSocket) {
+      this.serverSocket.emit('userSession', op, key, value);
+    } else {
+      const { masterWSConn } = this;
+      return new Promise((resolve) => {
+        if (masterWSConn) {
+          masterWSConn.emit('userSession', op, key, value, (response) => {
+            resolve(response.result);
+          });
+        }
+      });
     }
     return null;
   }
@@ -546,10 +571,26 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      while (ipList.length < this.nodeInstances) {
-        log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-        await timer.setTimeout(10000);
-        ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      const prevMaster = await BackLog.getKey('masterIP', false);
+      if (prevMaster) {
+        log.info(`previous master was ${prevMaster}`);
+        if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
+          log.info('previous master is in the node list. continue...');
+        } else {
+          log.info('previous master is NOT in the node list.');
+          while (ipList.length < this.nodeInstances) {
+            log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+            await timer.setTimeout(10000);
+            ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+          }
+        }
+      } else {
+        log.info('no master node defined before.');
+        while (ipList.length < this.nodeInstances) {
+          log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+          await timer.setTimeout(10000);
+          ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+        }
       }
       let appIPList = [];
       if (config.DBAppName === config.AppName) {
@@ -641,6 +682,8 @@ class Operator {
         }
         if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
+          this.masterNode = null;
+          this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
         }
@@ -728,6 +771,8 @@ class Operator {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
+            BackLog.pushKey('masterIP', this.masterNode, false);
+            log.info(`Master node is ${this.masterNode}`, 'yellow');
             return this.masterNode;
           }
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
@@ -741,6 +786,7 @@ class Operator {
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
+        BackLog.pushKey('masterIP', this.masterNode, false);
         return this.masterNode;
       }
       log.info('DB_APPNAME environment variabele is not defined.');

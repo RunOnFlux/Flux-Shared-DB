@@ -2,11 +2,15 @@
 /* eslint-disable no-restricted-syntax */
 // const timer = require('timers/promises');
 const queryCache = require('memory-cache');
+const fs = require('fs');
+const path = require('path');
 const dbClient = require('./DBClient');
 const config = require('./config');
 const log = require('../lib/log');
 const Security = require('./Security');
 const ConnectionPool = require('../lib/ConnectionPool');
+const utill = require('../lib/utill');
+const mysqldump = require('../modules/mysqldump');
 
 class BackLog {
   static buffer = [];
@@ -126,7 +130,8 @@ class BackLog {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
           } else {
             if (connId === false) {
-              if (query.toLowerCase().startsWith('create')) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
+              // most beckup softwares generate wrong sql statements for mysql v8, this prevents sql_mode related sql errors on v8.
+              if (!query.toLowerCase().startsWith('SET SESSION')) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
               result = await this.UserDBClient.query(query, false, fullQuery);
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
@@ -194,8 +199,9 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
-        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${totalRecords.length}`);
-        return totalRecords;
+        const trimedRecords = utill.trimArrayToSize(totalRecords, 3 * 1024 * 1024);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
+        return trimedRecords;
       }
     } catch (e) {
       log.error(e);
@@ -330,7 +336,7 @@ class BackLog {
   static async clearLogs() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -349,7 +355,7 @@ class BackLog {
   static async rebuildDatabase(seqNo) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -401,7 +407,7 @@ class BackLog {
   static async clearBuffer() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -422,7 +428,7 @@ class BackLog {
   static async moveBufferToBacklog() {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
 
     if (config.dbType === 'mysql') {
@@ -452,11 +458,11 @@ class BackLog {
   /**
   * [pushKey]
   */
-  static async pushKey(key, value) {
-    const encryptedValue = Security.encrypt(value);
+  static async pushKey(key, value, encrypt = true) {
+    const encryptedValue = (encrypt) ? Security.encrypt(value) : value;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -477,16 +483,16 @@ class BackLog {
   /**
   * [getKey]
   */
-  static async getKey(key) {
+  static async getKey(key, decrypt = true) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
         if (records.length) {
-          return Security.encryptComm(Security.decrypt(records[0].value));
+          return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
         }
       }
     } catch (e) {
@@ -501,7 +507,7 @@ class BackLog {
   static async removeKey(key) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -523,7 +529,7 @@ class BackLog {
     const keys = {};
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
-      if (config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -537,7 +543,89 @@ class BackLog {
     }
     return keys;
   }
-}
+
+  /**
+  * [dumpBackup]
+  */
+  static async dumpBackup() {
+    const timestamp = new Date().getTime();
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    if (this.BLClient) {
+      const startTime = Date.now(); // Record the start time
+      await mysqldump({
+        connection: {
+          host: config.dbHost,
+          port: config.dbPort,
+          user: config.dbUser,
+          password: Security.getKey(),
+          database: config.dbInitDB,
+        },
+        dump: {
+          schema: {
+            table: {
+              dropIfExist: true,
+            },
+          },
+          data: {
+            verbose: false,
+          },
+        },
+        dumpToFile: `./dumps/BU_${timestamp}.sql`,
+      });
+      const endTime = Date.now(); // Record the end time
+      log.info(`Backup file created in (${endTime - startTime} ms): BU_${timestamp}.sql`);
+    } else {
+      log.info('Can not connect to the DB');
+    }
+  }
+
+  /**
+  * [listSqlFiles]
+  */
+  static async listSqlFiles() {
+    const folderPath = './dumps/';
+    try {
+      const files = fs.readdirSync(folderPath);
+
+      const sqlFilesInfo = files.map((file) => {
+        const filePath = path.join(folderPath, file);
+        const fileStats = fs.statSync(filePath);
+        const isSqlFile = path.extname(file) === '.sql';
+
+        if (isSqlFile) {
+          return {
+            fileName: file,
+            fileSize: fileStats.size, // in bytes
+            createdDateTime: fileStats.birthtime, // creation date/time
+          };
+        } else {
+          return null; // Ignore non-SQL files
+        }
+      });
+
+      // Filter out null entries (non-SQL files) and return the result
+      return sqlFilesInfo.filter((info) => info !== null);
+    } catch (error) {
+      log.error(`Error reading folder: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+  * [deleteBackupFile]
+  */
+  static async deleteBackupFile(fileName) {
+    try {
+      fs.unlinkSync(`./dumps/${fileName}.sql`);
+      log.info(`File "${fileName}.sql" has been deleted.`);
+    } catch (error) {
+      log.error(`Error deleting file "${fileName}": ${error.message}`);
+    }
+  }
+}// end class
 
 // eslint-disable-next-line func-names
 module.exports = BackLog;
