@@ -571,7 +571,7 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      const prevMaster = BackLog.getKey('masterIP');
+      const prevMaster = BackLog.getKey('masterIP', false);
       if (prevMaster) {
         log.info(`previous master was ${prevMaster}`);
         if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
@@ -771,7 +771,7 @@ class Operator {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
-            BackLog.pushKey('masterIP', this.masterNode);
+            BackLog.pushKey('masterIP', this.masterNode, false);
             log.info(`Master node is ${this.masterNode}`, 'yellow');
             return this.masterNode;
           }
@@ -786,7 +786,7 @@ class Operator {
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
-        BackLog.pushKey('masterIP', this.masterNode);
+        BackLog.pushKey('masterIP', this.masterNode, false);
         return this.masterNode;
       }
       log.info('DB_APPNAME environment variabele is not defined.');

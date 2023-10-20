@@ -458,8 +458,8 @@ class BackLog {
   /**
   * [pushKey]
   */
-  static async pushKey(key, value) {
-    const encryptedValue = Security.encrypt(value);
+  static async pushKey(key, value, encrypt = true) {
+    const encryptedValue = (encrypt) ? Security.encrypt(value) : value;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
@@ -483,7 +483,7 @@ class BackLog {
   /**
   * [getKey]
   */
-  static async getKey(key) {
+  static async getKey(key, decrypt = true) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
@@ -492,7 +492,7 @@ class BackLog {
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
         if (records.length) {
-          return Security.encryptComm(Security.decrypt(records[0].value));
+          return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
         }
       }
     } catch (e) {
