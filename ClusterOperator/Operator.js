@@ -571,7 +571,7 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      const prevMaster = BackLog.getKey('masterIP', false);
+      const prevMaster = await BackLog.getKey('masterIP', false);
       if (prevMaster) {
         log.info(`previous master was ${prevMaster}`);
         if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
