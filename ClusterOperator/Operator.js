@@ -571,10 +571,26 @@ class Operator {
       this.nodeInstances = Specifications.instances;
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
-      while (ipList.length < this.nodeInstances) {
-        log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
-        await timer.setTimeout(10000);
-        ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      const prevMaster = BackLog.getKey('masterIP');
+      if (prevMaster) {
+        log.info(`previous master was ${prevMaster}`);
+        if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
+          log.info('previous master is in the node list. continue...');
+        } else {
+          log.info('previous master is NOT in the node list.');
+          while (ipList.length < this.nodeInstances) {
+            log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+            await timer.setTimeout(10000);
+            ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+          }
+        }
+      } else {
+        log.info('no master node defined before.');
+        while (ipList.length < this.nodeInstances) {
+          log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
+          await timer.setTimeout(10000);
+          ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+        }
       }
       let appIPList = [];
       if (config.DBAppName === config.AppName) {
@@ -755,6 +771,8 @@ class Operator {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
+            BackLog.pushKey('masterIP', this.masterNode);
+            log.info(`Master node is ${this.masterNode}`, 'yellow');
             return this.masterNode;
           }
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
@@ -768,6 +786,7 @@ class Operator {
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
+        BackLog.pushKey('masterIP', this.masterNode);
         return this.masterNode;
       }
       log.info('DB_APPNAME environment variabele is not defined.');
