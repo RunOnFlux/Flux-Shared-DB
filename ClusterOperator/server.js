@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const https = require('https');
 const timer = require('timers/promises');
 const express = require('express');
+const RateLimit = require('express-rate-limit');
 const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
@@ -13,6 +14,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const qs = require('qs');
+const sanitize = require('sanitize-filename');
 const queryCache = require('memory-cache');
 const Operator = require('./Operator');
 const BackLog = require('./Backlog');
@@ -85,6 +87,12 @@ function startUI() {
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
   app.use(fileUpload());
+  const limiter = RateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // max 100 requests per windowMs
+  });
+  // apply rate limiter to all requests
+  app.use(limiter);
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -142,10 +150,7 @@ function startUI() {
     if (authUser(req)) {
       let { seqNo } = req.body;
       seqNo = seqNo || req.query.seqNo;
-      console.log(req.body);
-      console.log(seqNo);
       if (seqNo) {
-        console.log(seqNo);
         await Operator.rollBack(seqNo);
         res.send({ status: 'OK' });
       }
@@ -310,10 +315,8 @@ function startUI() {
   app.post('/deletebackup', async (req, res) => {
     if (authUser(req)) {
       const { body } = req;
-      console.log(body);
       if (body) {
         const { filename } = body;
-        console.log(filename);
         res.send(await BackLog.deleteBackupFile(filename));
         res.end();
       }
@@ -338,18 +341,14 @@ function startUI() {
       }
     }
     req.on('data', (data) => {
-      console.log('verifylogin on data');
       body += data;
     });
     req.on('end', async () => {
-      console.log('verifylogin on end');
       try {
         const processedBody = ensureObject(body);
         let { signature } = processedBody;
         if (!signature) signature = req.query.signature;
         const message = processedBody.loginPhrase || processedBody.message || req.query.message;
-        console.log(signature);
-        console.log(message);
         if (IdService.verifyLogin(message, signature)) {
           let remoteIp = utill.convertIP(req.ip);
           if (!remoteIp) remoteIp = req.socket.address().address;

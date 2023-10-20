@@ -40,7 +40,6 @@ class IdService {
     // eslint-disable-next-line no-param-reassign
     if (!userParams) userParams = 'NA';
     const value = sessions.get(sessionID);
-    console.log(`session ${sessionID} value ${value}`);
     if (value !== userParams) return false;
     sessions.put(sessionID, userParams, this.sessionExpireTime);
     return true;
