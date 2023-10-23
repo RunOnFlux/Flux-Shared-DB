@@ -330,9 +330,11 @@ function startUI() {
       const { body } = req;
       if (body) {
         const { filename } = body;
+        // create a snapshot
+        await BackLog.dumpBackup();
         // removing old db + resetting secuence numbers:
         await Operator.rollBack(0);
-        await timer.setTimeout(1000);
+        await timer.setTimeout(2000);
         const importer = new SqlImporter({
           callback: Operator.sendWriteQuery,
         });
