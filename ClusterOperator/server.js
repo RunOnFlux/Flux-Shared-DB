@@ -340,7 +340,7 @@ function startUI() {
         });
         importer.onProgress((progress) => {
           const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-          log.info(`${percent}% Completed`);
+          log.info(`${percent}% Completed`, 'cyan');
         });
         importer.setEncoding('utf8');
         await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
