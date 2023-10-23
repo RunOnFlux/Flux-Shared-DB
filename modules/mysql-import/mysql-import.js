@@ -30,7 +30,8 @@ class Importer{
 	 */
 	constructor(settings){
 		this._connection_settings = settings;
-    this. callback = (settings.callback) ? settings.callback : null;
+    this.callback = (settings.callback) ? settings.callback : null;
+    this.serverSocket = (settings.serverSocket) ? settings.serverSocket : null;
 		this._conn = null;
 		this._encoding = 'utf8';
 		this._imported = [];
@@ -142,7 +143,7 @@ class Importer{
 						next();
 						return;
 					}
-					this._importSingleFile(file, this.callback).then(()=>{
+					this._importSingleFile(file, this.callback, this.serverSocket).then(()=>{
 						next();
 					}).catch(err=>{
 						error = err;
@@ -196,10 +197,11 @@ class Importer{
 	 *		- size: The size of the file in bytes
 	 * @returns {Promise}
 	 */
-	_importSingleFile(fileObj, callback){
+	_importSingleFile(fileObj, callback, serverSocket){
 		return new Promise((resolve, reject)=>{
 			var parser = new queryParser({
-        callback: callback,
+        callback,
+        serverSocket,
 				db_connection: this._conn,
 				encoding: this._encoding,
 				onProgress: (progress) => {
@@ -439,6 +441,7 @@ class queryParser extends stream.Writable{
 
     this.executeCallback = options.callback;
 		
+    this.serverSocket = options.serverSocket;
 	}
 	
 	////////////////////////////////////////////////////////////////////////////
@@ -473,7 +476,7 @@ class queryParser extends stream.Writable{
     console.log (query);
     console.log (this.executeCallback);
     if (this.executeCallback){
-      return await this.executeCallback(query);
+      return await this.executeCallback(query, false, false, this.serverSocket);
     }
 		return new Promise((resolve, reject)=>{
 			this.db_connection.query(query, err=>{

@@ -337,6 +337,7 @@ function startUI() {
         await timer.setTimeout(2000);
         const importer = new SqlImporter({
           callback: Operator.sendWriteQuery,
+          serverSocket: Operator.serverSocket,
         });
         importer.onProgress((progress) => {
           const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
