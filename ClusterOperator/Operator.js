@@ -185,7 +185,7 @@ class Operator {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                    fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
+                    await fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
                     i += 1;
                   }
                 }
@@ -203,7 +203,7 @@ class Operator {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                       missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                      fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
+                      await fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
                       i += 1;
                     }
                   }
