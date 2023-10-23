@@ -276,7 +276,7 @@ function startUI() {
   app.get('/getbackupfile/:filename', async (req, res) => {
     if (authUser(req)) {
       const { filename } = req.params;
-      res.download(path.join(__dirname, `../dumps/${filename}.sql`), `${filename}.sql`, (err) => {
+      res.download(path.join(__dirname, `../dumps/${sanitize(filename)}.sql`), `${sanitize(filename)}.sql`, (err) => {
         if (err) {
           // Handle errors, such as file not found
           res.status(404).send('File not found');
@@ -317,7 +317,7 @@ function startUI() {
       const { body } = req;
       if (body) {
         const { filename } = body;
-        res.send(await BackLog.deleteBackupFile(filename));
+        res.send(await BackLog.deleteBackupFile(sanitize(filename)));
         res.end();
       }
     } else {

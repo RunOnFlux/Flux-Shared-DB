@@ -1,10 +1,15 @@
 const Importer = require('../modules/mysql-import');
 
+function callback(query) {
+  console.log(query);
+}
+
 const importer = new Importer({
   host: 'localhost',
   user: 'root',
   password: 'secret',
   database: 'test_db2',
+  callback,
 });
 
 importer.onProgress((progress) => {
