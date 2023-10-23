@@ -321,16 +321,18 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query, connId, fullQuery) {
+  static async sendWriteQuery(query, connId = false, fullQuery = null) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
         const { masterWSConn } = this;
-        return new Promise((resolve) => {
-          masterWSConn.emit('writeQuery', query, connId, (response) => {
-            resolve(response.result);
+        if (masterWSConn) {
+          return new Promise((resolve) => {
+            masterWSConn.emit('writeQuery', query, connId, (response) => {
+              resolve(response.result);
+            });
           });
-        });
+        }
       }
       /*
       if (BackLog.writeLock) {
@@ -347,7 +349,7 @@ class Operator {
       */
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
-      if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
+      if (result && this.serverSocket) this.serverSocket.emit('query', query, result[1], result[2], false);
       return result;
     }
     return null;
@@ -358,23 +360,30 @@ class Operator {
   * @param {int} seq [description]
   */
   static async rollBack(seqNo) {
-    if (this.status !== 'ROLLBACK') {
-      if (this.IamMaster) {
-        this.status = 'ROLLBACK';
-        log.info(`rolling back to ${seqNo}`);
-        this.serverSocket.emit('rollBack', seqNo);
-        await BackLog.rebuildDatabase(seqNo);
-        this.status = 'OK';
-      } else {
-        const { masterWSConn } = this;
-        return new Promise((resolve) => {
-          masterWSConn.emit('rollBack', seqNo, (response) => {
-            resolve(response.result);
-          });
-        });
+    try {
+      if (this.status !== 'ROLLBACK') {
+        if (this.IamMaster) {
+          this.status = 'ROLLBACK';
+          log.info(`rolling back to ${seqNo}`);
+          this.serverSocket.emit('rollBack', seqNo);
+          await BackLog.rebuildDatabase(seqNo);
+          this.status = 'OK';
+        } else {
+          const { masterWSConn } = this;
+          if (masterWSConn) {
+            return new Promise((resolve) => {
+              masterWSConn.emit('rollBack', seqNo, (response) => {
+                resolve(response.result);
+              });
+            });
+          }
+        }
       }
+      return null;
+    } catch (e) {
+      log.error(JSON.stringify(e));
+      return null;
     }
-    return null;
   }
 
   /**

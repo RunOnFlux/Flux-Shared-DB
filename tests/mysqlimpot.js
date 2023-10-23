@@ -5,10 +5,6 @@ function callback(query) {
 }
 
 const importer = new Importer({
-  host: 'localhost',
-  user: 'root',
-  password: 'secret',
-  database: 'test_db2',
   callback,
 });
 

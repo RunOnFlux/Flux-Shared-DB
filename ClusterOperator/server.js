@@ -24,6 +24,7 @@ const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
 const fluxAPI = require('../lib/fluxAPI');
+const SqlImporter = require('../modules/mysql-import');
 
 /**
 * [auth]
@@ -162,7 +163,7 @@ function startUI() {
       res.send(Operator.OpNodes);
       res.end();
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
   app.get('/status', (req, res) => {
@@ -181,7 +182,7 @@ function startUI() {
       res.send(await BackLog.getDateRange());
       res.end();
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
 
@@ -192,7 +193,7 @@ function startUI() {
       res.send(await BackLog.getLogsByTime(starttime, length));
       res.end();
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
 
@@ -270,7 +271,7 @@ function startUI() {
       res.send(await BackLog.listSqlFiles());
       res.end();
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
   app.get('/getbackupfile/:filename', async (req, res) => {
@@ -283,7 +284,7 @@ function startUI() {
         }
       });
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
   app.post('/upload-sql', async (req, res) => {
@@ -301,7 +302,7 @@ function startUI() {
         res.send('File uploaded successfully.');
       });
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
   app.post('/generatebackup', async (req, res) => {
@@ -309,7 +310,7 @@ function startUI() {
       res.send(await BackLog.dumpBackup());
       res.end();
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
   app.post('/deletebackup', async (req, res) => {
@@ -321,7 +322,37 @@ function startUI() {
         res.end();
       }
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
+    }
+  });
+  app.post('/executebackup', async (req, res) => {
+    if (authUser(req)) {
+      const { body } = req;
+      if (body) {
+        const { filename } = body;
+        // removing old db + resetting secuence numbers:
+        await Operator.rollBack(0);
+        await timer.setTimeout(1000);
+        const importer = new SqlImporter({
+          callback: Operator.sendWriteQuery,
+        });
+        importer.onProgress((progress) => {
+          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+          log.info(`${percent}% Completed`);
+        });
+        importer.setEncoding('utf8');
+        await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
+          const filesImported = importer.getImported();
+          log.info(`${filesImported.length} SQL file(s) imported.`);
+          res.send('OK');
+        }).catch((err) => {
+          res.status(500).send(JSON.stringify(err));
+          log.error(err);
+        });
+        res.end();
+      }
+    } else {
+      res.status(403).send('Bad Request');
     }
   });
   app.post('/verifylogin/', (req, res) => {
@@ -376,7 +407,7 @@ function startUI() {
       Operator.emitUserSession('remove', req.cookies.loginphrase, '');
       res.send('OK');
     } else {
-      res.status(403).render();
+      res.status(403).send('Bad Request');
     }
   });
 
