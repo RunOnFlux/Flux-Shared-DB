@@ -181,11 +181,11 @@ class Operator {
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
-                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
+                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
-                    missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                    fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
+                    missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 10000);
+                    await fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
                     i += 1;
                   }
                 }
@@ -199,11 +199,11 @@ class Operator {
                 this.lastBufferSeqNo = sequenceNumber;
                 if (this.buffer[BackLog.sequenceNumber + 1] === undefined && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
                   let i = 1;
-                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
+                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
-                      missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 5000);
-                      fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
+                      missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 10000);
+                      await fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
                       i += 1;
                     }
                   }
@@ -321,16 +321,18 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query, connId, fullQuery) {
+  static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
         const { masterWSConn } = this;
-        return new Promise((resolve) => {
-          masterWSConn.emit('writeQuery', query, connId, (response) => {
-            resolve(response.result);
+        if (masterWSConn) {
+          return new Promise((resolve) => {
+            masterWSConn.emit('writeQuery', query, connId, (response) => {
+              resolve(response.result);
+            });
           });
-        });
+        }
       }
       /*
       if (BackLog.writeLock) {
@@ -345,9 +347,18 @@ class Operator {
         log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
       }
       */
-      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery);
+      const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery || query);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
-      if (result) this.serverSocket.emit('query', query, result[1], result[2], false);
+      if (result) {
+        log.info(`emitting ${result[1]}`);
+        if (this.serverSocket) {
+          this.serverSocket.emit('query', query, result[1], result[2], false);
+        } else {
+          masterSocket.emit('query', query, result[1], result[2], false);
+        }
+      } else {
+        log.info(JSON.stringify(result));
+      }
       return result;
     }
     return null;
@@ -358,23 +369,30 @@ class Operator {
   * @param {int} seq [description]
   */
   static async rollBack(seqNo) {
-    if (this.status !== 'ROLLBACK') {
-      if (this.IamMaster) {
-        this.status = 'ROLLBACK';
-        log.info(`rolling back to ${seqNo}`);
-        this.serverSocket.emit('rollBack', seqNo);
-        await BackLog.rebuildDatabase(seqNo);
-        this.status = 'OK';
-      } else {
-        const { masterWSConn } = this;
-        return new Promise((resolve) => {
-          masterWSConn.emit('rollBack', seqNo, (response) => {
-            resolve(response.result);
-          });
-        });
+    try {
+      if (this.status !== 'ROLLBACK') {
+        if (this.IamMaster) {
+          this.status = 'ROLLBACK';
+          log.info(`rolling back to ${seqNo}`);
+          this.serverSocket.emit('rollBack', seqNo);
+          await BackLog.rebuildDatabase(seqNo);
+          this.status = 'OK';
+        } else {
+          const { masterWSConn } = this;
+          if (masterWSConn) {
+            return new Promise((resolve) => {
+              masterWSConn.emit('rollBack', seqNo, (response) => {
+                resolve(response.result);
+              });
+            });
+          }
+        }
       }
+      return null;
+    } catch (e) {
+      log.error(JSON.stringify(e));
+      return null;
     }
-    return null;
   }
 
   /**

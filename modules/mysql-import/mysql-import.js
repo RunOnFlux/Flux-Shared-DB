@@ -1,3 +1,4 @@
+/* eslint-disable */ 
 /**
  * mysql-import - v5.0.26
  * Import .sql into a MySQL database with Node.
@@ -29,6 +30,8 @@ class Importer{
 	 */
 	constructor(settings){
 		this._connection_settings = settings;
+    this.callback = (settings.callback) ? settings.callback : null;
+    this.serverSocket = (settings.serverSocket) ? settings.serverSocket : null;
 		this._conn = null;
 		this._encoding = 'utf8';
 		this._imported = [];
@@ -128,7 +131,7 @@ class Importer{
 	import(...input){
 		return new Promise(async (resolve, reject)=>{
 			try{
-				await this._connect();
+				// await this._connect();
 				var files = await this._getSQLFilePaths(...input);
 				this._total_files = files.length;
 				this._current_file_no = 0;
@@ -140,7 +143,7 @@ class Importer{
 						next();
 						return;
 					}
-					this._importSingleFile(file).then(()=>{
+					this._importSingleFile(file, this.callback, this.serverSocket).then(()=>{
 						next();
 					}).catch(err=>{
 						error = err;
@@ -148,7 +151,7 @@ class Importer{
 					});
 				});
 				if(error) throw error;
-				await this.disconnect();
+				// await this.disconnect();
 				resolve();
 			}catch(err){
 				reject(err);
@@ -194,10 +197,11 @@ class Importer{
 	 *		- size: The size of the file in bytes
 	 * @returns {Promise}
 	 */
-	_importSingleFile(fileObj){
+	_importSingleFile(fileObj, callback, serverSocket){
 		return new Promise((resolve, reject)=>{
-			
 			var parser = new queryParser({
+        callback,
+        serverSocket,
 				db_connection: this._conn,
 				encoding: this._encoding,
 				onProgress: (progress) => {
@@ -434,7 +438,10 @@ class queryParser extends stream.Writable{
 		
 		// Are we currently seeking new delimiter
 		this.seekingDelimiter = false;
+
+    this.executeCallback = options.callback;
 		
+    this.serverSocket = options.serverSocket;
 	}
 	
 	////////////////////////////////////////////////////////////////////////////
@@ -465,7 +472,12 @@ class queryParser extends stream.Writable{
 	}
 	
 	// Execute a query, return a Promise
-	executeQuery(query){
+	 async executeQuery(query){
+    console.log (query);
+    console.log (this.executeCallback);
+    if (this.executeCallback){
+      return await this.executeCallback(query, false, false, this.serverSocket);
+    }
 		return new Promise((resolve, reject)=>{
 			this.db_connection.query(query, err=>{
 				if (err){
