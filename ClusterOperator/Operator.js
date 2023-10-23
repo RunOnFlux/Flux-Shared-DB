@@ -350,14 +350,12 @@ class Operator {
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery || query);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) {
-        log.info(`emitting ${result[1]}`);
+        // log.info(`emitting ${result[1]}`);
         if (this.serverSocket) {
           this.serverSocket.emit('query', query, result[1], result[2], false);
         } else {
           masterSocket.emit('query', query, result[1], result[2], false);
         }
-      } else {
-        log.info(JSON.stringify(result));
       }
       return result;
     }
