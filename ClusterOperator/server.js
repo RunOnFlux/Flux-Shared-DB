@@ -225,7 +225,7 @@ function startUI() {
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        const value = BackLog.getKey(`k_${key}`);
+        const value = BackLog.getKey(`_sk${key}`);
         if (value) {
           res.send(value);
         } else {
@@ -239,12 +239,12 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     let secret = req.body;
-    let value = BackLog.pushKey(`k_${secret.key}`, secret.value, true);
+    let value = BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
     // console.log(secret.key);
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         secret = req.body;
-        value = BackLog.pushKey(`k_${secret.key}`, secret.value);
+        value = BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
         if (value) {
           res.send('OK');
         }
@@ -259,7 +259,7 @@ function startUI() {
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        if (BackLog.removeKey(`k_${key}`)) {
+        if (BackLog.removeKey(`_sk${key}`)) {
           res.send('OK');
         }
       }
@@ -358,6 +358,14 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/isloggedin/', (req, res) => {
+    if (authUser(req)) {
+      res.cookie('loginphrase', req.headers.loginphrase);
+      res.send('OK');
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
   app.post('/verifylogin/', (req, res) => {
     let { body } = req;
     if (body) {
@@ -415,10 +423,18 @@ function startUI() {
   });
 
   app.get('/', (req, res) => {
-    if (authUser(req)) {
-      res.sendFile(path.join(__dirname, '../ui/index.html'));
+    const { host } = req.headers;
+    console.log(host);
+    if (host) {
+      if (authUser(req)) {
+        res.sendFile(path.join(__dirname, '../ui/index.html'));
+      } else {
+        res.sendFile(path.join(__dirname, '../ui/login.html'));
+      }
+    } else if (Operator.IamMaster) { // request comming from fdm
+      res.send('OK');
     } else {
-      res.sendFile(path.join(__dirname, '../ui/login.html'));
+      res.status(500).send('Bad Request');
     }
   });
 
