@@ -107,7 +107,8 @@ $(document).ready(function() {
       const callbackValue = `${window.apiURL}/verifylogin`;
       console.log(`zel:?action=sign&message=${window.loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
       window.location.replace(`zel:?action=sign&message=${window.loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
-      setInterval(checkLogin,1000);
+      window.login_check_tries = 0;
+      window.CL_id = setInterval(checkLogin,1000);
     }
   });
   $("#login-btn").click(function() {
@@ -140,6 +141,8 @@ $(document).ready(function() {
     })
   }
   function checkLogin(){
+    if (window.login_check_tries > 30) clearInterval(window.CL_id);
+    window.login_check_tries ++;
     $.ajax({
       url: `${window.apiURL}/isloggedin`,
       headers: {'loginphrase':window.loginPhrase},
