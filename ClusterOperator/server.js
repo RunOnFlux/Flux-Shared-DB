@@ -444,14 +444,21 @@ function startUI() {
   app.get('/assets/Flux_white-blue.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
   });
-  // https
-  //  .createServer(app)
-  //  .listen(443, () => {
-  //    log.info(`starting interface on port ${config.debugUIPort}`);
-  //  });
-  app.listen(config.debugUIPort, () => {
-    log.info(`starting interface on port ${config.debugUIPort}`);
-  });
+
+  if (config.ssl) {
+    const keys = Security.generateRSAKey();
+    const httpsOptions = {
+      key: keys.pemPrivateKey,
+      cert: keys.pemCertificate,
+    };
+    https.createServer(httpsOptions, app).listen(config.debugUIPort, () => {
+      log.info(`starting SSL interface on port ${config.debugUIPort}`);
+    });
+  } else {
+    app.listen(config.debugUIPort, () => {
+      log.info(`starting interface on port ${config.debugUIPort}`);
+    });
+  }
 }
 /**
 * [validate]
