@@ -377,8 +377,20 @@
     });
 
   }
-  
-  function startPage(page){
+  function connectLogStream(){
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', `${window.apiURL}/getstatus`, true);
+      xhr.onreadystatechange = function(){
+        if (this.readyState === 3){
+          var chunks = this.response.split('\r\n\r\n').filter(Boolean);
+          var newestChunk = chunks.pop();
+          console.log(chunks);
+        }
+      }
+      xhr.send();
+      return xhr;      
+    }
+  async function startPage(page){
     console.log(page);
     if(page === 'time-machine'){
       $.ajax({

@@ -166,6 +166,23 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/getstatus', async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Accel-Buffering', 'no');
+    let count = 1;
+    while (true) {
+      res.write(`${JSON.stringify({
+        type: 'stream',
+        chunk: count++,
+      })}\r\n\r\n`);
+      await timer.setTimeout(2000);
+      //console.log(count);
+    }
+  });
+
   app.get('/status', (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'X-Requested-With');
