@@ -45,10 +45,10 @@ function authUser(req) {
   let remoteIp = utill.convertIP(req.ip);
   if (!remoteIp) remoteIp = req.socket.address().address;
   let loginphrase = false;
-  if (req.cookies.loginphrase) {
-    loginphrase = req.cookies.loginphrase;
-  } else {
+  if (req.headers.loginphrase) {
     loginphrase = req.headers.loginphrase;
+  } else {
+    loginphrase = req.cookies.loginphrase;
   }
   if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
     return true;
