@@ -93,7 +93,7 @@ function startUI() {
     max: 100, // max 100 requests per windowMs
   });
   // apply rate limiter to all requests
-  app.use(limiter);
+  // app.use(limiter);
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
