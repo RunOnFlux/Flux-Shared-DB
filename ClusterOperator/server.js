@@ -568,7 +568,11 @@ async function initServer() {
           if (!BLRecord) {
             BLRecord = await BackLog.getLog(index);
             log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
-            socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
+            try {
+              socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
+            } catch (err) {
+              log.error(JSON.stringify(err));
+            }
           }
         }
         // if (record) {
