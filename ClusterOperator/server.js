@@ -92,8 +92,6 @@ function startUI() {
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // max 100 requests per windowMs
   });
-  // apply rate limiter to all requests
-  // app.use(limiter);
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -105,6 +103,30 @@ function startUI() {
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     res.send(200);
   });
+  app.get('/', (req, res) => {
+    const { host } = req.headers;
+    console.log(host);
+    if (host) {
+      if (authUser(req)) {
+        res.sendFile(path.join(__dirname, '../ui/index.html'));
+      } else {
+        res.sendFile(path.join(__dirname, '../ui/login.html'));
+      }
+    } else if (Operator.IamMaster) { // request comming from fdm
+      res.send('OK');
+    } else {
+      res.status(500).send('Bad Request');
+    }
+  });
+
+  app.get('/assets/zelID.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
+  });
+  app.get('/assets/Flux_white-blue.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
+  });
+  // apply rate limiter to all requests below
+  app.use(limiter);
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
@@ -437,29 +459,6 @@ function startUI() {
     } else {
       res.status(403).send('Bad Request');
     }
-  });
-
-  app.get('/', (req, res) => {
-    const { host } = req.headers;
-    console.log(host);
-    if (host) {
-      if (authUser(req)) {
-        res.sendFile(path.join(__dirname, '../ui/index.html'));
-      } else {
-        res.sendFile(path.join(__dirname, '../ui/login.html'));
-      }
-    } else if (Operator.IamMaster) { // request comming from fdm
-      res.send('OK');
-    } else {
-      res.status(500).send('Bad Request');
-    }
-  });
-
-  app.get('/assets/zelID.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
-  });
-  app.get('/assets/Flux_white-blue.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
   });
 
   if (config.ssl) {
