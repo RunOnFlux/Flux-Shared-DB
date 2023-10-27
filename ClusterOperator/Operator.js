@@ -181,11 +181,11 @@ class Operator {
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
                 let i = 1;
-                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
+                while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
                   if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                     log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                     missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 10000);
-                    await fluxAPI.askQuery(BackLog.sequenceNumber + 1, this.masterWSConn);
+                    await fluxAPI.askQuery(BackLog.sequenceNumber + i, this.masterWSConn);
                     i += 1;
                   }
                 }
@@ -199,7 +199,7 @@ class Operator {
                 this.lastBufferSeqNo = sequenceNumber;
                 if (this.buffer[BackLog.sequenceNumber + 1] === undefined && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
                   let i = 1;
-                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 10) {
+                  while (this.buffer[BackLog.sequenceNumber + 1] !== undefined && i < 5) {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                       missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 10000);
