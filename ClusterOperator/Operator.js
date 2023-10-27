@@ -199,7 +199,7 @@ class Operator {
                 this.lastBufferSeqNo = sequenceNumber;
                 if (this.buffer[BackLog.sequenceNumber + 1] === undefined && missingQueryBuffer.get(BackLog.sequenceNumber + 1) !== true) {
                   let i = 1;
-                  while (this.buffer[BackLog.sequenceNumber + 1] !== undefined && i < 5) {
+                  while (this.buffer[BackLog.sequenceNumber + 1] === undefined && i < 5) {
                     if (missingQueryBuffer.get(BackLog.sequenceNumber + i) !== true) {
                       log.info(`missing seqNo ${BackLog.sequenceNumber + i}, asking master to resend`, 'magenta');
                       missingQueryBuffer.put(BackLog.sequenceNumber + i, true, 10000);
