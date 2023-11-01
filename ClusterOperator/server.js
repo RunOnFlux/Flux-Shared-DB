@@ -105,7 +105,6 @@ function startUI() {
   });
   app.get('/', (req, res) => {
     const { host } = req.headers;
-    console.log(host);
     if (host) {
       if (authUser(req)) {
         res.sendFile(path.join(__dirname, '../ui/index.html'));
@@ -278,7 +277,7 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     let secret = req.body;
-    let value = BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
+    BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
     // console.log(secret.key);
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
@@ -292,13 +291,13 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
-  app.delete('/secret/:key', (req, res) => {
+  app.delete('/secret/:key', async (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        if (BackLog.removeKey(`_sk${key}`)) {
+        if (await BackLog.removeKey(`_sk${key}`)) {
           res.send('OK');
         }
       }
