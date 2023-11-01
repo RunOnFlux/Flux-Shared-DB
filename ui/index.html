@@ -276,7 +276,7 @@
   <footer class="mt-3 pb-3 text-center text-light small thin">
     <span>© 2022-2023 InFlux Technologies</span>
     <span class="badge bg-dark">Beta</span>
-    <span id="build_version">v1.2.1</span>
+    <span id="build_version">v1.2.2</span>
   </footer>
 </body>
 </html>
@@ -377,8 +377,22 @@
     });
 
   }
-  
-  function startPage(page){
+  /*
+  function connectLogStream(){
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', `${window.apiURL}/getstatus`, true);
+      xhr.onreadystatechange = function(){
+        if (this.readyState === 3){
+          var chunks = this.response.split('\r\n\r\n').filter(Boolean);
+          var newestChunk = chunks.pop();
+          console.log(chunks);
+        }
+      }
+      xhr.send();
+      return xhr;      
+    }
+    */
+  async function startPage(page){
     console.log(page);
     if(page === 'time-machine'){
       $.ajax({

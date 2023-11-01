@@ -45,10 +45,10 @@ function authUser(req) {
   let remoteIp = utill.convertIP(req.ip);
   if (!remoteIp) remoteIp = req.socket.address().address;
   let loginphrase = false;
-  if (req.cookies.loginphrase) {
-    loginphrase = req.cookies.loginphrase;
-  } else {
+  if (req.headers.loginphrase) {
     loginphrase = req.headers.loginphrase;
+  } else {
+    loginphrase = req.cookies.loginphrase;
   }
   if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
     return true;
@@ -92,8 +92,6 @@ function startUI() {
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // max 100 requests per windowMs
   });
-  // apply rate limiter to all requests
-  app.use(limiter);
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
@@ -105,6 +103,29 @@ function startUI() {
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     res.send(200);
   });
+  app.get('/', (req, res) => {
+    const { host } = req.headers;
+    if (host) {
+      if (authUser(req)) {
+        res.sendFile(path.join(__dirname, '../ui/index.html'));
+      } else {
+        res.sendFile(path.join(__dirname, '../ui/login.html'));
+      }
+    } else if (Operator.IamMaster) { // request comming from fdm
+      res.send('OK');
+    } else {
+      res.status(500).send('Bad Request');
+    }
+  });
+
+  app.get('/assets/zelID.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
+  });
+  app.get('/assets/Flux_white-blue.svg', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
+  });
+  // apply rate limiter to all requests below
+  app.use(limiter);
   app.get('/logs/:file?', (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
@@ -166,6 +187,23 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/getstatus', async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Accel-Buffering', 'no');
+    let count = 1;
+    while (true) {
+      res.write(`${JSON.stringify({
+        type: 'stream',
+        chunk: count++,
+      })}\r\n\r\n`);
+      await timer.setTimeout(2000);
+      //console.log(count);
+    }
+  });
+
   app.get('/status', (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'X-Requested-With');
@@ -225,7 +263,7 @@ function startUI() {
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        const value = BackLog.getKey(`k_${key}`);
+        const value = BackLog.getKey(`_sk${key}`);
         if (value) {
           res.send(value);
         } else {
@@ -239,12 +277,12 @@ function startUI() {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     let secret = req.body;
-    let value = BackLog.pushKey(`k_${secret.key}`, secret.value, true);
+    BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
     // console.log(secret.key);
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         secret = req.body;
-        value = BackLog.pushKey(`k_${secret.key}`, secret.value);
+        value = BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
         if (value) {
           res.send('OK');
         }
@@ -253,13 +291,13 @@ function startUI() {
     res.status(404).send('Key not found');
   });
 
-  app.delete('/secret/:key', (req, res) => {
+  app.delete('/secret/:key', async (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        if (BackLog.removeKey(`k_${key}`)) {
+        if (await BackLog.removeKey(`_sk${key}`)) {
           res.send('OK');
         }
       }
@@ -358,6 +396,14 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/isloggedin/', (req, res) => {
+    if (authUser(req)) {
+      res.cookie('loginphrase', req.headers.loginphrase);
+      res.send('OK');
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
   app.post('/verifylogin/', (req, res) => {
     let { body } = req;
     if (body) {
@@ -414,28 +460,20 @@ function startUI() {
     }
   });
 
-  app.get('/', (req, res) => {
-    if (authUser(req)) {
-      res.sendFile(path.join(__dirname, '../ui/index.html'));
-    } else {
-      res.sendFile(path.join(__dirname, '../ui/login.html'));
-    }
-  });
-
-  app.get('/assets/zelID.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
-  });
-  app.get('/assets/Flux_white-blue.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
-  });
-  // https
-  //  .createServer(app)
-  //  .listen(443, () => {
-  //    log.info(`starting interface on port ${config.debugUIPort}`);
-  //  });
-  app.listen(config.debugUIPort, () => {
-    log.info(`starting interface on port ${config.debugUIPort}`);
-  });
+  if (config.ssl) {
+    const keys = Security.generateRSAKey();
+    const httpsOptions = {
+      key: keys.pemPrivateKey,
+      cert: keys.pemCertificate,
+    };
+    https.createServer(httpsOptions, app).listen(config.debugUIPort, () => {
+      log.info(`starting SSL interface on port ${config.debugUIPort}`);
+    });
+  } else {
+    app.listen(config.debugUIPort, () => {
+      log.info(`starting interface on port ${config.debugUIPort}`);
+    });
+  }
 }
 /**
 * [validate]
@@ -528,7 +566,11 @@ async function initServer() {
           if (!BLRecord) {
             BLRecord = await BackLog.getLog(index);
             log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
-            socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
+            try {
+              socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
+            } catch (err) {
+              log.error(JSON.stringify(err));
+            }
           }
         }
         // if (record) {
