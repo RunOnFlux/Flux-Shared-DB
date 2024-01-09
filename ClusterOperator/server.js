@@ -142,6 +142,9 @@ function startUI() {
       case 'debug':
         logFile = 'debug.txt';
         break;
+      case 'query':
+        logFile = 'query.txt';
+        break;
       default:
         logFile = 'errors.txt';
         break;
