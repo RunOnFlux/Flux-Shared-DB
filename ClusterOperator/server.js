@@ -149,6 +149,7 @@ function startUI() {
         logFile = 'errors.txt';
         break;
     }
+    
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
       if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45' || remoteIp === '45.89.52.198') {
