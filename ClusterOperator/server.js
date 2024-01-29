@@ -95,6 +95,7 @@ function startUI() {
   fs.writeFileSync('errors.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('warnings.txt', `version: ${config.version}<br>`);
   fs.writeFileSync('info.txt', `version: ${config.version}<br>`);
+  fs.writeFileSync('query.txt', `version: ${config.version}<br>`);
   fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
   app.options('/*', (req, res, next) => {
@@ -142,10 +143,14 @@ function startUI() {
       case 'debug':
         logFile = 'debug.txt';
         break;
+      case 'query':
+        logFile = 'query.txt';
+        break;
       default:
         logFile = 'errors.txt';
         break;
     }
+
     if (whiteList.length) {
       // temporary whitelist ip for flux team debugging, should be removed after final release
       if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45' || remoteIp === '45.89.52.198') {

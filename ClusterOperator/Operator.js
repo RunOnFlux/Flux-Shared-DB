@@ -594,7 +594,7 @@ class Operator {
           log.info('previous master is in the node list. continue...');
         } else {
           log.info('previous master is NOT in the node list.');
-          while (ipList.length < this.nodeInstances) {
+          while (ipList.length < this.nodeInstances / 2) {
             log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
             await timer.setTimeout(10000);
             ipList = await fluxAPI.getApplicationIP(config.DBAppName);
@@ -602,7 +602,7 @@ class Operator {
         }
       } else {
         log.info('no master node defined before.');
-        while (ipList.length < this.nodeInstances) {
+        while (ipList.length < this.nodeInstances / 2) {
           log.info(`Waiting for all nodes to spawn ${ipList.length}/${this.nodeInstances}...`);
           await timer.setTimeout(10000);
           ipList = await fluxAPI.getApplicationIP(config.DBAppName);
