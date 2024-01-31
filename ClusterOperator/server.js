@@ -505,10 +505,11 @@ async function initServer() {
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
+    log.debug(`connection from ${ip}`, 'red');
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
       socket.on('disconnect', (reason) => {
-        // log.info(`disconnected from ${ip}`);
+        log.info(`disconnected from ${ip}`, 'red');
       });
       socket.on('getStatus', async (callback) => {
         // log.info(`getStatus from ${ip}`);
