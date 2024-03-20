@@ -130,8 +130,6 @@ class BackLog {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
           } else {
             if (connId === false) {
-              // most beckup softwares generate wrong sql statements for mysql v8, this prevents sql_mode related sql errors on v8.
-              if (!query.toLowerCase().startsWith('SET SESSION')) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
               result = await this.UserDBClient.query(query, false, fullQuery);
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
