@@ -23,7 +23,6 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
-const fluxAPI = require('../lib/fluxAPI');
 const SqlImporter = require('../modules/mysql-import');
 
 /**
@@ -205,7 +204,7 @@ function startUI() {
         chunk: count++,
       })}\r\n\r\n`);
       await timer.setTimeout(2000);
-      //console.log(count);
+      // console.log(count);
     }
   });
 
@@ -262,13 +261,13 @@ function startUI() {
     }
   });
 
-  app.get('/secret/:key', (req, res) => {
+  app.get('/secret/:key', async (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         const { key } = req.params;
-        const value = BackLog.getKey(`_sk${key}`);
+        const value = await BackLog.getKey(`_sk${key}`);
         if (value) {
           res.send(value);
         } else {
@@ -278,7 +277,7 @@ function startUI() {
     }
   });
 
-  app.post('/secret/', (req, res) => {
+  app.post('/secret/', async (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     const whiteList = config.whiteListedIps.split(',');
     let secret = req.body;
@@ -287,7 +286,7 @@ function startUI() {
     if (whiteList.length) {
       if (whiteList.includes(remoteIp)) {
         secret = req.body;
-        value = BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
+        const value = await BackLog.pushKey(`_sk${secret.key}`, secret.value, true);
         if (value) {
           res.send('OK');
         }
@@ -667,6 +666,9 @@ async function initServer() {
   setInterval(async () => {
     Operator.doHealthCheck();
   }, 120000);
+  setInterval(async () => {
+    BackLog.purgeBinLogs();
+  }, 48 * 60 * 60 * 1000);
 }
 
 initServer();

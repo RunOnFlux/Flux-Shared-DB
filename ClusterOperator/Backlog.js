@@ -130,8 +130,6 @@ class BackLog {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
           } else {
             if (connId === false) {
-              // most beckup softwares generate wrong sql statements for mysql v8, this prevents sql_mode related sql errors on v8.
-              if (!query.toLowerCase().startsWith('SET SESSION')) await this.UserDBClient.query("SET SESSION sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'", false, fullQuery);
               result = await this.UserDBClient.query(query, false, fullQuery);
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
@@ -623,6 +621,24 @@ class BackLog {
       log.info(`File "${fileName}.sql" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
+    }
+  }
+
+  /**
+  * [purgeBinLogs]
+  */
+  static async purgeBinLogs() {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.execute('FLUSH LOGS');
+        await this.BLClient.execute("PURGE BINARY LOGS BEFORE '2026-04-03'");
+      }
+    } catch (e) {
+      log.error(e);
     }
   }
 }// end class
