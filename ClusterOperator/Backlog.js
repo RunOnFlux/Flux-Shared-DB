@@ -634,6 +634,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
+        await this.BLClient.execute('FLUSH LOGS');
         await this.BLClient.execute("PURGE BINARY LOGS BEFORE '2026-04-03'");
       }
     } catch (e) {
