@@ -623,6 +623,23 @@ class BackLog {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
     }
   }
+
+  /**
+  * [purgeBinLogs]
+  */
+  static async purgeBinLogs() {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.execute("PURGE BINARY LOGS BEFORE '2026-04-03'");
+      }
+    } catch (e) {
+      log.error(e);
+    }
+  }
 }// end class
 
 // eslint-disable-next-line func-names
