@@ -40,6 +40,6 @@
   },
   "version": "5.0.26",
   "dependencies": {
-    "mysql2": "^2.3.3"
+    "mysql2": "^3.9.4"
   }
 }
