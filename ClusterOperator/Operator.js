@@ -5,8 +5,6 @@
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
 const net = require('net');
-const { networkInterfaces } = require('os');
-const axios = require('axios');
 const { io } = require('socket.io-client');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
@@ -168,7 +166,7 @@ class Operator {
           if (this.status === 'OK') {
             // if it's the next sequnce number in line push it to the backlog, else put it in buffer
             if (sequenceNumber === BackLog.sequenceNumber + 1) {
-              const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+              await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
               // push queries from buffer until there is a gap or the buffer is empty
               while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
                 const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
@@ -211,7 +209,7 @@ class Operator {
               }
             }
           } else if (this.status === 'SYNC') {
-            const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
+            await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);
           }

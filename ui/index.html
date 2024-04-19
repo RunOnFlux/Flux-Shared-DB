@@ -294,7 +294,7 @@
     // Menu & Page manager
     let activePage = "dashboard";
     if (fragment != '') activePage = fragment.substring(1);
-    startPage(activePage, apiURL);
+    startPage(activePage);
     $('.menu-link.active').removeClass('active');
     $(`*[data-page="${activePage}"` ).addClass('active');
     $('#' + activePage).removeClass('d-none');
@@ -307,7 +307,7 @@
       $('.menu-link.active').removeClass('active');
       $(this).addClass('active');
       activePage = newPage;
-      startPage(newPage, apiURL);
+      startPage(newPage);
     });
 
     $('#tm-rewind').click(function() {
@@ -370,7 +370,7 @@
       console.log(window.generatingbackup);
       if(!window.generatingbackup){
         window.generatingbackup = true;
-        const result = await axios.post(`${window.apiURL}/generatebackup`, { timeout: 2000 });
+        await axios.post(`${window.apiURL}/generatebackup`, { timeout: 2000 });
         await getBackupFileList();
         window.generatingbackup = false;
       }
@@ -401,7 +401,7 @@
           console.log('data: ', data);
           let startDate = new Date(data.min_timestamp);
           let endDate = new Date(data.max_timestamp);
-          let dp = $('.datepicker-tm').datepicker({
+          $('.datepicker-tm').datepicker({
             language: 'en',
             inline: true,
             minDate: startDate,
@@ -567,7 +567,7 @@
     
   }
   async function deleteFile(filename){
-    const result = await axios.post(`${window.apiURL}/deletebackup`, { filename }, { timeout: 2000 });
+    await axios.post(`${window.apiURL}/deletebackup`, { filename }, { timeout: 2000 });
     await getBackupFileList();
   }
   function executeBUFile(e) {
@@ -589,7 +589,7 @@
     $('#modal-spinner').show();
     window.execute_spinner.classList.remove('d-none');
     window.import_in_progress = true;
-    const result = await axios.post(`${window.apiURL}/executebackup`, { filename }, { timeout: 200000 });
+    await axios.post(`${window.apiURL}/executebackup`, { filename }, { timeout: 200000 });
     $('#modal-spinner').hide();
     window.import_in_progress = false;
     window.execute_spinner.classList.add('d-none');

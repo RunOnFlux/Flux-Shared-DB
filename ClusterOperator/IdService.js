@@ -66,7 +66,7 @@ class IdService {
       return false;
     }
     let isValid = false;
-    if (this.ownerZelID) bitcoinMessage.verify(message, this.ownerZelID, signature);
+    if (this.ownerZelID) isValid = bitcoinMessage.verify(message, this.ownerZelID, signature);
     if (!isValid) isValid = bitcoinMessage.verify(message, '15c3aH6y9Koq1Dg1rGXE9Ypn5nL2AbSJCu', signature);
     if (!isValid) isValid = bitcoinMessage.verify(message, '1PLscmdxWLUMStF1EShFSH836kgyKHKKFH', signature);
     return isValid;
