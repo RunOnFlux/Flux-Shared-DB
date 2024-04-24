@@ -24,7 +24,7 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
-const SqlImporter = require('../modules/mysql-import/mysql-import');
+const SqlImporter = require('../lib/mysqlimport');
 
 /**
 * [auth]
