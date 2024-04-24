@@ -284,8 +284,6 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      // log.debug(`DB auth from ${param.remoteIP}`);
-      // log.debug(JSON.stringify(param));
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
@@ -332,19 +330,6 @@ class Operator {
           });
         }
       }
-      /*
-      if (BackLog.writeLock) {
-        const myTicket = this.operator.getTicket();
-        log.info(`put into queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
-        this.operator.masterQueue.push(myTicket);
-        while (BackLog.writeLock || this.operator.masterQueue[0] !== myTicket) {
-          await timer.setTimeout(5);
-        }
-        BackLog.writeLock = true;
-        this.operator.masterQueue.shift();
-        log.info(`out of queue: ${myTicket}, in queue: ${this.operator.masterQueue.length}`, 'cyan');
-      }
-      */
       const result = await BackLog.pushQuery(query, 0, Date.now(), false, connId, fullQuery || query);
       // log.info(`sending query to slaves: ${JSON.stringify(result)}`);
       if (result) {
@@ -441,81 +426,34 @@ class Operator {
         case mySQLConsts.COM_QUERY:
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
-          // if (analyzedQueries.length > 2) log.info(JSON.stringify(analyzedQueries));
           for (const queryItem of analyzedQueries) {
-            // log.query(queryItem, 'white', id);
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
-              // forward it to the master node
-              // log.info(`${id},${queryItem[0]}`);
-              //  log.info(`incoming write ${id}`);
               if (this.operator.sessionQueries[id] !== undefined) {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
               }
               await this.sendWriteQuery(queryItem[0], id, query);
-              // log.info(`finish write ${id}`);
-              // this.localDB.enableSocketWrite = false;
-              // let result = await this.localDB.query(queryItem[0], true);
-              // this.sendOK({ message: 'OK' });
             } else if (queryItem[1] === 's') {
               // eslint-disable-next-line prefer-destructuring
               this.operator.sessionQueries[id] = queryItem[0];
-              // log.info(`incoming set session ${id}`);
               await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
-              // log.info(`finish set session ${id}`);
             } else {
               // forward it to the local DB
-              // eslint-disable-next-line prefer-const
-              // log.info(`incoming read ${id}`);
               await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
-              // log.info(`finish read ${id}`);
-              // log.info(`result: ${JSON.stringify(result)}`);
             }
-            // log.info(result);
-            // Then send it back to the user in table format
-            /*
-            if(result[1]){
-              let fieldNames = [];
-              for (let definition of result[1]) fieldNames.push(definition.name);
-              this.sendDefinitions(result[1]);
-              let finalResult = [];
-              for (let row of result[0]){
-                let newRow =[];
-                for(let filed of fieldNames){
-                  newRow.push(row[filed]);
-                }
-                finalResult.push(newRow);
-              }
-
-              this.sendRows(finalResult);
-              break;
-            } else if(result[0]){
-              this.sendOK({ message: 'OK' });
-              break;
-            }else if(result.warningStatus==0){
-              this.sendOK({ message: 'OK' });
-              break;
-            }else{
-              //this.sendError({ message: result[3] });
-              //break;
-            } */
           }
 
           break;
         case mySQLConsts.COM_PING:
-          // console.log('got ping');
           this.sendOK({ message: 'OK' });
           break;
         case null:
         case undefined:
         case mySQLConsts.COM_QUIT:
-          // log.info(`Disconnecting from ${id}`);
           this.end();
           break;
         case mySQLConsts.COM_INIT_DB:
-          // this.localDB.setSocket(this.socket, id);
           await ConnectionPool.getConnectionById(id).query(`use ${extra}`);
-          // this.sendOK({ message: 'OK' });
           break;
         default:
           log.info(`Unknown Command: ${command}`);
@@ -536,7 +474,6 @@ class Operator {
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
-        // console.log(keys);
         // eslint-disable-next-line guard-for-in
         for (const key in keys) {
           BackLog.pushKey(key, keys[key]);
@@ -630,12 +567,10 @@ class Operator {
         if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
         this.AppNodes.push(appIPList[i].ip);
       }
-      // log.info(`cluster ip's: ${JSON.stringify(this.OpNodes)}`);
       let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
         log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        // const myTempIp = await fluxAPI.getMyIp(ipList[i].ip, config.containerApiPort);
         const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
         log.info(`response was: ${JSON.stringify(status)}`);
         if (status === null || status === 'null') {
@@ -825,52 +760,6 @@ class Operator {
     }
     return null;
   }
-
-  /**
-  * [getMyIp]
-  */
-  /*
-  static async getMyIp(retries=1) {
-    try{
-      if(this.myIP !== null){
-        return this.myIP
-      }else{
-        //let ipList = [];
-        for(let i=0; i < this.OpNodes.length && i < 5; i++){
-          log.info(`asking myip from ${this.OpNodes[i].ip}`);
-          let tempIp = await fluxAPI.getMyIp(this.OpNodes[i].ip, config.containerApiPort);
-          log.info(`response from ${this.OpNodes[i].ip} was ${tempIp}`);
-          let j=1;
-
-          if(tempIp!==null){
-            this.myIP = tempIp;
-            log.info(`My ip is ${JSON.stringify(tempIp)}`);
-            return tempIp;
-          }
-        }
-        log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
-        await this.updateAppInfo();
-        await timer.setTimeout(15000 * retries);
-        return this.getMyIp(retries+1);
-        log.info(`all response list: ${JSON.stringify(ipList)}`);
-        //find the highest occurrence in the array
-        if(ipList.length>=2){
-          const myIP = ipList.sort((a,b) =>ipList.filter(v => v===a).length - ipList.filter(v => v===b).length).pop();
-          this.myIP = myIP;
-          log.info(`My ip is ${JSON.stringify(myIP)}`);
-          return myIP;
-        }else{
-          log.info(`other nodes are not responding to api port ${config.containerApiPort}, retriying again ${retries}...`);
-          await this.updateAppInfo();
-          await timer.setTimeout(15000 * retries);
-          return this.getMyIp(retries+1);
-        }
-      }
-    }catch(err){
-      log.error(err);
-    }
-  }
-  */
 
   /**
   * [ConnectLocalDB]

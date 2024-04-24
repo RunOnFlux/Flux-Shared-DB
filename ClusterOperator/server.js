@@ -537,19 +537,6 @@ async function initServer() {
       });
       socket.on('writeQuery', async (query, connId, callback) => {
         log.info(`writeQuery from ${utill.convertIP(socket.handshake.address)}:${connId}`);
-        /*
-        if (BackLog.writeLock) {
-          const myTicket = Operator.getTicket();
-          log.info(`put into queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
-          Operator.masterQueue.push(myTicket);
-          while (BackLog.writeLock || Operator.masterQueue[0] !== myTicket) {
-            await timer.setTimeout(5);
-          }
-          BackLog.writeLock = true;
-          Operator.masterQueue.shift();
-          log.info(`out of queue: ${myTicket}, in queue: ${Operator.masterQueue.length}`, 'cyan');
-        }
-        */
         const result = await BackLog.pushQuery(query);
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
@@ -582,16 +569,6 @@ async function initServer() {
             }
           }
         }
-        // if (record) {
-
-        // log.info(`record type: ${Array.isArray(record)}`, 'magenta');
-        // if (Array.isArray(record)) {
-        // socket.emit('query', record[0].query, record[0].seq, record[0].timestamp, false);
-        // log.warn(`query ${index} not in query cache`, 'red');
-        // } else {
-
-        // }
-        // }
         callback({ status: Operator.status });
       });
       socket.on('shareKeys', async (pubKey, callback) => {
