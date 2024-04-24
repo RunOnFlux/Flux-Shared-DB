@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { appendFileSync, createReadStream, createWriteStream, renameSync, unlinkSync, writeFileSync } from 'fs';
 import { all } from 'deepmerge';
 import { format } from 'sql-formatter';

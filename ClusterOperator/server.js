@@ -24,7 +24,7 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
-const SqlImporter = require('../modules/mysql-import');
+const SqlImporter = require('../modules/mysql-import/mysql-import');
 
 /**
 * [auth]
@@ -193,6 +193,8 @@ function startUI() {
     }
   });
   app.get('/getstatus', async (req, res) => {
+    res.status(403).send('Bad Request');
+    /*
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -207,6 +209,7 @@ function startUI() {
       await timer.setTimeout(2000);
       // console.log(count);
     }
+    */
   });
 
   app.get('/status', (req, res) => {

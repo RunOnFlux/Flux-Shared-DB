@@ -10,7 +10,7 @@ const log = require('../lib/log');
 const Security = require('./Security');
 const ConnectionPool = require('../lib/ConnectionPool');
 const utill = require('../lib/utill');
-const mysqldump = require('../modules/mysqldump');
+const mysqldump = require('../modules/mysqldump/dist/cjs');
 
 class BackLog {
   static buffer = [];
