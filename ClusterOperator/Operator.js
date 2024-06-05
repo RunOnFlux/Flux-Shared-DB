@@ -693,20 +693,20 @@ class Operator {
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
         // if first candidate is me i'm the master
         if (this.masterCandidates[0] === this.myIP) {
-          let MasterIP = this.myIP;
+          // let MasterIP = this.myIP;
           // ask second candidate for confirmation
-          if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
+          // if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
 
-          if (MasterIP === this.myIP) {
-            this.IamMaster = true;
-            this.masterNode = this.myIP;
-            this.status = 'OK';
-          } else if (MasterIP === null || MasterIP === 'null') {
-            log.info('retrying FindMaster...');
-            return this.findMaster();
-          } else {
-            this.masterNode = MasterIP;
-          }
+          // if (MasterIP === this.myIP) {
+          this.IamMaster = true;
+          this.masterNode = this.myIP;
+          this.status = 'OK';
+          // } else if (MasterIP === null || MasterIP === 'null') {
+          //  log.info('retrying FindMaster...');
+          //  return this.findMaster();
+          // } else {
+          //  this.masterNode = MasterIP;
+          // }
         } else {
           // ask first candidate who the master is
           log.info(`asking master from ${this.masterCandidates[0]}`);
