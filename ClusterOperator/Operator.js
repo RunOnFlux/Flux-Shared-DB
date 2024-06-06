@@ -629,13 +629,13 @@ class Operator {
           if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
           this.AppNodes.push(appIPList[i].ip);
         }
-        if (this.masterNode && !checkMasterIp) {
+        /* if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
           this.masterNode = null;
           this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
-        }
+        } */
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
@@ -693,20 +693,20 @@ class Operator {
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
         // if first candidate is me i'm the master
         if (this.masterCandidates[0] === this.myIP) {
-          // let MasterIP = this.myIP;
+          let MasterIP = this.myIP;
           // ask second candidate for confirmation
-          // if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
+          if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
 
-          // if (MasterIP === this.myIP) {
-          this.IamMaster = true;
-          this.masterNode = this.myIP;
-          this.status = 'OK';
-          // } else if (MasterIP === null || MasterIP === 'null') {
-          //  log.info('retrying FindMaster...');
-          //  return this.findMaster();
-          // } else {
-          //  this.masterNode = MasterIP;
-          // }
+          if (MasterIP === this.myIP) {
+            this.IamMaster = true;
+            this.masterNode = this.myIP;
+            this.status = 'OK';
+          } else if (MasterIP === null || MasterIP === 'null') {
+            log.info('retrying FindMaster...');
+            return this.findMaster();
+          } else {
+            this.masterNode = MasterIP;
+          }
         } else {
           // ask first candidate who the master is
           log.info(`asking master from ${this.masterCandidates[0]}`);
