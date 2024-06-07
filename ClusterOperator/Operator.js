@@ -629,13 +629,13 @@ class Operator {
           if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
           this.AppNodes.push(appIPList[i].ip);
         }
-        if (this.masterNode && !checkMasterIp) {
+        /* if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
           this.masterNode = null;
           this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
-        }
+        } */
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
