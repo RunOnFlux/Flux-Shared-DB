@@ -639,13 +639,13 @@ class Operator {
             this.initMasterConnection();
           }
         }
-        /* if (this.masterNode && !checkMasterIp) {
+        if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
           this.masterNode = null;
           this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
-        } */
+        }
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
@@ -707,7 +707,7 @@ class Operator {
           // ask second candidate for confirmation
           if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
           log.info(`asking second candidate for confirmation: ${MasterIP}`);
-          if (MasterIP === this.myIP) {
+          if (MasterIP === this.myIP || !this.masterCandidates.includes(MasterIP)) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
@@ -761,7 +761,6 @@ class Operator {
   * [getMaster]
   */
   static getMaster() {
-    log.debug(`master node:${this.masterNode}`);
     if (this.masterNode === null) {
       if (this.masterCandidates.length) {
         return this.masterCandidates[0];
