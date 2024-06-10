@@ -639,13 +639,13 @@ class Operator {
             this.initMasterConnection();
           }
         }
-        /* if (this.masterNode && !checkMasterIp) {
+        if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
           this.masterNode = null;
           this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
-        } */
+        }
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
