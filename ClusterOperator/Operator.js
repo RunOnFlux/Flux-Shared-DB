@@ -706,7 +706,7 @@ class Operator {
           let MasterIP = this.myIP;
           // ask second candidate for confirmation
           if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
-
+          log.info(`asking second candidate for confirmation: ${MasterIP}`);
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
@@ -761,6 +761,7 @@ class Operator {
   * [getMaster]
   */
   static getMaster() {
+    log.debug(`master node:${this.masterNode}`);
     if (this.masterNode === null) {
       if (this.masterCandidates.length) {
         return this.masterCandidates[0];
