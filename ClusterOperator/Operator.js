@@ -761,7 +761,6 @@ class Operator {
   * [getMaster]
   */
   static getMaster() {
-    log.debug(`master node:${this.masterNode}`);
     if (this.masterNode === null) {
       if (this.masterCandidates.length) {
         return this.masterCandidates[0];
