@@ -629,6 +629,16 @@ class Operator {
           if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
           this.AppNodes.push(appIPList[i].ip);
         }
+        // check if master is working
+        if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
+          const MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+          log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
+          if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
+            log.info('retrying FindMaster...');
+            await this.findMaster();
+            this.initMasterConnection();
+          }
+        }
         /* if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
           this.masterNode = null;
@@ -636,7 +646,7 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         } */
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1) {
+        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
           this.initMasterConnection();
