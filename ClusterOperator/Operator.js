@@ -633,7 +633,7 @@ class Operator {
         // check if master is working
         if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
           const MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-          log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
+          // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
             log.info('retrying FindMaster...');
             await this.findMaster();
