@@ -84,6 +84,7 @@ class Operator {
         await this.localDB.createDB(config.dbInitDB);
         BackLog.UserDBClient = this.localDB;
         BackLog.UserDBClient.setDB(config.dbInitDB);
+        BackLog.UserDBClient.query("SET sql_mode='IGNORE_SPACE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ALLOW_INVALID_DATES'");
         log.info(`${config.dbInitDB} database created on local DB.`);
         await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
       } catch (err) {
@@ -208,7 +209,7 @@ class Operator {
                 }
               }
             }
-          } else if (this.status === 'SYNC') {
+          } else if (this.status === 'SYNC' || this.status === 'CLEANUP') {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);

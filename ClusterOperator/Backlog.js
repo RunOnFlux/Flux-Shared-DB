@@ -511,8 +511,10 @@ class BackLog {
   /**
   * [dumpBackup]
   */
-  static async dumpBackup() {
+  static async dumpBackup(filename = null) {
     const timestamp = new Date().getTime();
+    // eslint-disable-next-line no-param-reassign
+    if (!filename) filename = `BU_${timestamp}`;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
@@ -537,10 +539,10 @@ class BackLog {
             verbose: false,
           },
         },
-        dumpToFile: `./dumps/BU_${timestamp}.sql`,
+        dumpToFile: `./dumps/${filename}.sql`,
       });
       const endTime = Date.now(); // Record the end time
-      log.info(`Backup file created in (${endTime - startTime} ms): BU_${timestamp}.sql`);
+      log.info(`Backup file created in (${endTime - startTime} ms): ${filename}.sql`);
     } else {
       log.info('Can not connect to the DB');
     }
