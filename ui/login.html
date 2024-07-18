@@ -9,27 +9,60 @@
    <style>
     /* Set styles for the icons */
     body {
-      background-color: #ededed;
+      background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 350% 350%;
+      animation: gradient 20s ease infinite;
+      height: 100vh;
+      color: white;
+    }
+    @keyframes gradient {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+    #particles-js{
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: 50% 50%;
+      position: fixed;
+      top: 0px;
+      z-index:-1;
+    }
+    .thin {
+      font-weight: 200;
+    }
+    .pointer{
+      cursor: pointer;
     }
 
 	</style>
 </head>
 <body>
+  <div id="large-header" class="large-header">
+    <canvas id="demo-canvas"></canvas>
+  </div>
 
-  <div class="container" style="max-width: 600px;;padding-top:80px">
+  <div class="container" class="container-fluid pt-2" style="max-width: 500px;">
     <div class="row justify-content-center">
       
       <div class="col-5-auto text-center">
-        <h3>Flux Shared-DB Admin Panel</h3>
+        <h3 class="thin mb-3">Flux Decentralized Database</h3>
         <div class="card text-center">
-          <p class="text-muted fs-5 mt-3">Login using ZelID</p>
-          <div class="zelID mb-5" id="app_login"><img width="100px" src="/assets/zelID.svg"></div>
-          <p class="text-muted fs-5 pt-3 border-top">Or sign the following message with your address</p>
+          <p class="text-muted fs-5 mt-3 thin">Login using ZelID</p>
+          <div class="zelID mb-4"><img width="100px" class="pointer" id="app_login" src="/assets/zelID.svg"></div>
+          <p class="text-muted fs-5 pt-3 border-top thin">Or sign the following message with your address</p>
           <form class="mx-5">
             <div class="row">
               <div class="col-12">
                 <div role="group" class="form-row form-group" id="__BVID__326">
-                  <label for="h-message" class="col-md-3 col-form-label" id="__BVID__326__BV_label_">Message</label>
+                  <label for="h-message" class="col-md-3 col-form-label text-muted">Message</label>
                   <div class="col">
                     <input id="h-message" type="text" placeholder="Insert Login Phrase" class="form-control">
                   </div>
@@ -37,26 +70,27 @@
               </div>
               <div class="col-12">
                 <div role="group" class="form-row form-group" id="__BVID__330">
-                  <label for="h-signature" class="col-md-3 col-form-label" id="__BVID__330__BV_label_">Signature</label>
+                  <label for="h-signature" class="col-md-3 col-form-label text-muted" id="login-signature">Signature</label>
                   <div class="col">
                     <input id="h-signature" type="text" placeholder="Insert Signature" class="form-control">
                   </div>
                 </div>
               </div>
-              <div class="mt-3 mb-3">
-                <button type="submit" id="login-btn" class="btn btn-secondary"> Login </button>
+              <div class="mt-3 mb-4">
+                <a id="login-btn" class="btn btn-dark"> Login </a>
               </div>
             </div>
           </form>
         </div>
       </div>
     </div>
-    <footer class="mt-3 text-center small">
+    <footer class="mt-3 pb-3 text-center small thin">
     <span>© 2022-2023 InFlux Technologies</span>
     <span class="badge bg-dark">Beta</span>
-    <span id="build_version">v1.1.13</span>
+    <span id="build_version">v1.3.0</span>
     </footer>
   </div>
+  <div id="particles-js"></div>
 
 
 </body>
@@ -64,13 +98,187 @@
 <script>
 $(document).ready(function() {
   let baseUrl = new URL(window.location.href);
-  window.apiURL = baseUrl.hostname + ':' + baseUrl.port;
+  window.apiURL = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
+  window.loginPhrase = '';
+  console.log(window.apiURL);
   $("#app_login").click(function() {
-    console.log("app_login");
-    let loginPhrase = '123';
-    const callbackValue = `http://${window.apiURL}/verifylogin`;
-    console.log(`zel:?action=sign&message=${loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
-    window.location.replace(`zel:?action=sign&message=${loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
+    if (window.loginPhrase) {
+      console.log("app_login");
+      const callbackValue = `${window.apiURL}/verifylogin`;
+      console.log(`zel:?action=sign&message=${window.loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
+      window.location.replace(`zel:?action=sign&message=${window.loginPhrase}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=${callbackValue}`);
+      window.login_check_tries = 0;
+      window.CL_id = setInterval(checkLogin,1000);
+    }
   });
+  $("#login-btn").click(function() {
+    let loginPhrase = $("#h-message").val();
+    let signature = $("#h-signature").val();
+    const url = `${window.apiURL}/verifylogin`;
+    $.ajax({
+      url: url,
+      type: "POST",
+      data: {message: loginPhrase, signature: signature},
+      success: function (data, status, xhr) {
+        console.log('data: ', data);
+        if(data==='OK'){
+          window.location.replace(window.apiURL);
+        }
+      }
+    })
+
+  });
+  function fetchLoginPhrase(){
+    $.ajax({
+      url: `${window.apiURL}/loginphrase`,
+      crossDomain: true,
+      type: "GET",
+      success: function (data, status, xhr) {
+        console.log(data);
+        $("#h-message").val(data);
+        window.loginPhrase = data;
+      }
+    })
+  }
+  function checkLogin(){
+    if (window.login_check_tries > 30) clearInterval(window.CL_id);
+    window.login_check_tries ++;
+    $.ajax({
+      url: `${window.apiURL}/isloggedin`,
+      headers: {'loginphrase':window.loginPhrase},
+      crossDomain: true,
+      type: "GET",
+      success: function (data, status, xhr) {
+        console.log(data);
+        if(data==='OK'){
+          window.location.replace(window.apiURL);
+        }
+      }
+    })
+  }
+  fetchLoginPhrase();
+  setInterval(fetchLoginPhrase,1000 * 60 * 5);
 });
+
+$.getScript("https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js", function(){
+    particlesJS('particles-js',
+      {
+        "particles": {
+          "number": {
+            "value": 60,
+            "density": {
+              "enable": true,
+              "value_area": 500
+            }
+          },
+          "color": {
+            "value": "#ffffff"
+          },
+          "shape": {
+            "type": "circle",
+            "stroke": {
+              "width": 0,
+              "color": "#000000"
+            },
+            "polygon": {
+              "nb_sides": 5
+            },
+            "image": {
+              "width": 100,
+              "height": 100
+            }
+          },
+          "opacity": {
+            "value": 0.2,
+            "random": false,
+            "anim": {
+              "enable": false,
+              "speed": 1,
+              "opacity_min": 0.1,
+              "sync": false
+            }
+          },
+          "size": {
+            "value": 5,
+            "random": true,
+            "anim": {
+              "enable": false,
+              "speed": 40,
+              "size_min": 0.1,
+              "sync": false
+            }
+          },
+          "line_linked": {
+            "enable": true,
+            "distance": 150,
+            "color": "#ffffff",
+            "opacity": 0.2,
+            "width": 1
+          },
+          "move": {
+            "enable": true,
+            "speed": 2,
+            "direction": "none",
+            "random": false,
+            "straight": false,
+            "out_mode": "out",
+            "attract": {
+              "enable": false,
+              "rotateX": 600,
+              "rotateY": 1200
+            }
+          }
+        },
+        "interactivity": {
+          "detect_on": "canvas",
+          "events": {
+            "onhover": {
+              "enable": true,
+              "mode": "repulse"
+            },
+            "onclick": {
+              "enable": true,
+              "mode": "push"
+            },
+            "resize": true
+          },
+          "modes": {
+            "grab": {
+              "distance": 400,
+              "line_linked": {
+                "opacity": 1
+              }
+            },
+            "bubble": {
+              "distance": 400,
+              "size": 40,
+              "duration": 2,
+              "opacity": 8,
+              "speed": 3
+            },
+            "repulse": {
+              "distance": 100
+            },
+            "push": {
+              "particles_nb": 4
+            },
+            "remove": {
+              "particles_nb": 2
+            }
+          }
+        },
+        "retina_detect": true,
+        "config_demo": {
+          "hide_card": false,
+          "background_color": "#b61924",
+          "background_image": "",
+          "background_position": "50% 50%",
+          "background_repeat": "no-repeat",
+          "background_size": "cover"
+        }
+      }
+    );
+
+});
+
 </script>
