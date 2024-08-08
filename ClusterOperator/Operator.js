@@ -172,7 +172,7 @@ class Operator {
               while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
                 const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
                 if (nextQuery !== undefined && nextQuery !== null) {
-                  log.info(JSON.stringify(nextQuery), 'magenta');
+                  // log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
                   this.buffer[nextQuery.sequenceNumber] = undefined;
