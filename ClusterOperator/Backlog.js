@@ -410,8 +410,8 @@ class BackLog {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === false) timestamp = Date.now();
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
