@@ -414,7 +414,7 @@ class Operator {
         await timer.setTimeout(200);
         // restore backlog from snapshot
         const importer = new SqlImporter({
-          callback: BackLog.pushToBacklog(),
+          callback: BackLog.pushToBacklog,
           serverSocket: false,
         });
         importer.onProgress((progress) => {
