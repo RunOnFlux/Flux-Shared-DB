@@ -390,6 +390,12 @@ class Operator {
     return BackLog.pushToBacklog(query, seq, timestamp);
   }
 
+  static async doCompressCheck() {
+    if (this.IamMaster) {
+      this.comperssBacklog();
+    }
+  }
+
   /**
   * [comperssBacklog]
   *
@@ -406,6 +412,7 @@ class Operator {
           await timer.setTimeout(2000);
         }
       } else {
+        log.info('creating snapshot...');
         backupFilename = await BackLog.dumpBackup();
       }
       if (backupFilename) {
@@ -695,10 +702,10 @@ class Operator {
           this.AppNodes.push(appIPList[i].ip);
         }
         // check if master is working
-        if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
+        if (!this.IamMaster && this.masterNode && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
           let tries = 0;
-          while (MasterIP === null || MasterIP === 'null' || tries < 10) {
+          while ((MasterIP === null || MasterIP === 'null') && tries < 10) {
             MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
             await timer.setTimeout(10000);
             tries += 1;
@@ -718,7 +725,7 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         }
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
+        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
           this.initMasterConnection();
