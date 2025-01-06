@@ -386,6 +386,10 @@ class Operator {
     }
   }
 
+  static async pushToBacklog(query, seq = false, timestamp = false) {
+    return BackLog.pushToBacklog(query, seq, timestamp);
+  }
+
   /**
   * [comperssBacklog]
   *
@@ -414,7 +418,7 @@ class Operator {
         await timer.setTimeout(200);
         // restore backlog from snapshot
         const importer = new SqlImporter({
-          callback: BackLog.pushToBacklog,
+          callback: this.pushToBacklog,
           serverSocket: false,
         });
         importer.onProgress((progress) => {
@@ -543,6 +547,7 @@ class Operator {
         log.error(err);
       }
       let masterSN = BackLog.sequenceNumber + 1;
+      log.info(`current seq no: ${masterSN}`);
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
