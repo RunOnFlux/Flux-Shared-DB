@@ -696,10 +696,17 @@ class Operator {
         }
         // check if master is working
         if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
-          const MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+          let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+          let tries = 0;
+          while (MasterIP === null || MasterIP === 'null' || tries < 10) {
+            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+            await timer.setTimeout(10000);
+            tries += 1;
+            log.info(`master not responding, tries :${tries}`);
+          }
           // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
-            log.info('retrying FindMaster...');
+            log.info('master not responding, running findMaster...');
             await this.findMaster();
             this.initMasterConnection();
           }
