@@ -436,11 +436,12 @@ class Operator {
         await importer.import(`./dumps/${backupFilename}.sql`).then(async () => {
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          this.status = 'OK';
+          if (this.IamMaster) fs.unlinkSync(`./dumps/${backupFilename}.sql`);
         }).catch((err) => {
           log.error(err);
         });
       }
-      this.status = 'OK';
     } catch (e) {
       this.status = 'OK';
       log.error(JSON.stringify(e));
