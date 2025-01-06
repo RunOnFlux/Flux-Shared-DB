@@ -4,6 +4,7 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
+const fs = require('fs');
 const net = require('net');
 const { io } = require('socket.io-client');
 const missingQueryBuffer = require('memory-cache');
@@ -18,6 +19,7 @@ const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
 const IdService = require('./IdService');
+const SqlImporter = require('../lib/mysqlimport');
 
 // const e = require('cors');
 
@@ -126,6 +128,7 @@ class Operator {
           const { engine } = this.masterWSConn.io;
           log.info('connected to master, Sharing keys...');
           try {
+            /*
             const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
             // log.info(Security.privateDecrypt(keys.commAESKey));
             Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIV));
@@ -140,6 +143,7 @@ class Operator {
             } else {
               await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
             }
+            */
           } catch (err) {
             log.error(err);
           }
@@ -236,6 +240,11 @@ class Operator {
             await BackLog.rebuildDatabase(seqNo);
             this.status = tempStatus;
           }
+        });
+        this.masterWSConn.on('compressbacklog', async (filename) => {
+          log.info(`compressbacklog request from master, filename: ${filename}`);
+          await this.comperssBacklog(filename);
+          this.syncLocalDB();
         });
       } catch (e) {
         log.error(e);
@@ -374,6 +383,56 @@ class Operator {
     } catch (e) {
       log.error(JSON.stringify(e));
       return null;
+    }
+  }
+
+  /**
+  * [comperssBacklog]
+  *
+  */
+  static async comperssBacklog(filename = false) {
+    try {
+      this.status = 'COMPRESSING';
+      await timer.setTimeout(500);
+      // create a snapshot
+      let backupFilename = filename;
+      if (backupFilename) {
+        while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
+          log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
+          await timer.setTimeout(2000);
+        }
+      } else {
+        backupFilename = await BackLog.dumpBackup();
+      }
+      if (backupFilename) {
+        if (this.IamMaster) {
+          this.serverSocket.emit('compressbacklog', backupFilename);
+        }
+        // clear backlog
+        await BackLog.clearBacklog();
+        await BackLog.clearBuffer();
+        await timer.setTimeout(200);
+        // restore backlog from snapshot
+        const importer = new SqlImporter({
+          callback: BackLog.pushToBacklog(),
+          serverSocket: false,
+        });
+        importer.onProgress((progress) => {
+          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+          log.info(`${percent}% Completed`, 'cyan');
+        });
+        importer.setEncoding('utf8');
+        await importer.import(`./dumps/${backupFilename}.sql`).then(async () => {
+          const filesImported = importer.getImported();
+          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+        }).catch((err) => {
+          log.error(err);
+        });
+      }
+      this.status = 'OK';
+    } catch (e) {
+      this.status = 'OK';
+      log.error(JSON.stringify(e));
     }
   }
 

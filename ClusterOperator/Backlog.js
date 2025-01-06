@@ -366,6 +366,26 @@ class BackLog {
   }
 
   /**
+  * [clearBacklog]
+  */
+  static async clearBacklog() {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+        this.sequenceNumber = 0;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    this.buffer = [];
+    log.info('All backlog data removed successfully.');
+  }
+
+  /**
   * [clearBuffer]
   */
   static async clearBuffer() {
@@ -384,6 +404,30 @@ class BackLog {
     }
     this.buffer = [];
     log.info('All buffer data removed successfully.');
+  }
+
+  static async pushToBacklog(query, seq = false, timestamp = false) {
+    // eslint-disable-next-line no-param-reassign
+    if (timestamp === false) timestamp = Date.now();
+    if (!this.BLClient) {
+      log.error('Backlog not created yet. Call createBacklog() first.');
+      return [];
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        this.sequenceNumber += 1;
+        const seqForThis = this.sequenceNumber;
+        const BLResult = await this.BLClient.execute(
+          `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+          [seqForThis, query, timestamp],
+        );
+        return [BLResult, seqForThis, timestamp];
+      }
+    } catch (e) {
+      log.error(`error executing query, ${query}, ${seq}`);
+      log.error(e);
+    }
+    return [];
   }
 
   /**
@@ -543,8 +587,10 @@ class BackLog {
       });
       const endTime = Date.now(); // Record the end time
       log.info(`Backup file created in (${endTime - startTime} ms): ${filename}.sql`);
+      return (filename);
     } else {
       log.info('Can not connect to the DB');
+      return (null);
     }
   }
 

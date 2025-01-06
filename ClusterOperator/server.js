@@ -408,6 +408,17 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.post('/compressbacklog', async (req, res) => {
+    if (authUser(req)) {
+      if (this.IamMaster) {
+        await Operator.comperssBacklog();
+      } else {
+        res.status(500).send('operation is only allowed on master node');
+      }
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
   app.get('/isloggedin/', (req, res) => {
     if (authUser(req)) {
       res.cookie('loginphrase', req.headers.loginphrase);
