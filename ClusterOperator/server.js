@@ -373,7 +373,7 @@ function startUI() {
   });
   app.post('/executebackup', async (req, res) => {
     if (authUser(req)) {
-      if (this.IamMaster) {
+      if (Operator.IamMaster) {
         const { body } = req;
         if (body) {
           const { filename } = body;
@@ -410,7 +410,7 @@ function startUI() {
   });
   app.post('/compressbacklog', async (req, res) => {
     if (authUser(req)) {
-      if (this.IamMaster) {
+      if (Operator.IamMaster) {
         await Operator.comperssBacklog();
       } else {
         res.status(500).send('operation is only allowed on master node');
