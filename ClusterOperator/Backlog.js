@@ -98,8 +98,8 @@ class BackLog {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -157,8 +157,8 @@ class BackLog {
   */
   static async getLogs(startFrom, pageSize) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -181,8 +181,8 @@ class BackLog {
   */
   static async getLogsByTime(startFrom, length) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -202,8 +202,8 @@ class BackLog {
   */
   static async getLog(index) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -223,8 +223,8 @@ class BackLog {
   */
   static async getDateRange() {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -244,7 +244,8 @@ class BackLog {
   */
   static async getTotalLogsCount() {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -265,7 +266,8 @@ class BackLog {
   */
   static async getLastSequenceNumber(buffer = false) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
