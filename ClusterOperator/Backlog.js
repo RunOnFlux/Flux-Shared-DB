@@ -417,7 +417,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        if (this.sequenceNumber > 9223372036854775000) this.sequenceNumber = 0;
+        if (this.sequenceNumber === undefined) this.sequenceNumber = 0;
         log.info(`executing ${this.sequenceNumber}`);
         this.sequenceNumber += 1;
         const seqForThis = this.sequenceNumber;
