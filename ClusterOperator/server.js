@@ -373,32 +373,36 @@ function startUI() {
   });
   app.post('/executebackup', async (req, res) => {
     if (authUser(req)) {
-      const { body } = req;
-      if (body) {
-        const { filename } = body;
-        // create a snapshot
-        // await BackLog.dumpBackup();
-        // removing old db + resetting secuence numbers:
-        await Operator.rollBack(0);
-        await timer.setTimeout(2000);
-        const importer = new SqlImporter({
-          callback: Operator.sendWriteQuery,
-          serverSocket: Operator.serverSocket,
-        });
-        importer.onProgress((progress) => {
-          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-          log.info(`${percent}% Completed`, 'cyan');
-        });
-        importer.setEncoding('utf8');
-        await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported.`);
-          res.send('OK');
-        }).catch((err) => {
-          res.status(500).send(JSON.stringify(err));
-          log.error(err);
-        });
-        res.end();
+      if (this.IamMaster) {
+        const { body } = req;
+        if (body) {
+          const { filename } = body;
+          // create a snapshot
+          // await BackLog.dumpBackup();
+          // removing old db + resetting secuence numbers:
+          await Operator.rollBack(0);
+          await timer.setTimeout(2000);
+          const importer = new SqlImporter({
+            callback: Operator.sendWriteQuery,
+            serverSocket: Operator.serverSocket,
+          });
+          importer.onProgress((progress) => {
+            const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+            log.info(`${percent}% Completed`, 'cyan');
+          });
+          importer.setEncoding('utf8');
+          await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
+            const filesImported = importer.getImported();
+            log.info(`${filesImported.length} SQL file(s) imported.`);
+            res.send('OK');
+          }).catch((err) => {
+            res.status(500).send(JSON.stringify(err));
+            log.error(err);
+          });
+          res.end();
+        }
+      } else {
+        res.status(500).send('operation is only allowed on master node');
       }
     } else {
       res.status(403).send('Bad Request');
