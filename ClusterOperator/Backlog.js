@@ -21,6 +21,8 @@ class BackLog {
 
   static bufferStartSequenceNumber = 0;
 
+  static compressionTask = -1;
+
   static BLClient = null;
 
   static UserDBClient = null;
@@ -418,7 +420,7 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         if (this.sequenceNumber === undefined) this.sequenceNumber = 0;
-        log.info(`executing ${this.sequenceNumber}`);
+        // log.info(`executing ${this.sequenceNumber}`);
         this.sequenceNumber += 1;
         const seqForThis = this.sequenceNumber;
         const BLResult = await this.BLClient.execute(

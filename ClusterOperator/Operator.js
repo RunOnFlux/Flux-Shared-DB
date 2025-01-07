@@ -434,6 +434,7 @@ class Operator {
         });
         importer.onProgress((progress) => {
           const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+          BackLog.compressionTask = percent;
           log.info(`${percent}% Completed`, 'cyan');
         });
         importer.setEncoding('utf8');
@@ -441,6 +442,7 @@ class Operator {
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
           this.status = 'OK';
+          BackLog.compressionTask = -1;
           if (this.IamMaster) fs.unlinkSync(`./dumps/${backupFilename}.sql`);
         }).catch((err) => {
           log.error(err);

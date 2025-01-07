@@ -219,6 +219,7 @@ function startUI() {
       status: Operator.status,
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
+      taskStatus: BackLog.compressionTask,
     });
     res.end();
   });

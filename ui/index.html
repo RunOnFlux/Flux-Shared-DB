@@ -481,6 +481,7 @@
         for( let i = 0; i< nodelist.data.length; i += 1){
           try{
             const nodeStatus = await axios.get(`http://${nodelist.data[i].ip}:${window.port}/status`, { timeout: 4000 });
+            if(nodeStatus.data.status === 'COMPRESSING') nodeStatus.data.status = nodeStatus.data.status + ' ' + nodeStatus.data.taskStatus + '%'
             html += `<tr><th scope="row">${i+1}</th>
               <td>${nodelist.data[i].ip}</td>
               <td>${nodeStatus.data.sequenceNumber}</td>
