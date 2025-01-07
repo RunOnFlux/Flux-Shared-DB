@@ -241,9 +241,9 @@ class Operator {
             this.status = tempStatus;
           }
         });
-        this.masterWSConn.on('compressbacklog', async (filename) => {
-          log.info(`compressbacklog request from master, filename: ${filename}`);
-          await this.comperssBacklog(filename);
+        this.masterWSConn.on('compressbacklog', async (filename, filesize) => {
+          log.info(`compressbacklog request from master, filename: ${filename} with ${filesize} bytes`);
+          await this.comperssBacklog(filename, filesize);
           this.syncLocalDB();
         });
       } catch (e) {
@@ -400,24 +400,28 @@ class Operator {
   * [comperssBacklog]
   *
   */
-  static async comperssBacklog(filename = false) {
+  static async comperssBacklog(filename = false, filesize = 0) {
     try {
       this.status = 'COMPRESSING';
       await timer.setTimeout(500);
       // create a snapshot
       let backupFilename = filename;
       if (backupFilename) {
-        while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
-          log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
-          await timer.setTimeout(2000);
+        while (!fs.existsSync(`./dumps/${backupFilename}.sql`) || fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
+          if (!fs.existsSync(`./dumps/${backupFilename}.sql`)) log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
+          if (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
+          await timer.setTimeout(3000);
         }
       } else {
         log.info('creating snapshot...');
         backupFilename = await BackLog.dumpBackup();
+        const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
+        // eslint-disable-next-line no-param-reassign
+        filesize = fileStats.size;
       }
       if (backupFilename) {
         if (this.IamMaster) {
-          this.serverSocket.emit('compressbacklog', backupFilename);
+          this.serverSocket.emit('compressbacklog', backupFilename, filesize);
         }
         // clear backlog
         await BackLog.clearBacklog();
