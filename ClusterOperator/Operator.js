@@ -552,9 +552,9 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      /*
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
-        console.log(response);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
         // eslint-disable-next-line guard-for-in
         for (const key in keys) {
@@ -564,6 +564,7 @@ class Operator {
       } catch (err) {
         log.error(err);
       }
+      */
       let masterSN = BackLog.sequenceNumber + 1;
       log.info(`current seq no: ${masterSN}`);
       let copyBuffer = false;
