@@ -407,9 +407,12 @@ class Operator {
       // create a snapshot
       let backupFilename = filename;
       if (backupFilename) {
-        while (!fs.existsSync(`./dumps/${backupFilename}.sql`) || fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
-          if (!fs.existsSync(`./dumps/${backupFilename}.sql`)) log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
-          if (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
+        while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
+          log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
+          await timer.setTimeout(3000);
+        }
+        while (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
+          log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
           await timer.setTimeout(3000);
         }
       } else {
@@ -551,6 +554,7 @@ class Operator {
       this.status = 'SYNC';
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
+        console.log(response);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
         // eslint-disable-next-line guard-for-in
         for (const key in keys) {
