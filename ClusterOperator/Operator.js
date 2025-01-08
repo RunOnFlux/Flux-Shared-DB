@@ -391,7 +391,9 @@ class Operator {
   }
 
   static async doCompressCheck() {
-    if (this.IamMaster) {
+    const today = new Date();
+    const day = today.getDay();
+    if (this.IamMaster && BackLog.sequenceNumber > 200000) { // 0 is sunday
       this.comperssBacklog();
     }
   }
