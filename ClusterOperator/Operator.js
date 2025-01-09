@@ -6,6 +6,7 @@
 const timer = require('timers/promises');
 const fs = require('fs');
 const net = require('net');
+const https = require('https');
 const { io } = require('socket.io-client');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
@@ -67,6 +68,8 @@ class Operator {
   static connectionDrops = 0;
 
   static ghosted = false;
+
+  static downloadingBackup = false;
 
   static masterQueue = [];
 
@@ -399,6 +402,49 @@ class Operator {
   }
 
   /**
+  * [downloadBackup]
+  *
+  */
+  static async downloadBackup(filename, filesize) {
+    return new Promise((resolve, reject) => {
+      const fileUrl = `http://${this.masterNode}:${config.debugUIPort}/${filename}/${filesize}`;
+      const filePath = `./dumps/${filename}.sql`;
+      log.info(`downloading backup from ${fileUrl}`);
+      const file = fs.createWriteStream(filePath);
+      const request = https.get(fileUrl, (response) => {
+        if (response.statusCode !== 200) {
+          log.error(`Failed to download file. Status code: ${response.statusCode}`);
+          fs.unlink(filePath, (err) => {
+            if (err) {
+              log.error(`Error deleting partially created file: ${err}`);
+            }
+          });
+          reject(new Error(`Failed to download file. Status code: ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          log.info('download finished.');
+          file.close();
+          resolve(); // Resolve the promise after successful download
+        });
+      });
+
+      request.on('error', (error) => {
+        log.error(`Error downloading file: ${error.message}`);
+        fs.unlink(filePath, (err) => {
+          if (err) {
+            log.error(`Error deleting partially created file: ${err}`);
+          }
+        });
+        reject(error); // Reject the promise with the error
+      });
+    });
+  }
+
+  /**
   * [comperssBacklog]
   *
   */
@@ -412,7 +458,10 @@ class Operator {
         let tries = 0;
         while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
           // reset master if file is not being replicated.
-          if (tries > 20) {
+          if (tries === 20) {
+            this.downloadBackup(backupFilename, filesize);
+          }
+          if (tries > 30) {
             if (this.masterWSConn) {
               try {
                 this.masterWSConn.removeAllListeners();

@@ -334,6 +334,20 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/getbackupfile2/:filename/:filesize', async (req, res) => {
+    const { filename } = req.params;
+    const { filesize } = req.params;
+    if (fs.existsSync(`./dumps/${sanitize(filename)}.sql`) && fs.statSync(`./dumps/${sanitize(filename)}.sql`).size === sanitize(filesize)) {
+      res.download(path.join(__dirname, `../dumps/${sanitize(filename)}.sql`), `${sanitize(filename)}.sql`, (err) => {
+        if (err) {
+          // Handle errors, such as file not found
+          res.status(404).send('File not found');
+        }
+      });
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
   app.post('/upload-sql', async (req, res) => {
     if (authUser(req)) {
       if (!req.files || !req.files.sqlFile) {
