@@ -448,7 +448,7 @@ class Operator {
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
           this.status = 'OK';
           BackLog.compressionTask = -1;
-          if (this.IamMaster) fs.unlinkSync(`./dumps/${backupFilename}.sql`);
+          if (this.IamMaster) BackLog.deleteBackupFile(backupFilename);
         }).catch((err) => {
           log.error(err);
         });

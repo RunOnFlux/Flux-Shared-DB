@@ -1,6 +1,6 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-// const timer = require('timers/promises');
+const timer = require('timers/promises');
 const queryCache = require('memory-cache');
 const fs = require('fs');
 const path = require('path');
@@ -380,13 +380,20 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+        await this.BLClient.query(`DROP TABLE ${config.dbBacklogCollection}`);
+        await timer.setTimeout(100);
+        await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
+        await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
+          MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
+          ADD PRIMARY KEY (\`seq\`),
+          ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
         this.sequenceNumber = 0;
       }
     } catch (e) {
       log.error(e);
     }
     this.buffer = [];
-    log.info('All backlog data removed successfully.');
+    log.info('Backlog table recreated successfully.');
   }
 
   /**
