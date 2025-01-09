@@ -458,10 +458,10 @@ class Operator {
         let tries = 0;
         while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
           // reset master if file is not being replicated.
-          if (tries === 20) {
-            this.downloadBackup(backupFilename, filesize);
+          if (tries === 15) {
+            await this.downloadBackup(backupFilename, filesize);
           }
-          if (tries > 30) {
+          if (tries > 20) {
             if (this.masterWSConn) {
               try {
                 this.masterWSConn.removeAllListeners();
