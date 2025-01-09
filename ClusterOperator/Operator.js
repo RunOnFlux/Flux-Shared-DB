@@ -409,9 +409,25 @@ class Operator {
       // create a snapshot
       let backupFilename = filename;
       if (backupFilename) {
+        let tries = 0;
         while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
+          // reset master if file is not being replicated.
+          if (tries > 20) {
+            if (this.masterWSConn) {
+              try {
+                this.masterWSConn.removeAllListeners();
+                this.masterWSConn.disconnect();
+              } catch (err) {
+                log.error(err);
+              }
+            }
+            await this.findMaster();
+            this.initMasterConnection();
+            return;
+          }
           log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
           await timer.setTimeout(3000);
+          tries += 1;
         }
         while (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
           log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
@@ -448,7 +464,10 @@ class Operator {
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
           this.status = 'OK';
           BackLog.compressionTask = -1;
-          if (this.IamMaster) BackLog.deleteBackupFile(backupFilename);
+          if (this.IamMaster) {
+            const files = await BackLog.listSqlFiles();
+            for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files.fileName, true);
+          }
         }).catch((err) => {
           log.error(err);
         });

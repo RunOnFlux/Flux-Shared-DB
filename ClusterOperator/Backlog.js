@@ -642,9 +642,13 @@ class BackLog {
   /**
   * [deleteBackupFile]
   */
-  static async deleteBackupFile(fileName) {
+  static async deleteBackupFile(fileName, withExtention = false) {
     try {
-      fs.unlinkSync(`./dumps/${fileName}.sql`);
+      if (withExtention) {
+        fs.unlinkSync(`./dumps/${fileName}`);
+      } else {
+        fs.unlinkSync(`./dumps/${fileName}.sql`);
+      }
       log.info(`File "${fileName}.sql" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
