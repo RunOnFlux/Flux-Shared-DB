@@ -6,7 +6,7 @@
 const timer = require('timers/promises');
 const fs = require('fs');
 const net = require('net');
-const https = require('https');
+const http = require('http');
 const { io } = require('socket.io-client');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
@@ -394,9 +394,8 @@ class Operator {
   }
 
   static async doCompressCheck() {
-    const today = new Date();
-    const day = today.getDay();
-    if (this.IamMaster && BackLog.sequenceNumber > 200000) { // 0 is sunday
+    const currentHour = new Date().getHours();
+    if (this.IamMaster && BackLog.sequenceNumber > 500000 && currentHour >= 1) {
       this.comperssBacklog();
     }
   }
@@ -411,7 +410,7 @@ class Operator {
       const filePath = `./dumps/${filename}.sql`;
       log.info(`downloading backup from ${fileUrl}`);
       const file = fs.createWriteStream(filePath);
-      const request = https.get(fileUrl, (response) => {
+      const request = http.get(fileUrl, (response) => {
         if (response.statusCode !== 200) {
           log.error(`Failed to download file. Status code: ${response.statusCode}`);
           fs.unlink(filePath, (err) => {
@@ -458,10 +457,10 @@ class Operator {
         let tries = 0;
         while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
           // reset master if file is not being replicated.
-          if (tries === 15) {
-            await this.downloadBackup(backupFilename, filesize);
-          }
-          if (tries > 20) {
+          if (tries > 30) {
+            // clear backlog
+            await BackLog.clearBacklog();
+            await BackLog.clearBuffer();
             if (this.masterWSConn) {
               try {
                 this.masterWSConn.removeAllListeners();
