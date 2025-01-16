@@ -488,7 +488,7 @@ class Operator {
         // eslint-disable-next-line no-param-reassign
         filesize = fileStats.size;
       }
-      if (backupFilename) {
+      if (backupFilename && filesize > 1000000) {
         if (this.IamMaster) {
           this.serverSocket.emit('compressbacklog', backupFilename, filesize);
         }
