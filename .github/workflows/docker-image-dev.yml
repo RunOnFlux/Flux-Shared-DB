@@ -4,12 +4,14 @@ on:
   push:
     branches: [ "development" ]
   pull_request:
+    types: [closed]
     branches: [ "development" ]
 
 jobs:
 
   push_to_registry:
     name: Push Docker image to Docker Hub
+    if: github.event.pull_request.merged == true || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
