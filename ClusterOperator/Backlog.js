@@ -123,9 +123,11 @@ class BackLog {
             [seqForThis, query, timestamp],
           );
           if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          /*
           this.BLqueryCache.put(seqForThis, {
             query, seq: seqForThis, timestamp, connId, ip: false,
-          }, 1000 * 30);
+          }, 20 * 60);
+          */
           this.writeLock = false;
           // Abort query execution if there is an error in backlog insert
           if (Array.isArray(BLResult) && BLResult[2]) {
