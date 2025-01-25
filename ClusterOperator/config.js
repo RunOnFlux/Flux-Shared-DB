@@ -16,7 +16,7 @@ module.exports = {
   containerApiPort: String(process.env.API_PORT || 33950).trim(),
   DBAppName: process.env.DB_APPNAME || '',
   AppName: process.env.CLIENT_APPNAME || '',
-  version: '1.3.0',
+  version: '1.3.1',
   whiteListedIps: process.env.WHITELIST || '127.0.0.1',
   debugMode: true,
   authMasterOnly: process.env.AUTH_MASTER_ONLY || false,

@@ -219,6 +219,7 @@ function startUI() {
       status: Operator.status,
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
+      taskStatus: BackLog.compressionTask,
     });
     res.end();
   });
@@ -333,6 +334,20 @@ function startUI() {
       res.status(403).send('Bad Request');
     }
   });
+  app.get('/getbackupfile2/:filename/:filesize', async (req, res) => {
+    const { filename } = req.params;
+    const { filesize } = req.params;
+    if (fs.existsSync(`./dumps/${sanitize(filename)}.sql`) && fs.statSync(`./dumps/${sanitize(filename)}.sql`).size === sanitize(filesize)) {
+      res.download(path.join(__dirname, `../dumps/${sanitize(filename)}.sql`), `${sanitize(filename)}.sql`, (err) => {
+        if (err) {
+          // Handle errors, such as file not found
+          res.status(404).send('File not found');
+        }
+      });
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
   app.post('/upload-sql', async (req, res) => {
     if (authUser(req)) {
       if (!req.files || !req.files.sqlFile) {
@@ -373,32 +388,47 @@ function startUI() {
   });
   app.post('/executebackup', async (req, res) => {
     if (authUser(req)) {
-      const { body } = req;
-      if (body) {
-        const { filename } = body;
-        // create a snapshot
-        await BackLog.dumpBackup();
-        // removing old db + resetting secuence numbers:
-        await Operator.rollBack(0);
-        await timer.setTimeout(2000);
-        const importer = new SqlImporter({
-          callback: Operator.sendWriteQuery,
-          serverSocket: Operator.serverSocket,
-        });
-        importer.onProgress((progress) => {
-          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-          log.info(`${percent}% Completed`, 'cyan');
-        });
-        importer.setEncoding('utf8');
-        await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported.`);
-          res.send('OK');
-        }).catch((err) => {
-          res.status(500).send(JSON.stringify(err));
-          log.error(err);
-        });
-        res.end();
+      if (Operator.IamMaster) {
+        const { body } = req;
+        if (body) {
+          const { filename } = body;
+          // create a snapshot
+          // await BackLog.dumpBackup();
+          // removing old db + resetting secuence numbers:
+          await Operator.rollBack(0);
+          await timer.setTimeout(2000);
+          const importer = new SqlImporter({
+            callback: Operator.sendWriteQuery,
+            serverSocket: Operator.serverSocket,
+          });
+          importer.onProgress((progress) => {
+            const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+            log.info(`${percent}% Completed`, 'cyan');
+          });
+          importer.setEncoding('utf8');
+          await importer.import(`./dumps/${sanitize(filename)}.sql`).then(async () => {
+            const filesImported = importer.getImported();
+            log.info(`${filesImported.length} SQL file(s) imported.`);
+            res.send('OK');
+          }).catch((err) => {
+            res.status(500).send(JSON.stringify(err));
+            log.error(err);
+          });
+          res.end();
+        }
+      } else {
+        res.status(500).send('operation is only allowed on master node');
+      }
+    } else {
+      res.status(403).send('Bad Request');
+    }
+  });
+  app.post('/compressbacklog', async (req, res) => {
+    if (authUser(req)) {
+      if (Operator.IamMaster) {
+        await Operator.comperssBacklog();
+      } else {
+        res.status(500).send('operation is only allowed on master node');
       }
     } else {
       res.status(403).send('Bad Request');
@@ -544,7 +574,7 @@ async function initServer() {
         // cache write queries for 20 seconds
         queryCache.put(result[1], {
           query, seq: result[1], timestamp: result[2], connId, ip,
-        }, 1000 * 60);
+        }, 20 * 60);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
@@ -557,10 +587,11 @@ async function initServer() {
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
           log.warn(`query ${index} not in query cache`, 'red');
-          let BLRecord = BackLog.BLqueryCache.get(index);
-          log.info(JSON.stringify(BLRecord), 'red');
-          if (!BLRecord) {
-            BLRecord = await BackLog.getLog(index);
+          // let BLRecord = BackLog.BLqueryCache.get(index);
+          // log.info(JSON.stringify(BLRecord), 'red');
+          // if (!BLRecord) {
+          const BLRecord = await BackLog.getLog(index);
+          if (BLRecord.length) {
             log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
             try {
               socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
@@ -647,6 +678,9 @@ async function initServer() {
   setInterval(async () => {
     Operator.doHealthCheck();
   }, 120000);
+  setInterval(async () => {
+    // Operator.doCompressCheck();
+  }, 2 * 60 * 60 * 1000); // 2 hour
   setInterval(async () => {
     BackLog.purgeBinLogs();
   }, 48 * 60 * 60 * 1000);

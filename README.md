@@ -25,8 +25,9 @@ Using Flux Shared DB in your project is easy, you just need to link it to a DB e
 * DB_PORT - external DB port for DB interface, this port can be used to connect to the cluster remotely and manage the database.
 * API_PORT - external API port for cluster communication.
 * DB_APPNAME (required) - the name of the application on the Flux network.
-* CLIENT_APPNAME - in case you want to give access to an application outside the local compose network, give name of the application running on Flux
+* CLIENT_APPNAME (required) - the name of the application on the Flux network.If you want to give access to an application outside the local compose network, give name of the application running on Flux
 * WHITELIST - comma separated list of IPs that can connect to the DB_PORT remotely
+* authMasterOnly - if set to "true", only master node will authenticate DB access from the app. Its useful if you want to have only one master node, and can use it to return an error page to the FDM so that only the master node will be reachable to the end users.
 
 ## Secret Management API
 

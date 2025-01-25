@@ -1,6 +1,6 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
-// const timer = require('timers/promises');
+const timer = require('timers/promises');
 const queryCache = require('memory-cache');
 const fs = require('fs');
 const path = require('path');
@@ -20,6 +20,8 @@ class BackLog {
   static bufferSequenceNumber = 0;
 
   static bufferStartSequenceNumber = 0;
+
+  static compressionTask = -1;
 
   static BLClient = null;
 
@@ -98,8 +100,8 @@ class BackLog {
     // eslint-disable-next-line no-param-reassign
     if (timestamp === undefined) timestamp = Date.now();
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -121,9 +123,11 @@ class BackLog {
             [seqForThis, query, timestamp],
           );
           if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          /*
           this.BLqueryCache.put(seqForThis, {
             query, seq: seqForThis, timestamp, connId, ip: false,
-          }, 1000 * 30);
+          }, 20 * 60);
+          */
           this.writeLock = false;
           // Abort query execution if there is an error in backlog insert
           if (Array.isArray(BLResult) && BLResult[2]) {
@@ -157,8 +161,8 @@ class BackLog {
   */
   static async getLogs(startFrom, pageSize) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -181,8 +185,8 @@ class BackLog {
   */
   static async getLogsByTime(startFrom, length) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -202,8 +206,8 @@ class BackLog {
   */
   static async getLog(index) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -223,8 +227,8 @@ class BackLog {
   */
   static async getDateRange() {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
-      return [];
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -244,7 +248,8 @@ class BackLog {
   */
   static async getTotalLogsCount() {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -265,7 +270,8 @@ class BackLog {
   */
   static async getLastSequenceNumber(buffer = false) {
     if (!this.BLClient) {
-      log.error('Backlog not created yet. Call createBacklog() first.');
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -366,6 +372,33 @@ class BackLog {
   }
 
   /**
+  * [clearBacklog]
+  */
+  static async clearBacklog() {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+        await this.BLClient.query(`DROP TABLE ${config.dbBacklogCollection}`);
+        await timer.setTimeout(100);
+        await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
+        await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
+          MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
+          ADD PRIMARY KEY (\`seq\`),
+          ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
+        this.sequenceNumber = 0;
+      }
+    } catch (e) {
+      log.error(e);
+    }
+    this.buffer = [];
+    log.info('Backlog table recreated successfully.');
+  }
+
+  /**
   * [clearBuffer]
   */
   static async clearBuffer() {
@@ -384,6 +417,32 @@ class BackLog {
     }
     this.buffer = [];
     log.info('All buffer data removed successfully.');
+  }
+
+  static async pushToBacklog(query, seq = false, timestamp = false) {
+    // eslint-disable-next-line no-param-reassign
+    if (timestamp === false) timestamp = Date.now();
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    }
+    try {
+      if (config.dbType === 'mysql') {
+        if (this.sequenceNumber === undefined) this.sequenceNumber = 0;
+        // log.info(`executing ${this.sequenceNumber}`);
+        this.sequenceNumber += 1;
+        const seqForThis = this.sequenceNumber;
+        const BLResult = await this.BLClient.execute(
+          `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+          [seqForThis, query, timestamp],
+        );
+        return [BLResult, seqForThis, timestamp];
+      }
+    } catch (e) {
+      log.error(`error executing query, ${query}, ${seq}`);
+      log.error(e);
+    }
+    return [];
   }
 
   /**
@@ -511,8 +570,10 @@ class BackLog {
   /**
   * [dumpBackup]
   */
-  static async dumpBackup() {
+  static async dumpBackup(filename = null) {
     const timestamp = new Date().getTime();
+    // eslint-disable-next-line no-param-reassign
+    if (!filename) filename = `BU_${timestamp}`;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
@@ -537,12 +598,14 @@ class BackLog {
             verbose: false,
           },
         },
-        dumpToFile: `./dumps/BU_${timestamp}.sql`,
+        dumpToFile: `./dumps/${filename}.sql`,
       });
       const endTime = Date.now(); // Record the end time
-      log.info(`Backup file created in (${endTime - startTime} ms): BU_${timestamp}.sql`);
+      log.info(`Backup file created in (${endTime - startTime} ms): ${filename}.sql`);
+      return (filename);
     } else {
       log.info('Can not connect to the DB');
+      return (null);
     }
   }
 
@@ -581,9 +644,13 @@ class BackLog {
   /**
   * [deleteBackupFile]
   */
-  static async deleteBackupFile(fileName) {
+  static async deleteBackupFile(fileName, withExtention = false) {
     try {
-      fs.unlinkSync(`./dumps/${fileName}.sql`);
+      if (withExtention) {
+        fs.unlinkSync(`./dumps/${fileName}`);
+      } else {
+        fs.unlinkSync(`./dumps/${fileName}.sql`);
+      }
       log.info(`File "${fileName}.sql" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);

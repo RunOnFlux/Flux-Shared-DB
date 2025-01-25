@@ -4,7 +4,9 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-unused-vars */
 const timer = require('timers/promises');
+const fs = require('fs');
 const net = require('net');
+const http = require('http');
 const { io } = require('socket.io-client');
 const missingQueryBuffer = require('memory-cache');
 const BackLog = require('./Backlog');
@@ -18,6 +20,7 @@ const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
 const IdService = require('./IdService');
+const SqlImporter = require('../lib/mysqlimport');
 
 // const e = require('cors');
 
@@ -66,6 +69,8 @@ class Operator {
 
   static ghosted = false;
 
+  static downloadingBackup = false;
+
   static masterQueue = [];
 
   static ticket = 0;
@@ -84,6 +89,7 @@ class Operator {
         await this.localDB.createDB(config.dbInitDB);
         BackLog.UserDBClient = this.localDB;
         BackLog.UserDBClient.setDB(config.dbInitDB);
+        BackLog.UserDBClient.query("SET GLOBAL sql_mode='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,IGNORE_SPACE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ALLOW_INVALID_DATES'");
         log.info(`${config.dbInitDB} database created on local DB.`);
         await ConnectionPool.init({ numberOfConnections: 10, maxConnections: 100, db: config.dbInitDB });
       } catch (err) {
@@ -125,6 +131,7 @@ class Operator {
           const { engine } = this.masterWSConn.io;
           log.info('connected to master, Sharing keys...');
           try {
+            /*
             const keys = await fluxAPI.shareKeys(Security.publicKey, this.masterWSConn);
             // log.info(Security.privateDecrypt(keys.commAESKey));
             Security.setCommKeys(Security.privateDecrypt(keys.commAESKey), Security.privateDecrypt(keys.commAESIV));
@@ -139,6 +146,7 @@ class Operator {
             } else {
               await fluxAPI.updateKey(Security.encryptComm(`N${this.myIP}`), Security.encryptComm(`${Security.getKey()}:${Security.getIV()}`), this.masterWSConn);
             }
+            */
           } catch (err) {
             log.error(err);
           }
@@ -171,7 +179,7 @@ class Operator {
               while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
                 const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
                 if (nextQuery !== undefined && nextQuery !== null) {
-                  log.info(JSON.stringify(nextQuery), 'magenta');
+                  // log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
                   this.buffer[nextQuery.sequenceNumber] = undefined;
@@ -208,7 +216,7 @@ class Operator {
                 }
               }
             }
-          } else if (this.status === 'SYNC') {
+          } else if (this.status === 'SYNC' || this.status === 'CLEANUP') {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);
@@ -235,6 +243,11 @@ class Operator {
             await BackLog.rebuildDatabase(seqNo);
             this.status = tempStatus;
           }
+        });
+        this.masterWSConn.on('compressbacklog', async (filename, filesize) => {
+          log.info(`compressbacklog request from master, filename: ${filename} with ${filesize} bytes`);
+          await this.comperssBacklog(filename, filesize);
+          this.syncLocalDB();
         });
       } catch (e) {
         log.error(e);
@@ -376,6 +389,143 @@ class Operator {
     }
   }
 
+  static async pushToBacklog(query, seq = false, timestamp = false) {
+    return BackLog.pushToBacklog(query, seq, timestamp);
+  }
+
+  static async doCompressCheck() {
+    const currentHour = new Date().getHours();
+    if (this.IamMaster && BackLog.sequenceNumber > 500000 && currentHour >= 1) {
+      this.comperssBacklog();
+    }
+  }
+
+  /**
+  * [downloadBackup]
+  *
+  */
+  static async downloadBackup(filename, filesize) {
+    return new Promise((resolve, reject) => {
+      const fileUrl = `http://${this.masterNode}:${config.debugUIPort}/${filename}/${filesize}`;
+      const filePath = `./dumps/${filename}.sql`;
+      log.info(`downloading backup from ${fileUrl}`);
+      const file = fs.createWriteStream(filePath);
+      const request = http.get(fileUrl, (response) => {
+        if (response.statusCode !== 200) {
+          log.error(`Failed to download file. Status code: ${response.statusCode}`);
+          fs.unlink(filePath, (err) => {
+            if (err) {
+              log.error(`Error deleting partially created file: ${err}`);
+            }
+          });
+          reject(new Error(`Failed to download file. Status code: ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          log.info('download finished.');
+          file.close();
+          resolve(); // Resolve the promise after successful download
+        });
+      });
+
+      request.on('error', (error) => {
+        log.error(`Error downloading file: ${error.message}`);
+        fs.unlink(filePath, (err) => {
+          if (err) {
+            log.error(`Error deleting partially created file: ${err}`);
+          }
+        });
+        reject(error); // Reject the promise with the error
+      });
+    });
+  }
+
+  /**
+  * [comperssBacklog]
+  *
+  */
+  static async comperssBacklog(filename = false, filesize = 0) {
+    try {
+      this.status = 'COMPRESSING';
+      await timer.setTimeout(500);
+      // create a snapshot
+      let backupFilename = filename;
+      if (backupFilename) {
+        let tries = 0;
+        while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
+          // reset master if file is not being replicated.
+          if (tries > 30) {
+            // clear backlog
+            await BackLog.clearBacklog();
+            await BackLog.clearBuffer();
+            if (this.masterWSConn) {
+              try {
+                this.masterWSConn.removeAllListeners();
+                this.masterWSConn.disconnect();
+              } catch (err) {
+                log.error(err);
+              }
+            }
+            await this.findMaster();
+            this.initMasterConnection();
+            return;
+          }
+          log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
+          await timer.setTimeout(3000);
+          tries += 1;
+        }
+        while (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
+          log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
+          await timer.setTimeout(3000);
+        }
+      } else {
+        log.info('creating snapshot...');
+        backupFilename = await BackLog.dumpBackup();
+        const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
+        // eslint-disable-next-line no-param-reassign
+        filesize = fileStats.size;
+      }
+      if (backupFilename && filesize > 1000000) {
+        if (this.IamMaster) {
+          this.serverSocket.emit('compressbacklog', backupFilename, filesize);
+        }
+        // clear backlog
+        await BackLog.clearBacklog();
+        await BackLog.clearBuffer();
+        await timer.setTimeout(200);
+        // restore backlog from snapshot
+        const importer = new SqlImporter({
+          callback: this.pushToBacklog,
+          serverSocket: false,
+        });
+        importer.onProgress((progress) => {
+          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+          BackLog.compressionTask = percent;
+          log.info(`${percent}% Completed`, 'cyan');
+        });
+        importer.setEncoding('utf8');
+        await importer.import(`./dumps/${backupFilename}.sql`).then(async () => {
+          const filesImported = importer.getImported();
+          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          this.status = 'OK';
+          BackLog.compressionTask = -1;
+          if (this.IamMaster) {
+            const files = await BackLog.listSqlFiles();
+            for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
+          }
+        }).catch((err) => {
+          log.error(err);
+        });
+      }
+    } catch (e) {
+      this.status = 'OK';
+      log.error(JSON.stringify(e));
+    }
+  }
+
   /**
   * [emitUserSession]
   * @param {string} key [description]
@@ -471,6 +621,7 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      /*
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
@@ -482,7 +633,9 @@ class Operator {
       } catch (err) {
         log.error(err);
       }
+      */
       let masterSN = BackLog.sequenceNumber + 1;
+      log.info(`current seq no: ${masterSN}`);
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
@@ -630,11 +783,18 @@ class Operator {
           this.AppNodes.push(appIPList[i].ip);
         }
         // check if master is working
-        if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
-          const MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-          log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
+        if (!this.IamMaster && this.masterNode && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
+          let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+          let tries = 0;
+          while ((MasterIP === null || MasterIP === 'null') && tries < 10) {
+            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
+            await timer.setTimeout(10000);
+            tries += 1;
+            log.info(`master not responding, tries :${tries}`);
+          }
+          // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
-            log.info('retrying FindMaster...');
+            log.info('master not responding, running findMaster...');
             await this.findMaster();
             this.initMasterConnection();
           }
@@ -646,7 +806,7 @@ class Operator {
           await this.findMaster();
           this.initMasterConnection();
         }
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
+        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
           this.initMasterConnection();
@@ -737,7 +897,7 @@ class Operator {
           log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
           const MasterIP2 = await fluxAPI.getMaster(MasterIP, config.containerApiPort);
           log.info(`response from ${MasterIP} was ${MasterIP2}`);
-          if (MasterIP2 === MasterIP) {
+          if (MasterIP2 === MasterIP && this.masterCandidates.includes(MasterIP)) {
             this.masterNode = MasterIP;
           } else {
             log.info('master node not matching, retrying...');
