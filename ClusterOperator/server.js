@@ -571,10 +571,10 @@ async function initServer() {
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
-        // cache write queries for 20 seconds
+        // cache write queries for 5 seconds
         queryCache.put(result[1], {
           query, seq: result[1], timestamp: result[2], connId, ip,
-        }, 20 * 60);
+        }, 5 * 60);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
