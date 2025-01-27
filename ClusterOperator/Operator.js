@@ -723,7 +723,7 @@ class Operator {
       }
       let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
-        if (myip && myip !== ipList[i].ip) {
+        if (myip !== ipList[i].ip) {
           // extraxt ip from upnp nodes
           log.info(`asking status from: ${ipList[i].ip}:${config.containerApiPort}`);
           const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
