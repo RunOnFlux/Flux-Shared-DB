@@ -583,16 +583,12 @@ async function initServer() {
         let connId = false;
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
-          log.info(`sending query: ${index}`, 'magenta');
+          log.info(`sending query: ${index} from Cache`, 'magenta');
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
-          log.warn(`query ${index} not in query cache`, 'red');
-          // let BLRecord = BackLog.BLqueryCache.get(index);
-          // log.info(JSON.stringify(BLRecord), 'red');
-          // if (!BLRecord) {
           const BLRecord = await BackLog.getLog(index);
           if (BLRecord.length) {
-            log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
+            log.info(`sending query: ${index} from DB`, 'red');
             try {
               socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
             } catch (err) {
