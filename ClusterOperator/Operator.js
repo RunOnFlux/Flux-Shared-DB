@@ -789,12 +789,11 @@ class Operator {
         // check if master is working
         if (!this.IamMaster && this.masterNode && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-          let tries = 0;
-          while ((MasterIP === null || MasterIP === 'null') && tries < 10) {
-            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-            await timer.setTimeout(10000);
+          let tries = 1;
+          while ((MasterIP === null || MasterIP === 'null') && tries < 5) {
             tries += 1;
             log.info(`master not responding, tries :${tries}`);
+            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
           }
           // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
