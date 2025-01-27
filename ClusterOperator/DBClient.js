@@ -169,9 +169,9 @@ class DBClient {
       try {
         this.connection.changeUser({
           database: dbName,
-        }, (err) => {
+        }).catch((err) => {
           if (err) {
-            // console.log('Error changing database', err);
+            log.error(`Error changing database: ${err}`);
           }
         });
       } catch (err) {
