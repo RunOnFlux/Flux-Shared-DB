@@ -72,20 +72,39 @@ class DBClient {
   */
   async init() {
     if (config.dbType === 'mysql') {
-      await this.createStream();
-      this.stream.on('data', (data) => {
-        this.rawCallback(data);
-      });
-      this.connection = await mySql.createConnection({
-        password: Security.getKey(),
-        user: config.dbUser,
-        stream: this.stream,
-      });
-      this.connection.once('error', () => {
-        this.connected = false;
-        log.info(`Connecten to ${this.InitDB} DB was lost`);
-      });
-      this.connected = true;
+      try {
+        await this.createStream();
+        this.stream.on('data', (data) => {
+          this.rawCallback(data);
+        });
+        this.connection = await mySql.createConnection({
+          password: Security.getKey(),
+          user: config.dbUser,
+          stream: this.stream,
+          connectTimeout: 60000, // Increased timeout
+        });
+        this.connection.on('error', (err) => {
+          this.connected = false;
+          log.info(`Connection to ${this.InitDB} DB was lost: ${err.message}`);
+          this.reconnect();
+        });
+        this.connected = true;
+      } catch (err) {
+        log.error(`Initial connection error: ${err.message}`);
+        this.reconnect();
+      }
+    }
+  }
+
+  async reconnect() {
+    if (this.connected) return;
+    log.info('Attempting to reconnect to the database...');
+    try {
+      await this.init();
+      log.info('Reconnected to the database.');
+    } catch (err) {
+      log.error(`Reconnection failed: ${err.message}`);
+      setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
     }
   }
 
@@ -166,17 +185,14 @@ class DBClient {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
       // log.info(`seting db to ${dbName}`);
-      try {
-        this.connection.changeUser({
-          database: dbName,
-        }).catch((err) => {
-          if (err) {
-            log.error(`Error changing database: ${err}`);
-          }
-        });
-      } catch (err) {
-        log.info(err);
-      }
+      this.connection.changeUser({
+        database: dbName,
+      }).catch((err) => {
+        if (err) {
+          log.error(`Error changing database: ${err}`);
+          this.reconnect();
+        }
+      });
     }
   }
 
