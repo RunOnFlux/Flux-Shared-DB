@@ -166,13 +166,17 @@ class DBClient {
     if (config.dbType === 'mysql') {
       this.InitDB = dbName;
       // log.info(`seting db to ${dbName}`);
-      this.connection.changeUser({
-        database: dbName,
-      }, (err) => {
-        if (err) {
-          // console.log('Error changing database', err);
-        }
-      });
+      try {
+        this.connection.changeUser({
+          database: dbName,
+        }, (err) => {
+          if (err) {
+            // console.log('Error changing database', err);
+          }
+        });
+      } catch (err) {
+        log.info(err);
+      }
     }
   }
 
