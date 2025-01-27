@@ -654,7 +654,7 @@ class Operator {
           BackLog.executeLogs = true;
           let percent = Math.round(((index + response.records.length) / masterSN) * 1000);
           if (masterSN === 0) percent = 0;
-          log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+          log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
         } catch (err) {
           log.error(err);
         }
