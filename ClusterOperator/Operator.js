@@ -676,6 +676,7 @@ class Operator {
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       const prevMaster = await BackLog.getKey('masterIP', false);
+      const myip = await BackLog.getKey('myIP', false);
       if (prevMaster) {
         log.info(`previous master was ${prevMaster}`);
         if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
@@ -722,23 +723,26 @@ class Operator {
       }
       let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
-        // extraxt ip from upnp nodes
-        log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
-        log.info(`response was: ${JSON.stringify(status)}`);
-        if (status === null || status === 'null') {
-          this.OpNodes[i].active = false;
-        } else {
-          activeNodes += 1;
-          this.OpNodes[i].seqNo = status.sequenceNumber;
-          this.OpNodes[i].active = true;
-          this.myIP = status.remoteIP;
+        if (myip && myip !== ipList[i].ip) {
+          // extraxt ip from upnp nodes
+          log.info(`asking status from: ${ipList[i].ip}:${config.containerApiPort}`);
+          const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
+          log.info(`${ipList[i].ip}'s response was: ${JSON.stringify(status)}`);
+          if (status === null || status === 'null') {
+            this.OpNodes[i].active = false;
+          } else {
+            activeNodes += 1;
+            this.OpNodes[i].seqNo = status.sequenceNumber;
+            this.OpNodes[i].active = true;
+            this.myIP = status.remoteIP;
+          }
         }
       }
       const activeNodePer = 100 * (activeNodes / ipList.length);
       log.info(`${activeNodePer} percent of nodes are active`);
       if (this.myIP !== null && activeNodePer >= 50) {
         log.info(`My ip is ${this.myIP}`);
+        BackLog.pushKey('myIP', this.myIP, false);
       } else {
         log.info('Not enough active nodes, retriying again...');
         await timer.setTimeout(15000);
