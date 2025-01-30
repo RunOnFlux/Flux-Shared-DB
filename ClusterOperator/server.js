@@ -220,7 +220,7 @@ function startUI() {
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
-      clusterStatus: Operator.options,
+      clusterStatus: Operator.OpNodes,
     });
     res.end();
   });
