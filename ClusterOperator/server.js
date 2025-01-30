@@ -220,6 +220,7 @@ function startUI() {
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
+      clusterStatus: Operator.options,
     });
     res.end();
   });
@@ -551,7 +552,6 @@ async function initServer() {
           sequenceNumber: BackLog.sequenceNumber,
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
-          clusterStatus: Operator.options,
         });
       });
       socket.on('getMaster', async (callback) => {
