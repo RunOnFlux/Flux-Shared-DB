@@ -545,12 +545,13 @@ async function initServer() {
         // log.info(`disconnected from ${ip}`, 'red');
       });
       socket.on('getStatus', async (callback) => {
-        // log.info(`getStatus from ${ip}`);
+        log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
+          clusterStatus: Operator.options,
         });
       });
       socket.on('getMaster', async (callback) => {

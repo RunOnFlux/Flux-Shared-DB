@@ -778,7 +778,19 @@ class Operator {
           nodeList.push(ipList[i].ip);
           // eslint-disable-next-line prefer-destructuring
           if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-          this.OpNodes.push({ ip: ipList[i].ip, active: null });
+          let nodeReachable = false;
+          let seqNo = 0;
+          if (this.myIP && ipList[i].ip === this.myIP) {
+            nodeReachable = true;
+            seqNo = BackLog.sequenceNumber;
+          } else {
+            const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort, 5000);
+            if (status !== null && status !== 'null') {
+              nodeReachable = true;
+              seqNo = status.sequenceNumber;
+            }
+          }
+          this.OpNodes.push({ ip: ipList[i].ip, active: nodeReachable, seqNo });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
         for (let i = 0; i < appIPList.length; i += 1) {
