@@ -654,7 +654,7 @@ class Operator {
           BackLog.executeLogs = true;
           let percent = Math.round(((index + response.records.length) / masterSN) * 1000);
           if (masterSN === 0) percent = 0;
-          log.info(`sync backlog from ${index} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+          log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
         } catch (err) {
           log.error(err);
         }
@@ -676,6 +676,7 @@ class Operator {
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       const prevMaster = await BackLog.getKey('masterIP', false);
+      const myip = await BackLog.getKey('myIP', false);
       if (prevMaster) {
         log.info(`previous master was ${prevMaster}`);
         if (ipList.some((obj) => obj.ip.includes(prevMaster))) {
@@ -712,7 +713,7 @@ class Operator {
           ipList[i].ip = ipList[i].ip.split(':')[0];
         }
         this.OpNodes.push({
-          ip: ipList[i].ip, active: null, seqNo: 0, upnp,
+          ip: ipList[i].ip, active: false, seqNo: 0, upnp,
         });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
@@ -722,23 +723,26 @@ class Operator {
       }
       let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
-        // extraxt ip from upnp nodes
-        log.info(`asking my ip from: ${ipList[i].ip}:${config.containerApiPort}`);
-        const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
-        log.info(`response was: ${JSON.stringify(status)}`);
-        if (status === null || status === 'null') {
-          this.OpNodes[i].active = false;
-        } else {
-          activeNodes += 1;
-          this.OpNodes[i].seqNo = status.sequenceNumber;
-          this.OpNodes[i].active = true;
-          this.myIP = status.remoteIP;
+        if (myip !== ipList[i].ip) {
+          // extraxt ip from upnp nodes
+          log.info(`asking status from: ${ipList[i].ip}:${config.containerApiPort}`);
+          const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
+          log.info(`${ipList[i].ip}'s response was: ${JSON.stringify(status)}`);
+          if (status === null || status === 'null') {
+            this.OpNodes[i].active = false;
+          } else {
+            activeNodes += 1;
+            this.OpNodes[i].seqNo = status.sequenceNumber;
+            this.OpNodes[i].active = true;
+            this.myIP = status.remoteIP;
+          }
         }
       }
       const activeNodePer = 100 * (activeNodes / ipList.length);
       log.info(`${activeNodePer} percent of nodes are active`);
       if (this.myIP !== null && activeNodePer >= 50) {
         log.info(`My ip is ${this.myIP}`);
+        BackLog.pushKey('myIP', this.myIP, false);
       } else {
         log.info('Not enough active nodes, retriying again...');
         await timer.setTimeout(15000);
@@ -772,9 +776,27 @@ class Operator {
         for (let i = 0; i < ipList.length; i += 1) {
           // extraxt ip from upnp nodes
           nodeList.push(ipList[i].ip);
-          // eslint-disable-next-line prefer-destructuring
-          if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
-          this.OpNodes.push({ ip: ipList[i].ip, active: null });
+          let nodeReachable = false;
+          let seqNo = 0;
+          let upnp = false;
+          if (ipList[i].ip.includes(':')) {
+            // eslint-disable-next-line prefer-destructuring
+            ipList[i].ip = ipList[i].ip.split(':')[0];
+            upnp = true;
+          }
+          if (this.myIP && ipList[i].ip === this.myIP) {
+            nodeReachable = true;
+            seqNo = BackLog.sequenceNumber;
+          } else {
+            const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort, 5000);
+            if (status !== null && status !== 'null') {
+              nodeReachable = true;
+              seqNo = status.sequenceNumber;
+            }
+          }
+          this.OpNodes.push({
+            ip: ipList[i].ip, active: nodeReachable, seqNo, upnp,
+          });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
         for (let i = 0; i < appIPList.length; i += 1) {
@@ -785,12 +807,11 @@ class Operator {
         // check if master is working
         if (!this.IamMaster && this.masterNode && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-          let tries = 0;
-          while ((MasterIP === null || MasterIP === 'null') && tries < 10) {
-            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
-            await timer.setTimeout(10000);
+          let tries = 1;
+          while ((MasterIP === null || MasterIP === 'null') && tries < 5) {
             tries += 1;
             log.info(`master not responding, tries :${tries}`);
+            MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
           }
           // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {

@@ -220,6 +220,7 @@ function startUI() {
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
+      clusterStatus: Operator.OpNodes,
     });
     res.end();
   });
@@ -538,14 +539,14 @@ async function initServer() {
 
   io.on('connection', async (socket) => {
     const ip = utill.convertIP(socket.handshake.address);
-    log.debug(`connection from ${ip}`, 'red');
+    // log.debug(`connection from ${ip}`, 'red');
     if (auth(ip)) {
       // log.info(`validating ${ip}: ${await auth(ip)}`);
       socket.on('disconnect', (reason) => {
-        log.info(`disconnected from ${ip}`, 'red');
+        // log.info(`disconnected from ${ip}`, 'red');
       });
       socket.on('getStatus', async (callback) => {
-        // log.info(`getStatus from ${ip}`);
+        log.info(`getStatus from ${ip}`);
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
@@ -554,7 +555,7 @@ async function initServer() {
         });
       });
       socket.on('getMaster', async (callback) => {
-        // log.info(`getMaster from ${ip}`);
+        log.info(`getMaster from ${ip}`);
         callback({ status: 'success', message: Operator.getMaster() });
       });
       socket.on('getMyIp', async (callback) => {
@@ -571,10 +572,10 @@ async function initServer() {
         // log.info(`forwarding query to slaves: ${JSON.stringify(result)}`);
         socket.broadcast.emit('query', query, result[1], result[2], false);
         socket.emit('query', query, result[1], result[2], connId);
-        // cache write queries for 20 seconds
+        // cache write queries for 5 seconds
         queryCache.put(result[1], {
           query, seq: result[1], timestamp: result[2], connId, ip,
-        }, 20 * 60);
+        }, 5 * 60);
         callback({ status: Operator.status, result: result[0] });
       });
       socket.on('askQuery', async (index, callback) => {
@@ -583,16 +584,12 @@ async function initServer() {
         let connId = false;
         if (record) {
           if (record.ip === ip && record.connId) connId = record.connId;
-          log.info(`sending query: ${index}`, 'magenta');
+          log.info(`sending query: ${index} from Cache`, 'magenta');
           socket.emit('query', record.query, record.seq, record.timestamp, connId);
         } else {
-          log.warn(`query ${index} not in query cache`, 'red');
-          // let BLRecord = BackLog.BLqueryCache.get(index);
-          // log.info(JSON.stringify(BLRecord), 'red');
-          // if (!BLRecord) {
           const BLRecord = await BackLog.getLog(index);
           if (BLRecord.length) {
-            log.info(`from DB : ${JSON.stringify(BLRecord)}`, 'red');
+            log.info(`sending query: ${index} from DB`, 'red');
             try {
               socket.emit('query', BLRecord[0].query, BLRecord[0].seq, BLRecord[0].timestamp, connId);
             } catch (err) {
