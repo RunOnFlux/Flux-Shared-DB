@@ -776,10 +776,14 @@ class Operator {
         for (let i = 0; i < ipList.length; i += 1) {
           // extraxt ip from upnp nodes
           nodeList.push(ipList[i].ip);
-          // eslint-disable-next-line prefer-destructuring
-          if (ipList[i].ip.includes(':')) ipList[i].ip = ipList[i].ip.split(':')[0];
           let nodeReachable = false;
           let seqNo = 0;
+          let upnp = false;
+          if (ipList[i].ip.includes(':')) {
+            // eslint-disable-next-line prefer-destructuring
+            ipList[i].ip = ipList[i].ip.split(':')[0];
+            upnp = true;
+          }
           if (this.myIP && ipList[i].ip === this.myIP) {
             nodeReachable = true;
             seqNo = BackLog.sequenceNumber;
@@ -790,7 +794,9 @@ class Operator {
               seqNo = status.sequenceNumber;
             }
           }
-          this.OpNodes.push({ ip: ipList[i].ip, active: nodeReachable, seqNo });
+          this.OpNodes.push({
+            ip: ipList[i].ip, active: nodeReachable, seqNo, upnp,
+          });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
         for (let i = 0; i < appIPList.length; i += 1) {
