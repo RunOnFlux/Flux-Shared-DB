@@ -713,7 +713,7 @@ class Operator {
           ipList[i].ip = ipList[i].ip.split(':')[0];
         }
         this.OpNodes.push({
-          ip: ipList[i].ip, active: null, seqNo: 0, upnp,
+          ip: ipList[i].ip, active: false, seqNo: 0, upnp,
         });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
