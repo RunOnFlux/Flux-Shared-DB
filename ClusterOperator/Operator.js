@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable no-else-return */
 /* eslint-disable no-case-declarations */
 /* eslint-disable no-restricted-syntax */
@@ -708,14 +709,12 @@ class Operator {
       this.OpNodes = [];
       for (let i = 0; i < ipList.length; i += 1) {
         // extraxt ip from upnp nodes
-        let upnp = false;
         if (ipList[i].ip.includes(':')) {
-          upnp = true;
           // eslint-disable-next-line prefer-destructuring
           ipList[i].ip = ipList[i].ip.split(':')[0];
         }
         this.OpNodes.push({
-          ip: ipList[i].ip, active: false, seqNo: 0, upnp,
+          ip: ipList[i].ip, active: false, seqNo: 0, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
         });
       }
       for (let i = 0; i < appIPList.length; i += 1) {
@@ -775,16 +774,15 @@ class Operator {
         this.AppNodes = [];
         let checkMasterIp = false;
         const nodeList = [];
+        let masterConflicts = 0;
         for (let i = 0; i < ipList.length; i += 1) {
           // extraxt ip from upnp nodes
           nodeList.push(ipList[i].ip);
           let nodeReachable = false;
           let seqNo = 0;
-          let upnp = false;
           if (ipList[i].ip.includes(':')) {
             // eslint-disable-next-line prefer-destructuring
             ipList[i].ip = ipList[i].ip.split(':')[0];
-            upnp = true;
           }
           if (this.myIP && ipList[i].ip === this.myIP) {
             nodeReachable = true;
@@ -794,13 +792,39 @@ class Operator {
             if (status !== null && status !== 'null') {
               nodeReachable = true;
               seqNo = status.sequenceNumber;
+              if (this.masterNode && status.masterIP !== this.masterNode) masterConflicts += 1;
             }
           }
           this.OpNodes.push({
-            ip: ipList[i].ip, active: nodeReachable, seqNo, upnp,
+            ip: ipList[i].ip, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
+        if (masterConflicts > 1) {
+          log.info('master conflicts detected, should find a new master', 'yellow');
+          await this.findMaster();
+          this.initMasterConnection();
+          return;
+        }
+        this.OpNodes.sort((a, b) => {
+          // Priority 1: Sort by seqNo in descending order
+          if (a.seqNo !== b.seqNo) {
+            return b.seqNo - a.seqNo; // Higher seqNo comes first
+          }
+          // Priority 2: Sort by staticIp, with true preferred
+          const aStaticIp = a.staticIp === true ? 2 : a.staticIp === false ? 1 : 0;
+          const bStaticIp = b.staticIp === true ? 2 : b.staticIp === false ? 1 : 0;
+          if (aStaticIp !== bStaticIp) {
+            return bStaticIp - aStaticIp; // Higher staticIp value comes first
+          }
+          // Priority 3: Sort by osUptime in descending order
+          const aUptime = a.osUptime || 0; // Use 0 if osUptime is null
+          const bUptime = b.osUptime || 0;
+          if (aUptime !== bUptime) {
+            return bUptime - aUptime; // Higher osUptime comes first
+          }
+          return 0; // All priorities are equal
+        });
         for (let i = 0; i < appIPList.length; i += 1) {
           // eslint-disable-next-line prefer-destructuring
           if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
@@ -820,6 +844,7 @@ class Operator {
             log.info('master not responding, running findMaster...');
             await this.findMaster();
             this.initMasterConnection();
+            return;
           }
         }
         if (this.masterNode && !checkMasterIp) {
@@ -828,11 +853,13 @@ class Operator {
           this.IamMaster = false;
           await this.findMaster();
           this.initMasterConnection();
+          return;
         }
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           log.info('No incomming connections, should find a new master', 'yellow');
           await this.findMaster();
           this.initMasterConnection();
+          return;
         }
       }
       // check connection stability
@@ -871,15 +898,29 @@ class Operator {
           }
         }
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
-        this.OpNodes.sort((a, b) => (a.seqNo < b.seqNo) ? 1 : ((b.seqNo < a.seqNo) ? -1 : 0));
+        this.OpNodes.sort((a, b) => {
+          // Priority 1: Sort by seqNo in descending order
+          if (a.seqNo !== b.seqNo) {
+            return b.seqNo - a.seqNo; // Higher seqNo comes first
+          }
+          // Priority 2: Sort by staticIp, with true preferred
+          const aStaticIp = a.staticIp === true ? 2 : a.staticIp === false ? 1 : 0;
+          const bStaticIp = b.staticIp === true ? 2 : b.staticIp === false ? 1 : 0;
+          if (aStaticIp !== bStaticIp) {
+            return bStaticIp - aStaticIp; // Higher staticIp value comes first
+          }
+          // Priority 3: Sort by osUptime in descending order
+          const aUptime = a.osUptime || 0; // Use 0 if osUptime is null
+          const bUptime = b.osUptime || 0;
+          if (aUptime !== bUptime) {
+            return bUptime - aUptime; // Higher osUptime comes first
+          }
+          return 0; // All priorities are equal
+        });
         const masterSeqNo = this.OpNodes[0].seqNo;
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active && this.OpNodes[i].seqNo === masterSeqNo) {
-            if (this.OpNodes[i].upnp) {
-              this.masterCandidates.push(this.OpNodes[i].ip);
-            } else {
-              this.masterCandidates.unshift(this.OpNodes[i].ip);
-            }
+            this.masterCandidates.push(this.OpNodes[i].ip);
           }
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
