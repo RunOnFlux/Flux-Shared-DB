@@ -641,20 +641,22 @@ class Operator {
         try {
           const index = BackLog.sequenceNumber;
           const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
-          masterSN = response.sequenceNumber;
-          BackLog.executeLogs = false;
-          for (const record of response.records) {
-            if (this.status !== 'SYNC') {
-              log.warn('Sync proccess halted.', 'red');
-              return;
+          if (response && response.sequenceNumber) {
+            masterSN = response.sequenceNumber;
+            BackLog.executeLogs = false;
+            for (const record of response.records) {
+              if (this.status !== 'SYNC') {
+                log.warn('Sync proccess halted.', 'red');
+                return;
+              }
+              await BackLog.pushQuery(record.query, record.seq, record.timestamp);
             }
-            await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+            if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+            BackLog.executeLogs = true;
+            let percent = Math.round(((index + response.records.length) / masterSN) * 1000);
+            if (masterSN === 0) percent = 0;
+            log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           }
-          if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
-          BackLog.executeLogs = true;
-          let percent = Math.round(((index + response.records.length) / masterSN) * 1000);
-          if (masterSN === 0) percent = 0;
-          log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
         } catch (err) {
           log.error(err);
         }
