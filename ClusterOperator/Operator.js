@@ -899,6 +899,10 @@ class Operator {
         }
         // eslint-disable-next-line no-confusing-arrow, no-nested-ternary
         this.OpNodes.sort((a, b) => {
+          // Priority 0: Master node
+          if (b.ip === this.masterNode) {
+            return 1; // Master node comes first
+          }
           // Priority 1: Sort by seqNo in descending order
           if (a.seqNo !== b.seqNo) {
             return b.seqNo - a.seqNo; // Higher seqNo comes first
