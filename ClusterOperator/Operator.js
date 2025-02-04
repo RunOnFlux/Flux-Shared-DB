@@ -808,8 +808,11 @@ class Operator {
         }
         this.OpNodes.sort((a, b) => {
           // Priority 0: Master node
+          if (a.ip === this.masterNode) {
+            return -1;
+          }
           if (b.ip === this.masterNode) {
-            return 1; // Master node comes first
+            return 1;
           }
           // Priority 1: Sort by seqNo in descending order
           if (a.seqNo !== b.seqNo) {
