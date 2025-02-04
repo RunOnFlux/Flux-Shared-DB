@@ -888,9 +888,9 @@ class Operator {
       this.IamMaster = false;
       // get dbappspecs
       if (config.DBAppName) {
+        this.masterCandidates = [];
         await this.updateAppInfo();
         // find master candidate
-        this.masterCandidates = [];
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].ip === this.myIP) {
             this.OpNodes[i].active = true;
