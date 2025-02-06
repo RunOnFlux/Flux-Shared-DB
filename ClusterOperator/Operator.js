@@ -724,6 +724,7 @@ class Operator {
         if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
         this.AppNodes.push(appIPList[i].ip);
       }
+      /*
       let activeNodes = 1;
       for (let i = 0; i < ipList.length; i += 1) {
         if (myip !== ipList[i].ip) {
@@ -741,6 +742,36 @@ class Operator {
           }
         }
       }
+      */
+      const statusPromises = ipList
+        .filter((ipObj) => myip !== ipObj.ip) // Skip own IP upfront
+        .map((ipObj, index) => {
+          log.info(`Asking status from: ${ipObj.ip}:${config.containerApiPort}`);
+          return fluxAPI.getStatus(ipObj.ip, config.containerApiPort)
+            .then((status) => {
+              log.info(`${ipObj.ip}'s response was: ${JSON.stringify(status)}`);
+              return { index, status }; // Preserve original array index
+            })
+            .catch((error) => {
+              log.error(`Error from ${ipObj.ip}: ${error.message}`);
+              return { index, status: null }; // Handle errors as null status
+            });
+        });
+
+      // Wait for all calls to complete
+      const results = await Promise.all(statusPromises);
+      // Process results after all calls finish
+      let activeNodes = 1;
+      results.forEach(({ index, status }) => {
+        if (!status || status === 'null') {
+          this.OpNodes[index].active = false;
+        } else {
+          activeNodes += 1;
+          this.OpNodes[index].seqNo = status.sequenceNumber;
+          this.OpNodes[index].active = true;
+          this.myIP = status.remoteIP;
+        }
+      });
       const activeNodePer = 100 * (activeNodes / ipList.length);
       log.info(`${activeNodePer} percent of nodes are active`);
       if (this.myIP !== null && activeNodePer >= 50) {
