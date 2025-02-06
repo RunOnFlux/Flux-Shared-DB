@@ -783,7 +783,7 @@ class Operator {
           nodeList.push(ipList[i].ip);
           let nodeReachable = false;
           let seqNo = 0;
-          let fullIP = ipList[i].ip;
+          const fullIP = ipList[i].ip;
           if (ipList[i].ip.includes(':')) {
             // eslint-disable-next-line prefer-destructuring
             ipList[i].ip = ipList[i].ip.split(':')[0];
@@ -896,14 +896,14 @@ class Operator {
   /**
   * [findMaster]
   */
-  static async findMaster() {
+  static async findMaster(resetMasterCandidates = true) {
     try {
       this.status = 'INIT';
       this.masterNode = null;
       this.IamMaster = false;
       // get dbappspecs
       if (config.DBAppName) {
-        this.masterCandidates = [];
+        if (resetMasterCandidates) this.masterCandidates = [];
         await this.updateAppInfo();
         // find master candidate
         for (let i = 0; i < this.OpNodes.length; i += 1) {
@@ -932,6 +932,7 @@ class Operator {
           }
           return 0; // All priorities are equal
         });
+        this.masterCandidates = [];
         const masterSeqNo = this.OpNodes[0].seqNo;
         for (let i = 0; i < this.OpNodes.length; i += 1) {
           if (this.OpNodes[i].active && this.OpNodes[i].seqNo === masterSeqNo) {
@@ -952,7 +953,7 @@ class Operator {
             this.status = 'OK';
           } else if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
-            return this.findMaster();
+            return this.findMaster(false);
           } else {
             this.masterNode = MasterIP;
           }
@@ -963,7 +964,7 @@ class Operator {
           log.info(`response was ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
-            return this.findMaster();
+            return this.findMaster(false);
           }
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
@@ -980,7 +981,7 @@ class Operator {
             this.masterNode = MasterIP;
           } else {
             log.info('master node not matching, retrying...');
-            return this.findMaster();
+            return this.findMaster(false);
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
@@ -991,7 +992,7 @@ class Operator {
     } catch (err) {
       log.info('error while finding master');
       log.error(err);
-      return this.findMaster();
+      return this.findMaster(false);
     }
     return null;
   }
