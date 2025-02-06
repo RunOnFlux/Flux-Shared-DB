@@ -773,7 +773,7 @@ class Operator {
       }
       if (appIPList.length > 0) {
         this.OpNodes = [];
-        this.ClusterStatus = [];
+        const ClusterStatusTmp = [];
         this.AppNodes = [];
         let checkMasterIp = false;
         const nodeList = [];
@@ -802,7 +802,7 @@ class Operator {
           this.OpNodes.push({
             ip: ipList[i].ip, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
-          this.ClusterStatus.push({
+          ClusterStatusTmp.push({
             ip: fullIP, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
@@ -813,12 +813,12 @@ class Operator {
           this.initMasterConnection();
           return;
         }
-        this.ClusterStatus.sort((a, b) => {
+        ClusterStatusTmp.sort((a, b) => {
           // Priority 0: Master node
-          if (a.ip === this.masterNode) {
+          if (a.ip.split(':')[0] === this.masterNode) {
             return -1;
           }
-          if (b.ip === this.masterNode) {
+          if (b.ip.split(':')[0] === this.masterNode) {
             return 1;
           }
           // Priority 1: Sort by seqNo in descending order
@@ -839,6 +839,7 @@ class Operator {
           }
           return 0; // All priorities are equal
         });
+        this.ClusterStatus = ClusterStatusTmp;
         for (let i = 0; i < appIPList.length; i += 1) {
           // eslint-disable-next-line prefer-destructuring
           if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
