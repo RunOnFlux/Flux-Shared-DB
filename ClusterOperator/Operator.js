@@ -30,6 +30,8 @@ class Operator {
 
   static OpNodes = [];
 
+  static ClusterStatus = [];
+
   static masterCandidates = [];
 
   static AppNodes = [];
@@ -771,6 +773,7 @@ class Operator {
       }
       if (appIPList.length > 0) {
         this.OpNodes = [];
+        this.ClusterStatus = [];
         this.AppNodes = [];
         let checkMasterIp = false;
         const nodeList = [];
@@ -780,6 +783,7 @@ class Operator {
           nodeList.push(ipList[i].ip);
           let nodeReachable = false;
           let seqNo = 0;
+          let fullIP = ipList[i].ip;
           if (ipList[i].ip.includes(':')) {
             // eslint-disable-next-line prefer-destructuring
             ipList[i].ip = ipList[i].ip.split(':')[0];
@@ -798,6 +802,9 @@ class Operator {
           this.OpNodes.push({
             ip: ipList[i].ip, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
+          this.ClusterStatus.push({
+            ip: fullIP, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
+          });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
         if (masterConflicts > 1) {
@@ -806,7 +813,7 @@ class Operator {
           this.initMasterConnection();
           return;
         }
-        this.OpNodes.sort((a, b) => {
+        this.ClusterStatus.sort((a, b) => {
           // Priority 0: Master node
           if (a.ip === this.masterNode) {
             return -1;
