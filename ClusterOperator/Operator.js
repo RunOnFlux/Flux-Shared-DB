@@ -677,8 +677,10 @@ class Operator {
   */
   static async updateAppInfo() {
     try {
-      const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
-      this.nodeInstances = Specifications.instances;
+      if (this.nodeInstances === 0) {
+        const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
+        this.nodeInstances = Specifications.instances;
+      }
       // wait for all nodes to spawn
       let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       const prevMaster = await BackLog.getKey('masterIP', false);
@@ -972,6 +974,7 @@ class Operator {
         }
         log.info(`working cluster ip's: ${JSON.stringify(this.OpNodes)}`);
         log.info(`masterCandidates: ${JSON.stringify(this.masterCandidates)}`);
+        await timer.setTimeout(500);
         // if first candidate is me i'm the master
         if (this.masterCandidates[0] === this.myIP) {
           let MasterIP = this.myIP;
