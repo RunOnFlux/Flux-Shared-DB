@@ -110,10 +110,7 @@ class Operator {
     return this.ticket;
   }
 
-  /**
-  * [initMasterConnection]
-  */
-  static initMasterConnection() {
+  static closeMasterConnection() {
     if (this.masterWSConn) {
       try {
         this.masterWSConn.removeAllListeners();
@@ -122,6 +119,13 @@ class Operator {
         log.error(err);
       }
     }
+  }
+
+  /**
+  * [initMasterConnection]
+  */
+  static initMasterConnection() {
+    this.closeMasterConnection();
     log.info(`master node: ${this.masterNode}`);
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
@@ -162,14 +166,14 @@ class Operator {
         });
         this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
-          this.masterWSConn.removeAllListeners();
+          this.closeMasterConnection();
           await this.findMaster();
           this.initMasterConnection();
         });
         this.masterWSConn.on('disconnect', async () => {
           log.info('disconnected from master...', 'red');
           this.connectionDrops += 1;
-          this.masterWSConn.removeAllListeners();
+          this.closeMasterConnection();
           await this.findMaster();
           this.initMasterConnection();
         });
@@ -465,14 +469,7 @@ class Operator {
             // clear backlog
             await BackLog.clearBacklog();
             await BackLog.clearBuffer();
-            if (this.masterWSConn) {
-              try {
-                this.masterWSConn.removeAllListeners();
-                this.masterWSConn.disconnect();
-              } catch (err) {
-                log.error(err);
-              }
-            }
+            this.closeMasterConnection();
             await this.findMaster();
             this.initMasterConnection();
             return;
@@ -842,6 +839,7 @@ class Operator {
         }
         if (masterConflicts > 1) {
           log.info('master conflicts detected, should find a new master', 'yellow');
+          this.closeMasterConnection();
           await this.findMaster();
           this.initMasterConnection();
           return;
@@ -890,6 +888,7 @@ class Operator {
           // log.debug(`checking master node ${this.masterNode}: ${MasterIP}`);
           if (MasterIP === null || MasterIP === 'null' || MasterIP !== this.masterNode) {
             log.info('master not responding, running findMaster...');
+            this.closeMasterConnection();
             await this.findMaster();
             this.initMasterConnection();
             return;
@@ -897,6 +896,7 @@ class Operator {
         }
         if (this.masterNode && !checkMasterIp) {
           log.info('master removed from the list, should find a new master', 'yellow');
+          this.closeMasterConnection();
           this.masterNode = null;
           this.IamMaster = false;
           await this.findMaster();
@@ -905,6 +905,7 @@ class Operator {
         }
         if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
           log.info('No incomming connections, should find a new master', 'yellow');
+          this.closeMasterConnection();
           await this.findMaster();
           this.initMasterConnection();
           return;
