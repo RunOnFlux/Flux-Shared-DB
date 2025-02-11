@@ -470,6 +470,7 @@ class BackLog {
       const records2 = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
       if (records2.length > 0) {
         this.bufferStartSequenceNumber = records2[0].seq;
+        if (records2.length > 20) await this.moveBufferToBacklog();
       } else {
         this.bufferStartSequenceNumber = 0;
       }
