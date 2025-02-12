@@ -1009,14 +1009,16 @@ class Operator {
             log.info(`Master node is ${this.masterNode}`, 'yellow');
             return this.masterNode;
           }
-          log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
-          const MasterIP2 = await fluxAPI.getMaster(MasterIP, config.containerApiPort);
-          log.info(`response from ${MasterIP} was ${MasterIP2}`);
-          if (MasterIP2 === MasterIP && this.masterCandidates.includes(MasterIP)) {
-            this.masterNode = MasterIP;
-          } else {
-            log.info('master node not matching, retrying...');
-            return this.findMaster(false);
+          if (this.masterCandidates[0] !== MasterIP) {
+            log.info(`asking master for confirmation @ ${MasterIP}:${config.containerApiPort}`);
+            const MasterIP2 = await fluxAPI.getMaster(MasterIP, config.containerApiPort);
+            log.info(`response from ${MasterIP} was ${MasterIP2}`);
+            if (MasterIP2 === MasterIP && this.masterCandidates.includes(MasterIP)) {
+              this.masterNode = MasterIP;
+            } else {
+              log.info('master node not matching, retrying...');
+              return this.findMaster(false);
+            }
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
