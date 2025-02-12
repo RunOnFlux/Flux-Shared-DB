@@ -39,6 +39,8 @@ class Operator {
 
   static clientNodes = [];
 
+  static appLocations = [];
+
   static nodeInstances = 0;
 
   static authorizedApp = null;
@@ -678,8 +680,15 @@ class Operator {
         const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
         this.nodeInstances = Specifications.instances;
       }
-      // wait for all nodes to spawn
-      let ipList = await fluxAPI.getApplicationIP(config.DBAppName);
+      // fetch cluster ip's
+      if (this.appLocations.length === 0) {
+        log.info('fetching cluster list...');
+        this.appLocations = await fluxAPI.getApplicationIP(config.DBAppName);
+        setTimeout(() => {
+          this.appLocations = [];
+        }, 2 * 60 * 1000);
+      }
+      let ipList = this.appLocations;
       const prevMaster = await BackLog.getKey('masterIP', false);
       const myip = await BackLog.getKey('myIP', false);
       if (prevMaster) {
