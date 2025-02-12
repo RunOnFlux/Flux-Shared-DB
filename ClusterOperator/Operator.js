@@ -1028,6 +1028,8 @@ class Operator {
               log.info('master node not matching, retrying...');
               return this.findMaster(false);
             }
+          } else {
+            this.masterNode = MasterIP;
           }
         }
         log.info(`Master node is ${this.masterNode}`, 'yellow');
