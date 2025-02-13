@@ -148,7 +148,6 @@ class BackLog {
     } catch (e) {
       this.writeLock = false;
       log.error(`error executing query, ${query}, ${seq}`);
-      log.error(e);
     }
     return [];
   }
@@ -440,7 +439,6 @@ class BackLog {
       }
     } catch (e) {
       log.error(`error executing query, ${query}, ${seq}`);
-      log.error(e);
     }
     return [];
   }
