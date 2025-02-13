@@ -35,7 +35,10 @@ function auth(ip) {
   if (whiteList.length && whiteList.includes(ip)) return true;
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
-  if (idx === -1) return false;
+  if (idx === -1) {
+    log.info(`opnodes: ${JSON.stringify(Operator.OpNodes)}`);
+    return false;
+  }
   return true;
 }
 /**
@@ -656,7 +659,7 @@ async function initServer() {
         callback({ status: Operator.status });
       });
     } else {
-      log.warn(`rejected from ${ip}`);
+      log.warn(`rejected ${ip}`);
       socket.disconnect();
     }
     if (await validate(ip)) {
