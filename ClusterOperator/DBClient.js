@@ -98,12 +98,12 @@ class DBClient {
 
   async reconnect() {
     if (this.connected) return;
-    log.info('Attempting to reconnect to the database...');
+    // log.info('Attempting to reconnect to the database...');
     try {
       await this.init();
-      log.info('Reconnected to the database.');
+      // log.info('Reconnected to the database.');
     } catch (err) {
-      log.error(`Reconnection failed: ${err.message}`);
+      // log.error(`Reconnection failed: ${err.message}`);
       setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
     }
   }
