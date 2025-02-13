@@ -848,7 +848,7 @@ class Operator {
             if (status !== null && status !== 'null') {
               nodeReachable = true;
               seqNo = status.sequenceNumber;
-              if (this.masterNode && status.masterIP !== this.masterNode) masterConflicts += 1;
+              if (this.masterNode && status.masterIP !== 'null' && status.masterIP !== null && status.masterIP !== this.masterNode) masterConflicts += 1;
             }
           }
           this.OpNodes.push({
