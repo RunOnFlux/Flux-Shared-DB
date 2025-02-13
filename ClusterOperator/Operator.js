@@ -1004,12 +1004,15 @@ class Operator {
         if (this.masterCandidates[0] === this.myIP) {
           let MasterIP = this.myIP;
           // ask second candidate for confirmation
-          if (this.masterCandidates.length > 1) MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
-          log.info(`asking second candidate for confirmation: ${MasterIP}`);
+          if (this.masterCandidates.length > 1) {
+            log.info(`asking second candidate for confirmation: ${MasterIP}`);
+            MasterIP = await fluxAPI.getMaster(this.masterCandidates[1], config.containerApiPort);
+          }
           if (MasterIP === this.myIP) {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
+            log.info('Status OK', 'green');
           } else if (MasterIP === null || MasterIP === 'null') {
             log.info('retrying FindMaster...');
             return this.findMaster(false);
@@ -1029,6 +1032,7 @@ class Operator {
             this.IamMaster = true;
             this.masterNode = this.myIP;
             this.status = 'OK';
+            log.info('Status OK', 'green');
             BackLog.pushKey('masterIP', this.masterNode, false);
             log.info(`Master node is ${this.masterNode}`, 'yellow');
             return this.masterNode;
