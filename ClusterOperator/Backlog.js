@@ -656,6 +656,21 @@ class BackLog {
     }
   }
 
+  static async testDB() {
+    try {
+      const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
+      if (dbList.length === 0) {
+        log.error('DB test failed', 'red');
+        return false;
+      } else {
+        return true;
+      }
+    } catch (error) {
+      log.error('DB test failed', 'red');
+      return false;
+    }
+  }
+
   /**
   * [purgeBinLogs]
   */
@@ -674,6 +689,7 @@ class BackLog {
     }
   }
 }// end class
+
 
 // eslint-disable-next-line func-names
 module.exports = BackLog;

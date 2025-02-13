@@ -85,6 +85,8 @@ class Operator {
 
   static buffer = {};
 
+  static dbConnectionFails = 0;
+
   /**
   * [initLocalDB]
   */
@@ -800,6 +802,18 @@ class Operator {
   */
   static async doHealthCheck() {
     try {
+      // check db connection
+      if (await BackLog.testDB()) {
+        this.dbConnectionFails = 0;
+      } else {
+        this.dbConnectionFails += 1;
+      }
+      if (this.dbConnectionFails > 3) {
+        log.error('DB connection tests failed, node marked for uninstall.', 'red');
+        this.status = 'UNINSTALL';
+        return;
+      }
+
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
       // update node list
@@ -941,6 +955,7 @@ class Operator {
   */
   static async findMaster(resetMasterCandidates = true) {
     try {
+      if (this.status === 'UNINSTALL') return null;
       this.status = 'INIT';
       this.masterNode = null;
       this.IamMaster = false;
