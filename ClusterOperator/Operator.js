@@ -827,7 +827,6 @@ class Operator {
       if (appIPList.length > 0) {
         this.OpNodes = [];
         const ClusterStatusTmp = [];
-        this.AppNodes = [];
         let checkMasterIp = false;
         const nodeList = [];
         let masterConflicts = 0;
@@ -893,6 +892,7 @@ class Operator {
           }
           return 0; // All priorities are equal
         });
+        this.AppNodes = [];
         this.ClusterStatus = ClusterStatusTmp;
         for (let i = 0; i < appIPList.length; i += 1) {
           // eslint-disable-next-line prefer-destructuring
