@@ -825,14 +825,11 @@ class Operator {
         appIPList = await fluxAPI.getApplicationIP(config.AppName);
       }
       if (appIPList.length > 0) {
-        this.OpNodes = [];
+        const OpNodesTmp = [];
         const ClusterStatusTmp = [];
         let checkMasterIp = false;
-        const nodeList = [];
         let masterConflicts = 0;
         for (let i = 0; i < ipList.length; i += 1) {
-          // extraxt ip from upnp nodes
-          nodeList.push(ipList[i].ip);
           let nodeReachable = false;
           let seqNo = 0;
           const fullIP = ipList[i].ip;
@@ -851,7 +848,7 @@ class Operator {
               if (this.masterNode && status.masterIP !== 'null' && status.masterIP !== null && status.masterIP !== this.masterNode) masterConflicts += 1;
             }
           }
-          this.OpNodes.push({
+          OpNodesTmp.push({
             ip: ipList[i].ip, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
           ClusterStatusTmp.push({
@@ -859,6 +856,9 @@ class Operator {
           });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
+
+        this.OpNodes = OpNodesTmp;
+
         if (masterConflicts > 1) {
           log.info('master conflicts detected, should find a new master', 'yellow');
           this.closeMasterConnection();
