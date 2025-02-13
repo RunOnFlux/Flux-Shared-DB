@@ -520,7 +520,7 @@ function startUI() {
 */
 async function validate(ip) {
   if (Operator.AppNodes.includes(ip)) return true;
-  log.info(`appnodes: ${JSON.stringify(Operator.AppNodes)}`);
+  // log.info(`appnodes: ${JSON.stringify(Operator.AppNodes)}`);
   return false;
   // const validateApp = await fluxAPI.validateApp(config.DBAppName, ip);
   // if (validateApp) return true;
