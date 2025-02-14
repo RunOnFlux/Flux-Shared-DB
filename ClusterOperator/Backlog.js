@@ -316,6 +316,32 @@ class BackLog {
   }
 
   /**
+  * [getNumberOfUpdates]
+  * @return {int}
+  */
+  static async getNumberOfUpdates(buffer = false) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT COUNT(*) as count FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%'`);
+          } else {
+            records = await this.BLClient.query(`SELECT COUNT(*) as count FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%'`);
+          }
+          if (records.length) return records[0].count;
+        }
+      } catch (e) {
+        log.error(e);
+      }
+    }
+    return 0;
+  }
+
+  /**
   * [keepConnections]
   */
   static async keepConnections() {
