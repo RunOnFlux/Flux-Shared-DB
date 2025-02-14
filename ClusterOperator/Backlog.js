@@ -290,6 +290,32 @@ class BackLog {
   }
 
   /**
+  * [getFirstSequenceNumber]
+  * @return {int}
+  */
+  static async getFirstSequenceNumber(buffer = false) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq ASC LIMIT 1`);
+          } else {
+            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq ASC LIMIT 1`);
+          }
+          if (records.length) return records[0].seqNo;
+        }
+      } catch (e) {
+        log.error(e);
+      }
+    }
+    return 0;
+  }
+
+  /**
   * [keepConnections]
   */
   static async keepConnections() {
@@ -689,7 +715,6 @@ class BackLog {
     }
   }
 }// end class
-
 
 // eslint-disable-next-line func-names
 module.exports = BackLog;
