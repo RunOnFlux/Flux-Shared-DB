@@ -342,6 +342,27 @@ class BackLog {
   }
 
   /**
+  * [shiftBacklogSeqNo]
+  * @return {int}
+  */
+  static async shiftBacklogSeqNo(shiftSize = 0) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize}`);
+        }
+      } catch (e) {
+        log.error(e);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
   * [keepConnections]
   */
   static async keepConnections() {
