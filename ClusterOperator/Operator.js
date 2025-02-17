@@ -832,6 +832,7 @@ class Operator {
         for (let i = 0; i < ipList.length; i += 1) {
           let nodeReachable = false;
           let seqNo = 0;
+          let masterIP = '';
           const fullIP = ipList[i].ip;
           if (ipList[i].ip.includes(':')) {
             // eslint-disable-next-line prefer-destructuring
@@ -840,11 +841,13 @@ class Operator {
           if (this.myIP && ipList[i].ip === this.myIP) {
             nodeReachable = true;
             seqNo = BackLog.sequenceNumber;
+            masterIP = this.masterNode;
           } else {
             const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort, 5000);
             if (status !== null && status !== 'null') {
               nodeReachable = true;
               seqNo = status.sequenceNumber;
+              masterIP = status.masterIP;
               if (this.masterNode && status.masterIP !== 'null' && status.masterIP !== null && status.masterIP !== this.masterNode) masterConflicts += 1;
             }
           }
@@ -852,7 +855,7 @@ class Operator {
             ip: ipList[i].ip, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
           });
           ClusterStatusTmp.push({
-            ip: fullIP, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime,
+            ip: fullIP, active: nodeReachable, seqNo, staticIp: ipList[i].staticIp, osUptime: ipList[i].osUptime, masterIP,
           });
           if (this.masterNode && ipList[i].ip === this.masterNode) checkMasterIp = true;
         }
