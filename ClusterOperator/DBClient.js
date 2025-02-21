@@ -81,7 +81,7 @@ class DBClient {
           password: Security.getKey(),
           user: config.dbUser,
           stream: this.stream,
-          connectTimeout: 60000, // Increased timeout
+          connectTimeout: 60000,
         });
         this.connection.on('error', (err) => {
           this.connected = false;
@@ -91,7 +91,7 @@ class DBClient {
         this.connected = true;
       } catch (err) {
         log.error(`Initial connection error: ${err.message}`);
-        this.reconnect();
+        setTimeout(() => this.reconnect(), 1000);
       }
     }
   }
@@ -104,7 +104,7 @@ class DBClient {
       // log.info('Reconnected to the database.');
     } catch (err) {
       // log.error(`Reconnection failed: ${err.message}`);
-      setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
+      // setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
     }
   }
 
