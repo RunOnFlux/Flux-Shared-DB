@@ -219,6 +219,7 @@ exports.createClient = async function () {
   try {
     const cl = new DBClient();
     await cl.init();
+    if (!this.connected) return null;
     return cl;
   } catch (err) {
     log.info(JSON.stringify(err));
