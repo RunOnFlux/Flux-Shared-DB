@@ -182,17 +182,21 @@ class DBClient {
   * @param {string} dbName [description]
   */
   async setDB(dbName) {
-    if (config.dbType === 'mysql') {
-      this.InitDB = dbName;
-      // log.info(`seting db to ${dbName}`);
-      this.connection.changeUser({
-        database: dbName,
-      }).catch((err) => {
-        if (err) {
-          log.error(`Error changing database: ${err}`);
-          this.reconnect();
-        }
-      });
+    try {
+      if (config.dbType === 'mysql') {
+        this.InitDB = dbName;
+        // log.info(`seting db to ${dbName}`);
+        this.connection.changeUser({
+          database: dbName,
+        }).catch((err) => {
+          if (err) {
+            log.error(`Error changing database: ${err}`);
+            this.reconnect();
+          }
+        });
+      }
+    } catch (err) {
+      log.info(err);
     }
   }
 
