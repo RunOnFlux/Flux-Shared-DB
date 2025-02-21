@@ -90,6 +90,7 @@ class DBClient {
         });
         this.connected = true;
       } catch (err) {
+        this.connected = false;
         log.error(`Initial connection error: ${err.message}`);
         setTimeout(() => this.reconnect(), 1000);
       }
