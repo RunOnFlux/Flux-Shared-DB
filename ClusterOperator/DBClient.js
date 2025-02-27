@@ -81,7 +81,7 @@ class DBClient {
           password: Security.getKey(),
           user: config.dbUser,
           stream: this.stream,
-          connectTimeout: 60000, // Increased timeout
+          connectTimeout: 60000,
         });
         this.connection.on('error', (err) => {
           this.connected = false;
@@ -90,21 +90,22 @@ class DBClient {
         });
         this.connected = true;
       } catch (err) {
+        this.connected = false;
         log.error(`Initial connection error: ${err.message}`);
-        this.reconnect();
+        setTimeout(() => this.reconnect(), 1000);
       }
     }
   }
 
   async reconnect() {
     if (this.connected) return;
-    log.info('Attempting to reconnect to the database...');
+    // log.info('Attempting to reconnect to the database...');
     try {
       await this.init();
-      log.info('Reconnected to the database.');
+      // log.info('Reconnected to the database.');
     } catch (err) {
-      log.error(`Reconnection failed: ${err.message}`);
-      setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
+      // log.error(`Reconnection failed: ${err.message}`);
+      // setTimeout(() => this.reconnect(), 5000); // Retry after 5 seconds
     }
   }
 
@@ -182,17 +183,23 @@ class DBClient {
   * @param {string} dbName [description]
   */
   async setDB(dbName) {
-    if (config.dbType === 'mysql') {
-      this.InitDB = dbName;
-      // log.info(`seting db to ${dbName}`);
-      this.connection.changeUser({
-        database: dbName,
-      }).catch((err) => {
-        if (err) {
-          log.error(`Error changing database: ${err}`);
-          this.reconnect();
+    try {
+      if (config.dbType === 'mysql') {
+        this.InitDB = dbName;
+        // log.info(`seting db to ${dbName}`);
+        if (this.connection) {
+          this.connection.changeUser({
+            database: dbName,
+          }).catch((err) => {
+            if (err) {
+              log.error(`Error changing database: ${err}`);
+              this.reconnect();
+            }
+          });
         }
-      });
+      }
+    } catch (err) {
+      log.info(err);
     }
   }
 
@@ -212,6 +219,7 @@ exports.createClient = async function () {
   try {
     const cl = new DBClient();
     await cl.init();
+    if (!cl.connected) return null;
     return cl;
   } catch (err) {
     log.info(JSON.stringify(err));

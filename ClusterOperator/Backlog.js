@@ -148,7 +148,6 @@ class BackLog {
     } catch (e) {
       this.writeLock = false;
       log.error(`error executing query, ${query}, ${seq}`);
-      log.error(e);
     }
     return [];
   }
@@ -288,6 +287,79 @@ class BackLog {
       }
     }
     return 0;
+  }
+
+  /**
+  * [getFirstSequenceNumber]
+  * @return {int}
+  */
+  static async getFirstSequenceNumber(buffer = false) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq ASC LIMIT 1`);
+          } else {
+            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq ASC LIMIT 1`);
+          }
+          if (records.length) return records[0].seqNo;
+        }
+      } catch (e) {
+        log.error(e);
+      }
+    }
+    return 0;
+  }
+
+  /**
+  * [getNumberOfUpdates]
+  * @return {int}
+  */
+  static async getNumberOfUpdates(buffer = false) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT COUNT(*) as count FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%'`);
+          } else {
+            records = await this.BLClient.query(`SELECT COUNT(*) as count FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%'`);
+          }
+          if (records.length) return records[0].count;
+        }
+      } catch (e) {
+        log.error(e);
+      }
+    }
+    return 0;
+  }
+
+  /**
+  * [shiftBacklogSeqNo]
+  * @return {int}
+  */
+  static async shiftBacklogSeqNo(shiftSize = 0) {
+    if (!this.BLClient) {
+      this.BLClient = await dbClient.createClient();
+      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+    } else {
+      try {
+        if (config.dbType === 'mysql') {
+          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize}`);
+        }
+      } catch (e) {
+        log.error(e);
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -440,7 +512,6 @@ class BackLog {
       }
     } catch (e) {
       log.error(`error executing query, ${query}, ${seq}`);
-      log.error(e);
     }
     return [];
   }
@@ -470,6 +541,7 @@ class BackLog {
       const records2 = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
       if (records2.length > 0) {
         this.bufferStartSequenceNumber = records2[0].seq;
+        if (records2.length > 20) await this.moveBufferToBacklog();
       } else {
         this.bufferStartSequenceNumber = 0;
       }
@@ -654,6 +726,43 @@ class BackLog {
       log.info(`File "${fileName}.sql" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
+    }
+  }
+
+  static async testDB() {
+    try {
+      const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
+      if (dbList.length === 0) {
+        log.error('DB test failed', 'red');
+        return false;
+      } else {
+        return true;
+      }
+    } catch (error) {
+      log.error('DB test failed', 'red');
+      return false;
+    }
+  }
+
+  static async adjustBeaconFile(object) {
+    try {
+      fs.writeFileSync('beacon.json', JSON.stringify(object, null, 2));
+    } catch (error) {
+      console.error('Error writing to file:', error);
+    }
+  }
+
+  static async readBeaconFile() {
+    try {
+      if (fs.existsSync('beacon.json')) {
+        const fileContent = fs.readFileSync('beacon.json', 'utf8');
+        const parsedContent = JSON.parse(fileContent);
+        return parsedContent;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error reading to file:', error);
+      return null;
     }
   }
 
