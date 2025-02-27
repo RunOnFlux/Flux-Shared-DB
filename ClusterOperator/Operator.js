@@ -640,12 +640,14 @@ class Operator {
       }
       */
       let masterSN = BackLog.sequenceNumber + 1;
-      log.info(`current seq no: ${masterSN}`);
+      log.info(`current seq no: ${masterSN - 1}`);
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
           const index = BackLog.sequenceNumber;
+          log.info(`asking for backlog starting from ${index + 1}`);
           const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
+          log.info(JSON.stringify(response));
           if (response && response.sequenceNumber) {
             masterSN = response.sequenceNumber;
             BackLog.executeLogs = false;
