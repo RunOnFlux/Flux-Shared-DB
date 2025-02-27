@@ -660,8 +660,8 @@ class Operator {
             }
             if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
             BackLog.executeLogs = true;
-            let percent = Math.round(((index + response.records.length) / masterSN) * 1000);
-            if (masterSN === 0) percent = 0;
+            let percent = 0;
+            if (masterSN !== 0) percent = Math.round(((index + response.records.length) / masterSN) * 1000);
             log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           }
         } catch (err) {
