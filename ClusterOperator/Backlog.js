@@ -770,14 +770,11 @@ class BackLog {
   * [purgeBinLogs]
   */
   static async purgeBinLogs() {
-    if (!this.BLClient) {
-      this.BLClient = await dbClient.createClient();
-      if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
-    }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.execute('FLUSH LOGS');
-        await this.BLClient.execute("PURGE BINARY LOGS BEFORE '2026-04-03'");
+        log.info('PURGING BINLOGS', 'cyan');
+        await this.UserDBClient.query('FLUSH LOGS');
+        await this.UserDBClient.query("PURGE BINARY LOGS BEFORE '2036-04-03'");
       }
     } catch (e) {
       log.error(e);

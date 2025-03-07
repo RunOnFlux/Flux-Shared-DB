@@ -684,7 +684,7 @@ async function initServer() {
   }, 2 * 60 * 60 * 1000); // 2 hour
   setInterval(async () => {
     BackLog.purgeBinLogs();
-  }, 48 * 60 * 60 * 1000);
+  }, 2 * 60 * 60 * 1000);
 }
 
 initServer();
