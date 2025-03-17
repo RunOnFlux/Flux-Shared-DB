@@ -1089,12 +1089,17 @@ class Operator {
     // wait for local db to boot up
 
     this.localDB = await dbClient.createClient();
-
+    let tries = 0;
     if (this.localDB === 'WRONG_KEY') {
       return false;
     } else {
       while (this.localDB === null) {
         log.info('Waiting for local DB to boot up...');
+        tries += 1;
+        if (tries > 450) { // more than 15 minutes
+          log.error('db check failed.', 'red');
+          this.status = 'UNINSTALL';
+        }
         await timer.setTimeout(2000);
         this.localDB = await dbClient.createClient();
       }
