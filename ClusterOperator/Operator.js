@@ -1096,8 +1096,8 @@ class Operator {
       while (this.localDB === null) {
         log.info('Waiting for local DB to boot up...');
         tries += 1;
-        if (tries > 450) { // more than 15 minutes
-          log.error('db check failed.', 'red');
+        if (tries > 50) { // more than 15 minutes
+          log.info('db check failed.', 'red');
           this.status = 'UNINSTALL';
         }
         await timer.setTimeout(2000);
