@@ -1118,6 +1118,21 @@ class Operator {
   }
 
   /**
+  * [checkCleanup]
+  */
+  static async checkCleanup() {
+    if (this.status === 'OK') {
+      const beaconContent = BackLog.readBeaconFile();
+      if (beaconContent !== null) {
+        if (beaconContent.sequenceNumber < BackLog.sequenceNumber + 1000) {
+          log.info(`cleaning backlogs <= ${beaconContent.sequenceNumber}`, 'cyan');
+          BackLog.clearLogs(beaconContent.sequenceNumber);
+        }
+      }
+    }
+  }
+
+  /**
   * [init]
   */
   static async init() {

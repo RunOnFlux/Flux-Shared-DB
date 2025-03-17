@@ -375,15 +375,19 @@ class BackLog {
   /**
   * [clearLogs]
   */
-  static async clearLogs() {
+  static async clearLogs(seqNo = 0) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
-        this.sequenceNumber = 0;
+        if (seqNo !== 0) {
+          await this.BLClient.execute(`DELETE FROM ${config.dbBacklogCollection} where seq<=?`, [seqNo]);
+        } else {
+          await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+          this.sequenceNumber = 0;
+        }
       }
     } catch (e) {
       log.error(e);
@@ -736,6 +740,7 @@ class BackLog {
         log.error('DB test failed', 'red');
         return false;
       } else {
+        log.error('DB test passes', 'green');
         return true;
       }
     } catch (error) {
