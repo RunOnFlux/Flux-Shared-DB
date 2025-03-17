@@ -740,7 +740,7 @@ class BackLog {
         log.error('DB test failed', 'red');
         return false;
       } else {
-        log.error('DB test passes', 'green');
+        log.info('DB test passes', 'green');
         return true;
       }
     } catch (error) {
