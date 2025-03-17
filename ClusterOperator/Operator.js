@@ -803,6 +803,7 @@ class Operator {
   static async doHealthCheck() {
     try {
       // check db connection
+      /*
       log.info('health check');
       if (await BackLog.testDB()) {
         this.dbConnectionFails = 0;
@@ -814,7 +815,7 @@ class Operator {
         this.status = 'UNINSTALL';
         return;
       }
-
+      */
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
       // update node list
