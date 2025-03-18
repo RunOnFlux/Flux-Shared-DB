@@ -119,6 +119,7 @@ class Operator {
       try {
         this.masterWSConn.removeAllListeners();
         this.masterWSConn.disconnect();
+        this.masterWSConn = null;
       } catch (err) {
         log.error(err);
       }
@@ -171,6 +172,10 @@ class Operator {
         this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
           this.closeMasterConnection();
+          if (this.status !== 'COMPRESSING') {
+            await this.findMaster();
+            this.initMasterConnection();
+          }
           await this.findMaster();
           this.initMasterConnection();
         });
@@ -178,8 +183,10 @@ class Operator {
           log.info('disconnected from master...', 'red');
           this.connectionDrops += 1;
           this.closeMasterConnection();
-          await this.findMaster();
-          this.initMasterConnection();
+          if (this.status !== 'COMPRESSING') {
+            await this.findMaster();
+            this.initMasterConnection();
+          }
         });
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
           log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
@@ -228,7 +235,7 @@ class Operator {
                 }
               }
             }
-          } else if (this.status === 'SYNC' || this.status === 'CLEANUP') {
+          } else if (this.status === 'SYNC' || this.status === 'COMPRESSING') {
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);
@@ -459,7 +466,46 @@ class Operator {
   * [comperssBacklog]
   *
   */
-  static async comperssBacklog(filename = false, filesize = 0) {
+  static async comperssBacklog() {
+    try {
+      this.status = 'COMPRESSING';
+      log.info('Status COMPRESSING', 'cyan');
+      // delete old snapshots
+      const files = await BackLog.listSqlFiles();
+      for (let i = 0; i < files.length; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
+      const seqNo = BackLog.sequenceNumber;
+      // create snapshot
+      const backupFilename = await BackLog.dumpBackup();
+      const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
+      // eslint-disable-next-line no-param-reassign
+      const BackupFilesize = fileStats.size;
+      // update beacon file
+      await BackLog.adjustBeaconFile({ seqNo, backupFilename, BackupFilesize });
+      // clear old backlogs
+      await BackLog.clearLogs(seqNo);
+      log.info('Compression finished, moving buffer records to backlog', 'cyan');
+      await BackLog.moveBufferToBacklog();
+      // find a new master if old connection is lost
+      if (this.masterWSConn === null) {
+        await this.findMaster();
+        this.initMasterConnection();
+      } else {
+        log.info('Status OK', 'green');
+        this.status = 'OK';
+      }
+    } catch (e) {
+      log.error('error happened while compressing backlog, moving buffer records to backlog', 'red');
+      await BackLog.moveBufferToBacklog();
+      this.status = 'OK';
+      log.error(JSON.stringify(e));
+    }
+  }
+
+  /**
+  * [comperssBacklog]
+  *
+  */
+  static async comperssBacklogOld(filename = false, filesize = 0) {
     try {
       this.status = 'COMPRESSING';
       await timer.setTimeout(500);
@@ -626,6 +672,42 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      // check for beacon file presence
+      const beaconContent = BackLog.readBeaconFile();
+      if (beaconContent && beaconContent.seqNo > BackLog.sequenceNumber) {
+        while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
+          log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
+          await timer.setTimeout(3000);
+        }
+        while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
+          log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
+          await timer.setTimeout(3000);
+        }
+        await BackLog.clearBacklog();
+        await BackLog.clearBuffer();
+        await timer.setTimeout(200);
+        log.info(`importing ${beaconContent.backupFilename}.sql`, 'cyan');
+        // restore backlog from snapshot
+        const importer = new SqlImporter({
+          callback: this.pushToBacklog,
+          serverSocket: false,
+        });
+        importer.onProgress((progress) => {
+          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+          BackLog.compressionTask = percent;
+          log.info(`${percent}% Completed`, 'cyan');
+        });
+        importer.setEncoding('utf8');
+        await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
+          const filesImported = importer.getImported();
+          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.sequenceNumber);
+          this.syncLocalDB();
+        }).catch((err) => {
+          log.error(err);
+        });
+        return;
+      }
       /*
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
@@ -818,6 +900,21 @@ class Operator {
       */
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
+      // abort health check if doing compression
+      if (this.status === 'COMPRESSING') return;
+      // check if beacon file has ben updated.
+      if (this.status === 'OK') {
+        const beaconContent = BackLog.readBeaconFile();
+        log.info(JSON.stringify(beaconContent));
+        if (beaconContent) {
+          const firstSequenceNumber = BackLog.getFirstSequenceNumber();
+          if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
+            // clear old backlogs
+            log.info(`clearing logs older than ${beaconContent.seqNo}`);
+            await BackLog.clearLogs(beaconContent.seqNo);
+          }
+        }
+      }
       // update node list
       const ipList = await fluxAPI.getApplicationIP(config.DBAppName);
       let appIPList = [];
@@ -905,7 +1002,7 @@ class Operator {
           this.AppNodes.push(appIPList[i].ip);
         }
         // check if master is working
-        if (!this.IamMaster && this.masterNode && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
+        if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
           let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
           let tries = 1;
           while ((MasterIP === null || MasterIP === 'null') && tries < 5) {
@@ -931,7 +1028,7 @@ class Operator {
           this.initMasterConnection();
           return;
         }
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT' && this.status !== 'COMPRESSING') {
+        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           this.closeMasterConnection();
           await this.findMaster();

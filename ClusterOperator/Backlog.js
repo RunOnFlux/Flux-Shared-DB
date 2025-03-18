@@ -392,7 +392,7 @@ class BackLog {
     } catch (e) {
       log.error(e);
     }
-    log.info('All backlog data removed successfully.');
+    log.info('backlog data removed successfully.');
   }
 
   /**
