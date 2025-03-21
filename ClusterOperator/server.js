@@ -658,6 +658,9 @@ async function initServer() {
         socket.broadcast.emit('userSession', op, key, value);
         callback({ status: Operator.status });
       });
+      socket.on('compressionStart', async (seqNo) => {
+        socket.broadcast.emit('compressionStart', seqNo);
+      });
     } else {
       log.warn(`rejected ${ip}`);
       socket.disconnect();
