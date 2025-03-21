@@ -263,10 +263,9 @@ class Operator {
             this.status = tempStatus;
           }
         });
-        this.masterWSConn.on('compressbacklog', async (filename, filesize) => {
-          log.info(`compressbacklog request from master, filename: ${filename} with ${filesize} bytes`);
-          await this.comperssBacklog(filename, filesize);
-          this.syncLocalDB();
+        this.masterWSConn.on('compressionStart', async (seqNo) => {
+          log.info(`compressionStart request, seqNo: ${seqNo}`);
+          await BackLog.pushKey('lastCompression', seqNo);
         });
       } catch (e) {
         log.error(e);
@@ -414,7 +413,13 @@ class Operator {
 
   static async doCompressCheck() {
     const currentHour = new Date().getHours();
-    if (this.IamMaster && BackLog.sequenceNumber > 500000 && currentHour >= 1) {
+    const randomNumber = Math.floor(Math.random() * 2000);
+    const prevSeqNo = await BackLog.getKey('lastCompression');
+    if (prevSeqNo) {
+      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 50000 + randomNumber) {
+        this.comperssBacklog();
+      }
+    } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 10000 + randomNumber) {
       this.comperssBacklog();
     }
   }
@@ -474,6 +479,7 @@ class Operator {
       const files = await BackLog.listSqlFiles();
       for (let i = 0; i < files.length; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       const seqNo = BackLog.sequenceNumber;
+      await this.emitCompressionStart(seqNo);
       // create snapshot
       const backupFilename = await BackLog.dumpBackup();
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
@@ -596,6 +602,22 @@ class Operator {
       });
     }
     return null;
+  }
+
+  /**
+  * [emitCompressionStart]
+  * @param {string} key [description]
+  * @param {string} value [description]
+  */
+  static async emitCompressionStart(seqNo) {
+    const { masterWSConn } = this;
+    return new Promise((resolve) => {
+      if (masterWSConn) {
+        masterWSConn.emit('compressionStart', seqNo, (response) => {
+          resolve(response.result);
+        });
+      }
+    });
   }
 
   /**
@@ -900,6 +922,7 @@ class Operator {
       */
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
+      await this.doCompressCheck();
       // abort health check if doing compression
       if (this.status === 'COMPRESSING') return;
       // check if beacon file has ben updated.
@@ -1218,21 +1241,6 @@ class Operator {
       // TODO: RESET DB PASS
     } else {
       this.dbConnStatus = 'WRONG_KEY';
-    }
-  }
-
-  /**
-  * [checkCleanup]
-  */
-  static async checkCleanup() {
-    if (this.status === 'OK') {
-      const beaconContent = BackLog.readBeaconFile();
-      if (beaconContent !== null) {
-        if (beaconContent.sequenceNumber < BackLog.sequenceNumber + 1000) {
-          log.info(`cleaning backlogs <= ${beaconContent.sequenceNumber}`, 'cyan');
-          BackLog.clearLogs(beaconContent.sequenceNumber);
-        }
-      }
     }
   }
 
