@@ -481,7 +481,7 @@ class Operator {
       for (let i = 0; i < files.length; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       const seqNo = BackLog.sequenceNumber;
       log.info(seqNo, 'cyan');
-      await BackLog.pusKey('lastCompression', seqNo, false);
+      await BackLog.pushKey('lastCompression', seqNo, false);
       log.info('key set', 'cyan');
       this.emitCompressionStart(seqNo);
       log.info('key emmited', 'cyan');
