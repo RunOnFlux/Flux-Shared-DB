@@ -752,7 +752,7 @@ class BackLog {
 
   static async adjustBeaconFile(object) {
     try {
-      fs.writeFileSync('beacon.json', JSON.stringify(object, null, 2));
+      fs.writeFileSync('./dumps/beacon.json', JSON.stringify(object, null, 2));
     } catch (error) {
       console.error('Error writing to file:', error);
     }
@@ -760,8 +760,8 @@ class BackLog {
 
   static async readBeaconFile() {
     try {
-      if (fs.existsSync('beacon.json')) {
-        const fileContent = fs.readFileSync('beacon.json', 'utf8');
+      if (fs.existsSync('./dumps/beacon.json')) {
+        const fileContent = fs.readFileSync('./dumps/beacon.json', 'utf8');
         const parsedContent = JSON.parse(fileContent);
         return parsedContent;
       }
