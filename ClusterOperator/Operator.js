@@ -265,7 +265,7 @@ class Operator {
         });
         this.masterWSConn.on('compressionStart', async (seqNo) => {
           log.info(`compressionStart request, seqNo: ${seqNo}`);
-          await BackLog.pushKey('lastCompression', seqNo);
+          await BackLog.pushKey('lastCompression', seqNo, false);
         });
       } catch (e) {
         log.error(e);
