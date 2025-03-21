@@ -415,6 +415,7 @@ class Operator {
     const currentHour = new Date().getHours();
     const randomNumber = Math.floor(Math.random() * 2000);
     const prevSeqNo = await BackLog.getKey('lastCompression');
+    log.info(`lastCompression ${prevSeqNo}`, 'cyan');
     if (prevSeqNo) {
       if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 50000 + randomNumber) {
         this.comperssBacklog();
