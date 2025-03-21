@@ -502,7 +502,7 @@ class Operator {
         this.status = 'OK';
       }
     } catch (e) {
-      log.error('error happened while compressing backlog, moving buffer records to backlog', 'red');
+      log.error(`error happened while compressing backlog, moving buffer records to backlog ${JSON.stringify(e)}`, 'red');
       await BackLog.moveBufferToBacklog();
       this.status = 'OK';
       log.error(JSON.stringify(e));
