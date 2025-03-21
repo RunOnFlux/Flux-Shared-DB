@@ -654,6 +654,7 @@ class BackLog {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
+    log.info(`creating backup file :${filename}.sql, SeqNo: ${this.sequenceNumber}`);
     if (this.BLClient) {
       const startTime = Date.now(); // Record the start time
       await mysqldump({
