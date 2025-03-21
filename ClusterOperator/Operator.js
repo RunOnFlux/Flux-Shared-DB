@@ -480,8 +480,11 @@ class Operator {
       const files = await BackLog.listSqlFiles();
       for (let i = 0; i < files.length; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       const seqNo = BackLog.sequenceNumber;
+      log.info(seqNo, 'cyan');
       await BackLog.pusKey('lastCompression', seqNo, false);
+      log.info('key set', 'cyan');
       this.emitCompressionStart(seqNo);
+      log.info('key emmited', 'cyan');
       // create snapshot
       const backupFilename = await BackLog.dumpBackup();
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
