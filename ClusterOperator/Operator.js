@@ -769,7 +769,8 @@ class Operator {
               }
               await BackLog.pushQuery(record.query, record.seq, record.timestamp);
             }
-            if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber) copyBuffer = true;
+            // if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber)
+            copyBuffer = true;
             BackLog.executeLogs = true;
             let percent = 0;
             if (masterSN !== 0) percent = Math.round(((index + response.records.length) / masterSN) * 1000);
