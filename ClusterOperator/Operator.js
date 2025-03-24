@@ -937,10 +937,10 @@ class Operator {
       if (this.status === 'COMPRESSING') return;
       // check if beacon file has ben updated.
       if (this.status === 'OK') {
-        const beaconContent = BackLog.readBeaconFile();
+        const beaconContent = await BackLog.readBeaconFile();
         log.info(JSON.stringify(beaconContent));
         if (beaconContent) {
-          const firstSequenceNumber = BackLog.getFirstSequenceNumber();
+          const firstSequenceNumber = await BackLog.getFirstSequenceNumber();
           log.info(`checking if cleanup needed ${firstSequenceNumber},${beaconContent.seqNo},${BackLog.sequenceNumber}`, 'cyan');
           if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
             // clear old backlogs
