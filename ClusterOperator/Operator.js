@@ -415,14 +415,14 @@ class Operator {
     const currentHour = new Date().getHours();
     const randomNumber = Math.floor(Math.random() * 2000);
     let prevSeqNo = await BackLog.getKey('lastCompression', false);
-    log.info(`lastCompression ${prevSeqNo}`, 'cyan');
     if (!prevSeqNo) {
       const beaconContent = BackLog.readBeaconFile();
       if (beaconContent && beaconContent.seqNo) {
         prevSeqNo = beaconContent.seqNo;
       }
     }
-    if (prevSeqNo && !this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 10000 + randomNumber) {
+    log.info(`lastCompression ${prevSeqNo}`, 'cyan');
+    if (prevSeqNo && !this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > Number(prevSeqNo) + 10000 + randomNumber) {
       this.comperssBacklog();
     } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 10000 + randomNumber) {
       this.comperssBacklog();
