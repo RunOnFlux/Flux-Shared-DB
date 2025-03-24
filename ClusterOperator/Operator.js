@@ -422,7 +422,7 @@ class Operator {
         prevSeqNo = beaconContent.seqNo;
       }
     }
-    if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 10000 + randomNumber) {
+    if (prevSeqNo && !this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 10000 + randomNumber) {
       this.comperssBacklog();
     } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 10000 + randomNumber) {
       this.comperssBacklog();
