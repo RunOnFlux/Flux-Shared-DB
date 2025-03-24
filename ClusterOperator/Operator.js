@@ -940,6 +940,7 @@ class Operator {
         log.info(JSON.stringify(beaconContent));
         if (beaconContent) {
           const firstSequenceNumber = BackLog.getFirstSequenceNumber();
+          log.info(`checking if cleanup needed ${firstSequenceNumber},${beaconContent.seqNo},${BackLog.sequenceNumber}`, 'cyan');
           if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
             // clear old backlogs
             log.info(`clearing logs older than ${beaconContent.seqNo}`);
