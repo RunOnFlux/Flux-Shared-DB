@@ -414,12 +414,16 @@ class Operator {
   static async doCompressCheck() {
     const currentHour = new Date().getHours();
     const randomNumber = Math.floor(Math.random() * 2000);
-    const prevSeqNo = await BackLog.getKey('lastCompression', false);
+    let prevSeqNo = await BackLog.getKey('lastCompression', false);
     log.info(`lastCompression ${prevSeqNo}`, 'cyan');
-    if (prevSeqNo) {
-      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 50000 + randomNumber) {
-        this.comperssBacklog();
+    if (!prevSeqNo) {
+      const beaconContent = BackLog.readBeaconFile();
+      if (beaconContent && beaconContent.seqNo) {
+        prevSeqNo = beaconContent.seqNo;
       }
+    }
+    if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > prevSeqNo + 10000 + randomNumber) {
+      this.comperssBacklog();
     } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 10000 + randomNumber) {
       this.comperssBacklog();
     }

@@ -659,6 +659,7 @@ async function initServer() {
         callback({ status: Operator.status });
       });
       socket.on('compressionStart', async (seqNo) => {
+        await BackLog.pushKey('lastCompression', seqNo, false);
         socket.broadcast.emit('compressionStart', seqNo);
       });
     } else {
