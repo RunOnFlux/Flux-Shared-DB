@@ -482,7 +482,7 @@ class Operator {
       log.info('Status COMPRESSING', 'cyan');
       // delete old snapshots
       const files = await BackLog.listSqlFiles();
-      for (let i = 0; i < files.length; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
+      for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       const seqNo = BackLog.sequenceNumber;
       log.info(seqNo, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
