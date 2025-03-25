@@ -715,7 +715,8 @@ class Operator {
         while (beaconContent) {
           log.info('Waiting for beacon file to be created...');
           await timer.setTimeout(3000);
-          beaconContent = BackLog.readBeaconFile();
+          beaconContent = await BackLog.readBeaconFile();
+          log.info(JSON.stringify(beaconContent));
         }
         log.info(JSON.stringify(beaconContent));
         if (beaconContent.seqNo > BackLog.sequenceNumber) {
