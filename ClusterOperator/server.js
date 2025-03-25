@@ -554,6 +554,7 @@ async function initServer() {
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
+          firstSequenceNumber: BackLog.getFirstSequenceNumber(),
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
         });

@@ -704,40 +704,52 @@ class Operator {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
       // check for beacon file presence
-      const beaconContent = BackLog.readBeaconFile();
-      if (beaconContent && beaconContent.seqNo > BackLog.sequenceNumber) {
-        while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
-          log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
+      let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
+      while (!status) {
+        await timer.setTimeout(3000);
+        status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
+      }
+      if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
+        let beaconContent = BackLog.readBeaconFile();
+        while (!beaconContent) {
+          log.info('Waiting for beacon file to be created...');
           await timer.setTimeout(3000);
+          beaconContent = BackLog.readBeaconFile();
         }
-        while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
-          log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
-          await timer.setTimeout(3000);
+        if (beaconContent.seqNo > BackLog.sequenceNumber) {
+          while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
+            log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
+            await timer.setTimeout(3000);
+          }
+          while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
+            log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
+            await timer.setTimeout(3000);
+          }
+          await BackLog.clearBacklog();
+          await BackLog.clearBuffer();
+          await timer.setTimeout(200);
+          log.info(`importing ${beaconContent.backupFilename}.sql`, 'cyan');
+          // restore backlog from snapshot
+          const importer = new SqlImporter({
+            callback: this.pushToBacklog,
+            serverSocket: false,
+          });
+          importer.onProgress((progress) => {
+            const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
+            BackLog.compressionTask = percent;
+            log.info(`${percent}% Completed`, 'cyan');
+          });
+          importer.setEncoding('utf8');
+          await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
+            const filesImported = importer.getImported();
+            log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+            BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.sequenceNumber);
+            this.syncLocalDB();
+          }).catch((err) => {
+            log.error(err);
+          });
+          return;
         }
-        await BackLog.clearBacklog();
-        await BackLog.clearBuffer();
-        await timer.setTimeout(200);
-        log.info(`importing ${beaconContent.backupFilename}.sql`, 'cyan');
-        // restore backlog from snapshot
-        const importer = new SqlImporter({
-          callback: this.pushToBacklog,
-          serverSocket: false,
-        });
-        importer.onProgress((progress) => {
-          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-          BackLog.compressionTask = percent;
-          log.info(`${percent}% Completed`, 'cyan');
-        });
-        importer.setEncoding('utf8');
-        await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-          BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.sequenceNumber);
-          this.syncLocalDB();
-        }).catch((err) => {
-          log.error(err);
-        });
-        return;
       }
       /*
       try {
