@@ -712,13 +712,12 @@ class Operator {
       log.info(JSON.stringify(status));
       if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
         let beaconContent = await BackLog.readBeaconFile();
-        while (beaconContent) {
+        while (!beaconContent) {
           log.info('Waiting for beacon file to be created...');
           await timer.setTimeout(3000);
           beaconContent = await BackLog.readBeaconFile();
           log.info(JSON.stringify(beaconContent));
         }
-        log.info(JSON.stringify(beaconContent));
         if (beaconContent.seqNo > BackLog.sequenceNumber) {
           while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
             log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
