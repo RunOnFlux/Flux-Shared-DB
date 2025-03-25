@@ -746,7 +746,7 @@ class Operator {
           await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
             const filesImported = importer.getImported();
             log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-            BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.getLastSequenceNumber());
+            await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.getLastSequenceNumber());
             this.syncLocalDB();
           }).catch((err) => {
             log.error(err);
