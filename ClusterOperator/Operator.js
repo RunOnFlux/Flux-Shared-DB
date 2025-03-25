@@ -716,13 +716,14 @@ class Operator {
           log.info('Waiting for beacon file to be created...');
           await timer.setTimeout(3000);
           beaconContent = await BackLog.readBeaconFile();
-          log.info(JSON.stringify(beaconContent));
         }
+        log.info(`beacon file: ${JSON.stringify(beaconContent)}`);
         if (beaconContent.seqNo > BackLog.sequenceNumber) {
           while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
             log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
             await timer.setTimeout(3000);
           }
+          log.info(`file size: ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}`);
           while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
             log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
             await timer.setTimeout(3000);
