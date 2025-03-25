@@ -711,8 +711,8 @@ class Operator {
       }
       log.info(JSON.stringify(status));
       if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
-        let beaconContent = BackLog.readBeaconFile();
-        while (!beaconContent) {
+        let beaconContent = await BackLog.readBeaconFile();
+        while (beaconContent) {
           log.info('Waiting for beacon file to be created...');
           await timer.setTimeout(3000);
           beaconContent = BackLog.readBeaconFile();
