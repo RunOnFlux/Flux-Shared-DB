@@ -423,8 +423,8 @@ class Operator {
     }
     log.info(`lastCompression ${prevSeqNo}`, 'cyan');
     if (prevSeqNo) {
-      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > (Number(prevSeqNo) + 10000 + randomNumber)) this.comperssBacklog();
-    } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 10000 + randomNumber) {
+      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > (Number(prevSeqNo) + 20000 + randomNumber)) this.comperssBacklog();
+    } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 20000 + randomNumber) {
       this.comperssBacklog();
     }
   }
