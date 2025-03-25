@@ -709,6 +709,7 @@ class Operator {
         await timer.setTimeout(3000);
         status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
       }
+      log.info(JSON.stringify(status));
       if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
         let beaconContent = BackLog.readBeaconFile();
         while (!beaconContent) {
