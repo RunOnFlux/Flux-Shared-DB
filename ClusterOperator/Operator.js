@@ -710,6 +710,7 @@ class Operator {
         status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
       }
       log.info(JSON.stringify(status));
+      log.info(`current seq no: ${BackLog.sequenceNumber}`);
       if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
         let beaconContent = await BackLog.readBeaconFile();
         while (!beaconContent) {
@@ -746,8 +747,9 @@ class Operator {
           await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
             const filesImported = importer.getImported();
             log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-            log.info(`${beaconContent.seqNo}, ${BackLog.getLastSequenceNumber()}`);
-            await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - BackLog.getLastSequenceNumber());
+            const latestSequenceNumber = await BackLog.getLastSequenceNumber();
+            log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
+            await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             this.syncLocalDB();
           }).catch((err) => {
             log.error(err);
@@ -770,7 +772,7 @@ class Operator {
       }
       */
       let masterSN = BackLog.sequenceNumber + 1;
-      log.info(`current seq no: ${masterSN - 1}`);
+      
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
