@@ -408,7 +408,8 @@ class Operator {
   }
 
   static async pushToBacklog(query, seq = false, timestamp = false) {
-    return BackLog.pushToBacklog(query, seq, timestamp);
+    // eslint-disable-next-line no-return-await
+    return await BackLog.pushQuery(query, seq, timestamp);
   }
 
   static async doCompressCheck() {
@@ -733,6 +734,7 @@ class Operator {
           await BackLog.clearBuffer();
           await timer.setTimeout(200);
           log.info(`importing ${beaconContent.backupFilename}.sql`, 'cyan');
+          BackLog.executeLogs = false;
           // restore backlog from snapshot
           const importer = new SqlImporter({
             callback: this.pushToBacklog,
@@ -750,8 +752,10 @@ class Operator {
             const latestSequenceNumber = await BackLog.getLastSequenceNumber();
             log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
+            BackLog.executeLogs = true;
             this.syncLocalDB();
           }).catch((err) => {
+            BackLog.executeLogs = true;
             log.error(err);
             this.syncLocalDB();
           });
@@ -772,7 +776,7 @@ class Operator {
       }
       */
       let masterSN = BackLog.sequenceNumber + 1;
-      
+
       let copyBuffer = false;
       while (BackLog.sequenceNumber < masterSN && !copyBuffer) {
         try {
