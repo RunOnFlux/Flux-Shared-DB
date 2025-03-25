@@ -407,7 +407,7 @@ class Operator {
     }
   }
 
-  static async pushToBacklog(query, seq = false, timestamp = false) {
+  static async pushToBacklog(query, seq = 0, timestamp = false) {
     // eslint-disable-next-line no-return-await
     return await BackLog.pushQuery(query, seq, timestamp);
   }
