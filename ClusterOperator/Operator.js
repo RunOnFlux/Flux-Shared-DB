@@ -717,6 +717,7 @@ class Operator {
           await timer.setTimeout(3000);
           beaconContent = BackLog.readBeaconFile();
         }
+        log.info(JSON.stringify(beaconContent));
         if (beaconContent.seqNo > BackLog.sequenceNumber) {
           while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
             log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
