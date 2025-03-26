@@ -236,6 +236,7 @@ class Operator {
               }
             }
           } else if (this.status === 'SYNC' || this.status === 'COMPRESSING') {
+            // push to buffer
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
           } else {
             log.info(`omitted query status: ${this.status}`);
@@ -801,7 +802,7 @@ class Operator {
                 log.warn('Sync proccess halted.', 'red');
                 return;
               }
-              await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+              if (record.seq === BackLog.sequenceNumber + 1) await BackLog.pushQuery(record.query, record.seq, record.timestamp);
             }
             // if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber)
             copyBuffer = true;
