@@ -168,7 +168,7 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
-        const trimedRecords = utill.trimArrayToSize(totalRecords, 3 * 1024 * 1024);
+        const trimedRecords = utill.trimArrayToSize(totalRecords, 5 * 1024 * 1024);
         log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
         return trimedRecords;
       }
