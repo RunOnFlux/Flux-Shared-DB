@@ -822,7 +822,8 @@ class Operator {
             copyBuffer = true;
             BackLog.executeLogs = true;
             let percent = 0;
-            if (masterSN !== 0) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
+            if (masterSN !== 0 && masterSN !== startSeqNo) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
+            if (startSeqNo === masterSN) percent = 100;
             log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           }
         } catch (err) {
