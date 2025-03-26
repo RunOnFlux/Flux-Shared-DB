@@ -480,6 +480,8 @@ class Operator {
   *
   */
   static async comperssBacklog() {
+    const timestamp = new Date().getTime();
+    const backupFilename = `BU_${timestamp}`;
     try {
       this.status = 'COMPRESSING';
       log.info('Status COMPRESSING', 'cyan');
@@ -490,7 +492,7 @@ class Operator {
       this.emitCompressionStart(seqNo);
       log.info('key emmited', 'cyan');
       // create snapshot
-      const backupFilename = await BackLog.dumpBackup();
+      await BackLog.dumpBackup(backupFilename);
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
       // eslint-disable-next-line no-param-reassign
       const BackupFilesize = fileStats.size;
@@ -517,6 +519,8 @@ class Operator {
         this.status = 'OK';
       }
     } catch (e) {
+      // remove the bad file
+      BackLog.deleteBackupFile(backupFilename, true);
       log.error(`error happened while compressing backlog, moving buffer records to backlog ${JSON.stringify(e)}`, 'red');
       await BackLog.moveBufferToBacklog();
       this.status = 'OK';
