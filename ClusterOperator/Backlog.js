@@ -730,7 +730,7 @@ class BackLog {
       } else {
         fs.unlinkSync(`./dumps/${fileName}.sql`);
       }
-      log.info(`File "${fileName}.sql" has been deleted.`);
+      log.info(`File "${fileName}" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
     }

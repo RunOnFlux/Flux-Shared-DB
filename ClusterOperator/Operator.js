@@ -483,9 +483,6 @@ class Operator {
     try {
       this.status = 'COMPRESSING';
       log.info('Status COMPRESSING', 'cyan');
-      // delete old snapshots
-      const files = await BackLog.listSqlFiles();
-      for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       const seqNo = BackLog.sequenceNumber;
       log.info(seqNo, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
@@ -497,12 +494,20 @@ class Operator {
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
       // eslint-disable-next-line no-param-reassign
       const BackupFilesize = fileStats.size;
-      // update beacon file
-      await BackLog.adjustBeaconFile({ seqNo, backupFilename, BackupFilesize });
-      // clear old backlogs
-      await BackLog.clearLogs(seqNo);
-      log.info('Compression finished, moving buffer records to backlog', 'cyan');
-      await BackLog.moveBufferToBacklog();
+      if (BackupFilesize > 1024) {
+        // update beacon file
+        await BackLog.adjustBeaconFile({ seqNo, backupFilename, BackupFilesize });
+        // clear old backlogs
+        await BackLog.clearLogs(seqNo);
+        log.info('Compression finished, moving buffer records to backlog', 'cyan');
+        await BackLog.moveBufferToBacklog();
+        // delete old snapshots, keep last 2
+        const files = await BackLog.listSqlFiles();
+        for (let i = 0; i < files.length - 2; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
+      } else {
+        // remove the bad file
+        BackLog.deleteBackupFile(backupFilename, true);
+      }
       // find a new master if old connection is lost
       if (this.masterWSConn === null) {
         await this.findMaster();
