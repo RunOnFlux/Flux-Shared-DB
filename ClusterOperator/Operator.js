@@ -486,6 +486,17 @@ class Operator {
     try {
       this.status = 'COMPRESSING';
       log.info('Status COMPRESSING', 'cyan');
+      // check for recent bad backup file
+      const beaconContent = await BackLog.readBeaconFile();
+      if (beaconContent && 'newFileName' in beaconContent) {
+        // check if recent backup has failed
+        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, true);
+      }
+      // set new backup file name
+      if (beaconContent) {
+        beaconContent.newFileName = backupFilename;
+        await BackLog.adjustBeaconFile(beaconContent);
+      }
       const seqNo = BackLog.sequenceNumber;
       log.info(seqNo, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
@@ -499,7 +510,9 @@ class Operator {
       const BackupFilesize = fileStats.size;
       if (BackupFilesize > 1024) {
         // update beacon file
-        await BackLog.adjustBeaconFile({ seqNo, backupFilename, BackupFilesize });
+        await BackLog.adjustBeaconFile({
+          seqNo, backupFilename, BackupFilesize, newFileName: backupFilename,
+        });
         // clear old backlogs
         await BackLog.clearLogs(seqNo);
         log.info('Compression finished, moving buffer records to backlog', 'cyan');
