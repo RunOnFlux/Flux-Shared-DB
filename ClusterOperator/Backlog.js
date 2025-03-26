@@ -116,7 +116,9 @@ class BackLog {
         } else {
           this.writeLock = true;
           let result = null;
-          if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+          if (seq === 0) { this.sequenceNumber += 1; } else {
+            this.sequenceNumber = seq; 
+          }
           const seqForThis = this.sequenceNumber;
           const BLResult = await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
@@ -534,10 +536,12 @@ class BackLog {
     if (config.dbType === 'mysql') {
       const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
       for (const record of records) {
-        log.info(`copying seq(${record.seq}) from buffer`);
         try {
-          // eslint-disable-next-line no-await-in-loop
-          await this.pushQuery(record.query, record.seq, record.timestamp);
+          if (record.seq === this.sequenceNumber + 1) {
+            log.info(`copying seq(${record.seq}) from buffer`);
+            // eslint-disable-next-line no-await-in-loop
+            await this.pushQuery(record.query, record.seq, record.timestamp);
+          }
         } catch (e) {
           log.error(e);
         }
