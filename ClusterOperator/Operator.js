@@ -423,9 +423,11 @@ class Operator {
       }
     }
     log.info(`lastCompression ${prevSeqNo}`, 'cyan');
+    const updates = await BackLog.getNumberOfUpdates();
+    log.info(`number of updates ${updates}`, 'cyan');
     if (prevSeqNo) {
-      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > (Number(prevSeqNo) + 20000 + randomNumber)) this.comperssBacklog();
-    } else if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > 20000 + randomNumber) {
+      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > (Number(prevSeqNo) + 20000 && updates + randomNumber > 20000)) this.comperssBacklog();
+    } else if (!this.IamMaster && this.status === 'OK' && updates + randomNumber > 20000) {
       this.comperssBacklog();
     }
   }
