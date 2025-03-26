@@ -804,13 +804,13 @@ class Operator {
 
       let copyBuffer = false;
       const startSeqNo = BackLog.sequenceNumber;
+      BackLog.executeLogs = false;
       while (BackLog.sequenceNumber < masterSN) {
         try {
           const index = BackLog.sequenceNumber;
           const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
           if (response && response.status === 'OK') {
             masterSN = response.sequenceNumber;
-            BackLog.executeLogs = false;
             for (const record of response.records) {
               if (this.status !== 'SYNC') {
                 log.warn('Sync proccess halted.', 'red');
@@ -820,16 +820,17 @@ class Operator {
             }
             // if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber)
             copyBuffer = true;
-            BackLog.executeLogs = true;
             let percent = 0;
             if (masterSN !== 0 && masterSN !== startSeqNo) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
             if (startSeqNo === masterSN) percent = 1000;
             log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           }
         } catch (err) {
+          BackLog.executeLogs = true;
           log.error(err);
         }
       }
+      BackLog.executeLogs = true;
       log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
       log.info('Status OK', 'green');

@@ -117,7 +117,7 @@ class BackLog {
           this.writeLock = true;
           let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else {
-            this.sequenceNumber = seq; 
+            this.sequenceNumber = seq;
           }
           const seqForThis = this.sequenceNumber;
           const BLResult = await this.BLClient.execute(
