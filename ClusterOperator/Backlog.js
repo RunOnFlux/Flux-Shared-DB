@@ -655,7 +655,7 @@ class BackLog {
   static async dumpBackup(filename = null) {
     const timestamp = new Date().getTime();
     // eslint-disable-next-line no-param-reassign
-    if (!filename) filename = `BU_${timestamp}`;
+    if (!filename) filename = `B_${timestamp}`;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
