@@ -758,7 +758,7 @@ class Operator {
           await BackLog.clearBacklog();
           await BackLog.clearBuffer();
           await timer.setTimeout(200);
-          log.info(`importing ${beaconContent.backupFilename}.sql`, 'cyan');
+          log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
           BackLog.executeLogs = false;
           // restore backlog from snapshot
           const importer = new SqlImporter({
@@ -768,7 +768,7 @@ class Operator {
           importer.onProgress((progress) => {
             const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
             BackLog.compressionTask = percent;
-            log.info(`${percent}% Completed`, 'cyan');
+            log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           });
           importer.setEncoding('utf8');
           await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
@@ -803,6 +803,7 @@ class Operator {
       let masterSN = BackLog.sequenceNumber + 1;
 
       let copyBuffer = false;
+      const startSeqNo = BackLog.sequenceNumber;
       while (BackLog.sequenceNumber < masterSN) {
         try {
           const index = BackLog.sequenceNumber;
@@ -821,7 +822,7 @@ class Operator {
             copyBuffer = true;
             BackLog.executeLogs = true;
             let percent = 0;
-            if (masterSN !== 0) percent = Math.round(((index + response.records.length) / masterSN) * 1000);
+            if (masterSN !== 0) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
             log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           }
         } catch (err) {
