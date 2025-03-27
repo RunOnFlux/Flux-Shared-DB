@@ -784,7 +784,7 @@ class BackLog {
   static async purgeBinLogs() {
     try {
       if (config.dbType === 'mysql') {
-        log.info('PURGING BINLOGS', 'cyan');
+        // log.info('PURGING BINLOGS', 'cyan');
         await this.UserDBClient.query('FLUSH LOGS');
         await this.UserDBClient.query("PURGE BINARY LOGS BEFORE '2036-04-03'");
       }
