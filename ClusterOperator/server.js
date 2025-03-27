@@ -684,12 +684,6 @@ async function initServer() {
   setInterval(async () => {
     Operator.doHealthCheck();
   }, 120000);
-  setInterval(async () => {
-    // Operator.doCompressCheck();
-  }, 2 * 60 * 60 * 1000); // 2 hour
-  setInterval(async () => {
-    BackLog.purgeBinLogs();
-  }, 2 * 60 * 60 * 1000);
 }
 
 initServer();

@@ -983,6 +983,7 @@ class Operator {
       */
       ConnectionPool.keepFreeConnections();
       BackLog.keepConnections();
+      await BackLog.purgeBinLogs();
       await this.doCompressCheck();
       // abort health check if doing compression
       if (this.status === 'COMPRESSING') return;
