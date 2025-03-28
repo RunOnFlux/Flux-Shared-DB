@@ -498,9 +498,9 @@ class Operator {
       const seqNo = BackLog.sequenceNumber;
       log.info(seqNo, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
-      log.info('key set', 'cyan');
+      // log.info('key set', 'cyan');
       this.emitCompressionStart(seqNo);
-      log.info('key emmited', 'cyan');
+      // log.info('key emmited', 'cyan');
       // create snapshot
       await BackLog.dumpBackup(backupFilename);
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
