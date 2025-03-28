@@ -554,6 +554,7 @@ async function initServer() {
         callback({
           status: Operator.status,
           sequenceNumber: BackLog.sequenceNumber,
+          firstSequenceNumber: await BackLog.getFirstSequenceNumber(),
           remoteIP: utill.convertIP(socket.handshake.address),
           masterIP: Operator.getMaster(),
         });
@@ -567,7 +568,7 @@ async function initServer() {
         callback({ status: 'success', message: utill.convertIP(socket.handshake.address) });
       });
       socket.on('getBackLog', async (start, callback) => {
-        const records = await BackLog.getLogs(start, 200);
+        const records = await BackLog.getLogs(start, 400);
         callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
       });
       socket.on('writeQuery', async (query, connId, callback) => {
@@ -658,6 +659,10 @@ async function initServer() {
         socket.broadcast.emit('userSession', op, key, value);
         callback({ status: Operator.status });
       });
+      socket.on('compressionStart', async (seqNo) => {
+        await BackLog.pushKey('lastCompression', seqNo, false);
+        socket.broadcast.emit('compressionStart', seqNo);
+      });
     } else {
       log.warn(`rejected ${ip}`);
       socket.disconnect();
@@ -679,12 +684,6 @@ async function initServer() {
   setInterval(async () => {
     Operator.doHealthCheck();
   }, 120000);
-  setInterval(async () => {
-    // Operator.doCompressCheck();
-  }, 2 * 60 * 60 * 1000); // 2 hour
-  setInterval(async () => {
-    BackLog.purgeBinLogs();
-  }, 2 * 60 * 60 * 1000);
 }
 
 initServer();

@@ -116,7 +116,9 @@ class BackLog {
         } else {
           this.writeLock = true;
           let result = null;
-          if (seq === 0) { this.sequenceNumber += 1; } else { this.sequenceNumber = seq; }
+          if (seq === 0) { this.sequenceNumber += 1; } else {
+            this.sequenceNumber = seq;
+          }
           const seqForThis = this.sequenceNumber;
           const BLResult = await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
@@ -166,7 +168,7 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
-        const trimedRecords = utill.trimArrayToSize(totalRecords, 3 * 1024 * 1024);
+        const trimedRecords = utill.trimArrayToSize(totalRecords, 5 * 1024 * 1024);
         log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
         return trimedRecords;
       }
@@ -353,6 +355,8 @@ class BackLog {
       try {
         if (config.dbType === 'mysql') {
           if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize}`);
+          this.sequenceNumber = await this.getLastSequenceNumber();
+          log.info(`shifted backlog, current sequenceNumber: ${this.sequenceNumber}`);
         }
       } catch (e) {
         log.error(e);
@@ -375,20 +379,24 @@ class BackLog {
   /**
   * [clearLogs]
   */
-  static async clearLogs() {
+  static async clearLogs(seqNo = 0) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
-        this.sequenceNumber = 0;
+        if (seqNo !== 0) {
+          await this.BLClient.execute(`DELETE FROM ${config.dbBacklogCollection} where seq<=?`, [seqNo]);
+        } else {
+          await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+          this.sequenceNumber = 0;
+        }
       }
     } catch (e) {
       log.error(e);
     }
-    log.info('All backlog data removed successfully.');
+    log.info('backlog data removed successfully.');
   }
 
   /**
@@ -528,10 +536,12 @@ class BackLog {
     if (config.dbType === 'mysql') {
       const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
       for (const record of records) {
-        log.info(`copying seq(${record.seq}) from buffer`);
         try {
-          // eslint-disable-next-line no-await-in-loop
-          await this.pushQuery(record.query, record.seq, record.timestamp);
+          if (record.seq === this.sequenceNumber + 1) {
+            log.info(`copying seq(${record.seq}) from buffer`);
+            // eslint-disable-next-line no-await-in-loop
+            await this.pushQuery(record.query, record.seq, record.timestamp);
+          }
         } catch (e) {
           log.error(e);
         }
@@ -645,11 +655,12 @@ class BackLog {
   static async dumpBackup(filename = null) {
     const timestamp = new Date().getTime();
     // eslint-disable-next-line no-param-reassign
-    if (!filename) filename = `BU_${timestamp}`;
+    if (!filename) filename = `B_${timestamp}`;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
+    log.info(`creating backup file :${filename}.sql, SeqNo: ${this.sequenceNumber}`);
     if (this.BLClient) {
       const startTime = Date.now(); // Record the start time
       await mysqldump({
@@ -723,7 +734,7 @@ class BackLog {
       } else {
         fs.unlinkSync(`./dumps/${fileName}.sql`);
       }
-      log.info(`File "${fileName}.sql" has been deleted.`);
+      log.info(`File "${fileName}" has been deleted.`);
     } catch (error) {
       log.error(`Error deleting file "${fileName}": ${error.message}`);
     }
@@ -736,6 +747,7 @@ class BackLog {
         log.error('DB test failed', 'red');
         return false;
       } else {
+        log.info('DB test passes', 'green');
         return true;
       }
     } catch (error) {
@@ -746,7 +758,7 @@ class BackLog {
 
   static async adjustBeaconFile(object) {
     try {
-      fs.writeFileSync('beacon.json', JSON.stringify(object, null, 2));
+      fs.writeFileSync('./dumps/beacon.json', JSON.stringify(object, null, 2));
     } catch (error) {
       console.error('Error writing to file:', error);
     }
@@ -754,8 +766,8 @@ class BackLog {
 
   static async readBeaconFile() {
     try {
-      if (fs.existsSync('beacon.json')) {
-        const fileContent = fs.readFileSync('beacon.json', 'utf8');
+      if (fs.existsSync('./dumps/beacon.json')) {
+        const fileContent = fs.readFileSync('./dumps/beacon.json', 'utf8');
         const parsedContent = JSON.parse(fileContent);
         return parsedContent;
       }
@@ -772,7 +784,7 @@ class BackLog {
   static async purgeBinLogs() {
     try {
       if (config.dbType === 'mysql') {
-        log.info('PURGING BINLOGS', 'cyan');
+        // log.info('PURGING BINLOGS', 'cyan');
         await this.UserDBClient.query('FLUSH LOGS');
         await this.UserDBClient.query("PURGE BINARY LOGS BEFORE '2036-04-03'");
       }
