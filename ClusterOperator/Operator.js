@@ -985,7 +985,7 @@ class Operator {
       BackLog.keepConnections();
       await BackLog.purgeBinLogs();
       // testing compression. Remove the condition after test is done
-      if (config.AppName === 'wordpress1732713461111') {
+      if (config.AppName === 'wordpress1732713461111' || config.AppName === 'wordpress1691169388403') {
         await this.doCompressCheck();
         // abort health check if doing compression
         if (this.status === 'COMPRESSING') return;
