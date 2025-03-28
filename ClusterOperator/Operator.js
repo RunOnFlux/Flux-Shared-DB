@@ -489,6 +489,7 @@ class Operator {
       // check for recent bad backup file
       const beaconContent = await BackLog.readBeaconFile();
       if (beaconContent && 'newFileName' in beaconContent) {
+        log.info(`${beaconContent.newFileName},${beaconContent.backupFilename}`);
         // check if recent backup has failed
         if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, true);
       }
