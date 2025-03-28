@@ -19,6 +19,7 @@ module.exports = {
   version: '1.6.0',
   whiteListedIps: process.env.WHITELIST || '127.0.0.1',
   debugMode: true,
+  containerDataPath: '',
   authMasterOnly: process.env.AUTH_MASTER_ONLY || false,
   ssl: false,
 };
