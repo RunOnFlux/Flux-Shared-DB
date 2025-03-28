@@ -846,6 +846,7 @@ class Operator {
       if (this.nodeInstances === 0) {
         const Specifications = await fluxAPI.getApplicationSpecs(config.DBAppName);
         this.nodeInstances = Specifications.instances;
+        log.info(`Container Data: ${JSON.stringify(Specifications)}`);
         if (Specifications.compose && Array.isArray(Specifications.compose)) {
           const targetItem = Specifications.compose.find((item) => item && item.repotag === 'runonflux/shared-db:latest' && item.name === 'operator');
           this.containerDataPath = targetItem.containerData;
@@ -990,7 +991,7 @@ class Operator {
       BackLog.keepConnections();
       await BackLog.purgeBinLogs();
       // testing compression. Remove the condition after test is done
-      if (this.containerDataPath === 's:/app/dumps' && (config.AppName === 'wordpress1732713461111' || config.AppName === 'wordpress1691169388403')) {
+      if (this.containerDataPath === 's:/app/dumps' && (config.AppName === 'wordpress1732713461111')) {
         await this.doCompressCheck();
         // abort health check if doing compression
         if (this.status === 'COMPRESSING') return;
