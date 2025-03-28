@@ -427,8 +427,8 @@ class Operator {
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
     if (prevSeqNo) {
-      if (!this.IamMaster && this.status === 'OK' && BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates + randomNumber > 20000) this.comperssBacklog();
-    } else if (!this.IamMaster && this.status === 'OK' && updates + randomNumber > 20000) {
+      if (BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates + randomNumber > 20000) this.comperssBacklog();
+    } else if (updates + randomNumber > 20000) {
       this.comperssBacklog();
     }
   }
@@ -995,11 +995,11 @@ class Operator {
       }
       // testing compression. Remove the condition after test is done
       if (config.containerDataPath === 's:/app/dumps') {
-        await this.doCompressCheck();
         // abort health check if doing compression
         if (this.status === 'COMPRESSING') return;
         // check if beacon file has ben updated.
         if (this.status === 'OK') {
+          if (!this.IamMaster) await this.doCompressCheck();
           const beaconContent = await BackLog.readBeaconFile();
           log.info(JSON.stringify(beaconContent));
           if (beaconContent) {
