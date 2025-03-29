@@ -136,6 +136,10 @@ class BackLog {
           // Abort query execution if there is an error in backlog insert
           if (Array.isArray(BLResult) && BLResult[2]) {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
+            if (this.exitOnError) {
+              log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+              process.exit(1);
+            }
           } else {
             if (connId === false) {
               result = await this.UserDBClient.query(query, false, fullQuery);
@@ -144,6 +148,10 @@ class BackLog {
             }
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+              if (this.exitOnError) {
+                log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+                process.exit(1);
+              }
             }
           }
           return [result, seqForThis, timestamp];

@@ -1005,7 +1005,7 @@ class Operator {
       // testing compression. Remove the condition after test is done
       if (config.containerDataPath === 's:/app/dumps') {
         // abort health check if doing compression
-        if (this.status === 'COMPRESSING') return;
+        if (this.status === 'COMPRESSING' || BackLog.exitOnError) return;
         // check if beacon file has ben updated.
         if (this.status === 'OK') {
           if (!this.IamMaster) await this.doCompressCheck();
