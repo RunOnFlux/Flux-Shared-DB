@@ -493,7 +493,7 @@ class Operator {
       if (beaconContent && 'newFileName' in beaconContent) {
         log.info(`${beaconContent.newFileName},${beaconContent.backupFilename}`);
         // check if recent backup has failed
-        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, true);
+        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, false);
       }
       // set new backup file name
       if (beaconContent) {
@@ -525,7 +525,7 @@ class Operator {
         for (let i = 0; i < files.length - 2; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       } else {
         // remove the bad file
-        BackLog.deleteBackupFile(backupFilename, true);
+        BackLog.deleteBackupFile(backupFilename, false);
       }
       // find a new master if old connection is lost
       const { masterWSConn } = this;
