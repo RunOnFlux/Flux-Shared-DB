@@ -528,7 +528,8 @@ class Operator {
         BackLog.deleteBackupFile(backupFilename, true);
       }
       // find a new master if old connection is lost
-      if (this.masterWSConn === null) {
+      const { masterWSConn } = this;
+      if (masterWSConn === null) {
         await this.findMaster();
         this.initMasterConnection();
       } else {
@@ -793,7 +794,8 @@ class Operator {
           return;
         }
       }
-      if (this.masterWSConn === null) {
+      const { masterWSConn } = this;
+      if (!masterWSConn) {
         log.warn('Sync proccess halted.', 'red');
         await this.findMaster();
         this.initMasterConnection();
