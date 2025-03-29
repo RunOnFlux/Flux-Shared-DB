@@ -31,6 +31,8 @@ class BackLog {
 
   static executeLogs = true;
 
+  static exitOnError = false;
+
   static BLqueryCache = queryCache;
 
   /**
@@ -150,6 +152,10 @@ class BackLog {
     } catch (e) {
       this.writeLock = false;
       log.error(`error executing query, ${query}, ${seq}`);
+      if (this.exitOnError) {
+        log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+        process.exit(1);
+      }
     }
     return [];
   }

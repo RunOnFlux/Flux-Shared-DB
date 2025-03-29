@@ -174,7 +174,7 @@ class Operator {
         this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
           this.closeMasterConnection();
-          if (this.status !== 'COMPRESSING') {
+          if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
           }
@@ -183,7 +183,7 @@ class Operator {
           log.info('disconnected from master...', 'red');
           this.connectionDrops += 1;
           this.closeMasterConnection();
-          if (this.status !== 'COMPRESSING') {
+          if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
           }
@@ -761,6 +761,7 @@ class Operator {
           await timer.setTimeout(200);
           log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
           BackLog.executeLogs = false;
+          BackLog.exitOnError = true;
           // restore backlog from snapshot
           const importer = new SqlImporter({
             callback: this.pushToBacklog,
@@ -779,14 +780,22 @@ class Operator {
             log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             BackLog.executeLogs = true;
+            BackLog.exitOnError = false;
             this.syncLocalDB();
           }).catch((err) => {
             BackLog.executeLogs = true;
+            BackLog.exitOnError = false;
             log.error(err);
             this.syncLocalDB();
           });
           return;
         }
+      }
+      if (this.masterWSConn === null) {
+        log.warn('Sync proccess halted.', 'red');
+        await this.findMaster();
+        this.initMasterConnection();
+        return;
       }
       /*
       try {
