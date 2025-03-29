@@ -174,7 +174,8 @@ class Operator {
         this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
           this.closeMasterConnection();
-          if (this.status !== 'COMPRESSING') {
+          // abort findmaster if compression or import is happening
+          if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
           }
@@ -183,7 +184,8 @@ class Operator {
           log.info('disconnected from master...', 'red');
           this.connectionDrops += 1;
           this.closeMasterConnection();
-          if (this.status !== 'COMPRESSING') {
+          // abort findmaster if compression or import is happening
+          if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
           }
@@ -414,11 +416,9 @@ class Operator {
   }
 
   static async doCompressCheck() {
-    const currentHour = new Date().getHours();
-    const randomNumber = Math.floor(Math.random() * 2000);
     let prevSeqNo = await BackLog.getKey('lastCompression', false);
     if (!prevSeqNo) {
-      const beaconContent = BackLog.readBeaconFile();
+      const beaconContent = await BackLog.readBeaconFile();
       if (beaconContent && beaconContent.seqNo) {
         prevSeqNo = beaconContent.seqNo;
       }
@@ -427,8 +427,8 @@ class Operator {
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
     if (prevSeqNo) {
-      if (BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates + randomNumber > 20000) this.comperssBacklog();
-    } else if (updates + randomNumber > 20000) {
+      if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) this.comperssBacklog();
+    } else if (updates >= 50000) {
       this.comperssBacklog();
     }
   }
@@ -491,7 +491,7 @@ class Operator {
       if (beaconContent && 'newFileName' in beaconContent) {
         log.info(`${beaconContent.newFileName},${beaconContent.backupFilename}`);
         // check if recent backup has failed
-        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, true);
+        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, false);
       }
       // set new backup file name
       if (beaconContent) {
@@ -515,7 +515,7 @@ class Operator {
           seqNo, backupFilename, BackupFilesize, newFileName: backupFilename,
         });
         // clear old backlogs
-        await BackLog.clearLogs(seqNo);
+        // await BackLog.clearLogs(seqNo);
         log.info('Compression finished, moving buffer records to backlog', 'cyan');
         await BackLog.moveBufferToBacklog();
         // delete old snapshots, keep last 2
@@ -523,10 +523,11 @@ class Operator {
         for (let i = 0; i < files.length - 2; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       } else {
         // remove the bad file
-        BackLog.deleteBackupFile(backupFilename, true);
+        BackLog.deleteBackupFile(backupFilename, false);
       }
       // find a new master if old connection is lost
-      if (this.masterWSConn === null) {
+      const { masterWSConn } = this;
+      if (masterWSConn === null) {
         await this.findMaster();
         this.initMasterConnection();
       } else {
@@ -761,6 +762,7 @@ class Operator {
           await timer.setTimeout(200);
           log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
           BackLog.executeLogs = false;
+          BackLog.exitOnError = true;
           // restore backlog from snapshot
           const importer = new SqlImporter({
             callback: this.pushToBacklog,
@@ -779,10 +781,26 @@ class Operator {
             log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             BackLog.executeLogs = true;
+            BackLog.exitOnError = false;
+            const { masterWSConn } = this;
+            if (!masterWSConn) {
+              log.warn('Sync proccess halted.', 'red');
+              await this.findMaster();
+              this.initMasterConnection();
+              return;
+            }
             this.syncLocalDB();
-          }).catch((err) => {
+          }).catch(async (err) => {
             BackLog.executeLogs = true;
+            BackLog.exitOnError = false;
             log.error(err);
+            const { masterWSConn } = this;
+            if (!masterWSConn) {
+              log.warn('Sync proccess halted.', 'red');
+              await this.findMaster();
+              this.initMasterConnection();
+              return;
+            }
             this.syncLocalDB();
           });
           return;
@@ -995,8 +1013,8 @@ class Operator {
       }
       // testing compression. Remove the condition after test is done
       if (config.containerDataPath === 's:/app/dumps') {
-        // abort health check if doing compression
-        if (this.status === 'COMPRESSING') return;
+        // abort health check if doing compression, or if import is happening
+        if (this.status === 'COMPRESSING' || BackLog.exitOnError) return;
         // check if beacon file has ben updated.
         if (this.status === 'OK') {
           if (!this.IamMaster) await this.doCompressCheck();
@@ -1005,10 +1023,15 @@ class Operator {
           if (beaconContent) {
             const firstSequenceNumber = await BackLog.getFirstSequenceNumber();
             log.info(`checking if cleanup needed ${firstSequenceNumber},${beaconContent.seqNo},${BackLog.sequenceNumber}`, 'cyan');
-            if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
+            if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 2000) {
               // clear old backlogs
-              log.info(`clearing logs older than ${beaconContent.seqNo}`);
-              await BackLog.clearLogs(beaconContent.seqNo);
+              if (beaconContent.seqNo - firstSequenceNumber > 25000) {
+                log.info(`clearing logs older than ${firstSequenceNumber + 25000}`);
+                await BackLog.clearLogs(firstSequenceNumber + 25000);
+              } else {
+                log.info(`clearing logs older than ${beaconContent.seqNo}`);
+                await BackLog.clearLogs(beaconContent.seqNo);
+              }
             }
           }
         }

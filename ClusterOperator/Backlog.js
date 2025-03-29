@@ -31,6 +31,8 @@ class BackLog {
 
   static executeLogs = true;
 
+  static exitOnError = false;
+
   static BLqueryCache = queryCache;
 
   /**
@@ -134,6 +136,10 @@ class BackLog {
           // Abort query execution if there is an error in backlog insert
           if (Array.isArray(BLResult) && BLResult[2]) {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
+            if (this.exitOnError) {
+              log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+              process.exit(1);
+            }
           } else {
             if (connId === false) {
               result = await this.UserDBClient.query(query, false, fullQuery);
@@ -142,6 +148,10 @@ class BackLog {
             }
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+              if (this.exitOnError) {
+                log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+                process.exit(1);
+              }
             }
           }
           return [result, seqForThis, timestamp];
@@ -150,6 +160,10 @@ class BackLog {
     } catch (e) {
       this.writeLock = false;
       log.error(`error executing query, ${query}, ${seq}`);
+      if (this.exitOnError) {
+        log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
+        process.exit(1);
+      }
     }
     return [];
   }
@@ -330,9 +344,9 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 20000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           } else {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 20000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           }
           if (records.length) return records[0].count;
         }
