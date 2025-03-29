@@ -517,7 +517,7 @@ class Operator {
           seqNo, backupFilename, BackupFilesize, newFileName: backupFilename,
         });
         // clear old backlogs
-        await BackLog.clearLogs(seqNo);
+        // await BackLog.clearLogs(seqNo);
         log.info('Compression finished, moving buffer records to backlog', 'cyan');
         await BackLog.moveBufferToBacklog();
         // delete old snapshots, keep last 2
