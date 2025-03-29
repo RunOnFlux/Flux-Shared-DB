@@ -1027,8 +1027,13 @@ class Operator {
             log.info(`checking if cleanup needed ${firstSequenceNumber},${beaconContent.seqNo},${BackLog.sequenceNumber}`, 'cyan');
             if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
               // clear old backlogs
-              log.info(`clearing logs older than ${beaconContent.seqNo}`);
-              await BackLog.clearLogs(beaconContent.seqNo);
+              if (beaconContent.seqNo - firstSequenceNumber > 20000) {
+                log.info(`clearing logs older than ${firstSequenceNumber + 20000}`);
+                await BackLog.clearLogs(firstSequenceNumber + 20000);
+              } else {
+                log.info(`clearing logs older than ${beaconContent.seqNo}`);
+                await BackLog.clearLogs(beaconContent.seqNo);
+              }
             }
           }
         }
