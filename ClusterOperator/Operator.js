@@ -416,8 +416,6 @@ class Operator {
   }
 
   static async doCompressCheck() {
-    const currentHour = new Date().getHours();
-    const randomNumber = Math.floor(Math.random() * 2000);
     let prevSeqNo = await BackLog.getKey('lastCompression', false);
     if (!prevSeqNo) {
       const beaconContent = await BackLog.readBeaconFile();
@@ -429,8 +427,8 @@ class Operator {
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
     if (prevSeqNo) {
-      if (BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates + randomNumber > 20000) this.comperssBacklog();
-    } else if (updates + randomNumber > 20000) {
+      if (BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates >= 20000) this.comperssBacklog();
+    } else if (updates >= 20000) {
       this.comperssBacklog();
     }
   }
