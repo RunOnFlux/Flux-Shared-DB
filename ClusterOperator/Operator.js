@@ -174,6 +174,7 @@ class Operator {
         this.masterWSConn.on('connect_error', async (reason) => {
           log.info(`connection error: ${reason}`);
           this.closeMasterConnection();
+          // abort findmaster if compression or import is happening
           if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
@@ -183,6 +184,7 @@ class Operator {
           log.info('disconnected from master...', 'red');
           this.connectionDrops += 1;
           this.closeMasterConnection();
+          // abort findmaster if compression or import is happening
           if (this.status !== 'COMPRESSING' && !BackLog.exitOnError) {
             await this.findMaster();
             this.initMasterConnection();
@@ -1004,7 +1006,7 @@ class Operator {
       }
       // testing compression. Remove the condition after test is done
       if (config.containerDataPath === 's:/app/dumps') {
-        // abort health check if doing compression
+        // abort health check if doing compression, or if import is happening
         if (this.status === 'COMPRESSING' || BackLog.exitOnError) return;
         // check if beacon file has ben updated.
         if (this.status === 'OK') {
