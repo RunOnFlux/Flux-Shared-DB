@@ -784,22 +784,29 @@ class Operator {
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
+            const { masterWSConn } = this;
+            if (!masterWSConn) {
+              log.warn('Sync proccess halted.', 'red');
+              await this.findMaster();
+              this.initMasterConnection();
+              return;
+            }
             this.syncLocalDB();
-          }).catch((err) => {
+          }).catch(async (err) => {
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
             log.error(err);
+            const { masterWSConn } = this;
+            if (!masterWSConn) {
+              log.warn('Sync proccess halted.', 'red');
+              await this.findMaster();
+              this.initMasterConnection();
+              return;
+            }
             this.syncLocalDB();
           });
           return;
         }
-      }
-      const { masterWSConn } = this;
-      if (!masterWSConn) {
-        log.warn('Sync proccess halted.', 'red');
-        await this.findMaster();
-        this.initMasterConnection();
-        return;
       }
       /*
       try {
