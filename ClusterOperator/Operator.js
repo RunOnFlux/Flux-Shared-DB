@@ -427,8 +427,8 @@ class Operator {
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
     if (prevSeqNo) {
-      if (BackLog.sequenceNumber > Number(prevSeqNo) + 20000 && updates >= 20000) this.comperssBacklog();
-    } else if (updates >= 20000) {
+      if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) this.comperssBacklog();
+    } else if (updates >= 50000) {
       this.comperssBacklog();
     }
   }
@@ -1023,11 +1023,11 @@ class Operator {
           if (beaconContent) {
             const firstSequenceNumber = await BackLog.getFirstSequenceNumber();
             log.info(`checking if cleanup needed ${firstSequenceNumber},${beaconContent.seqNo},${BackLog.sequenceNumber}`, 'cyan');
-            if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 1000) {
+            if (beaconContent.seqNo > firstSequenceNumber && beaconContent.seqNo < BackLog.sequenceNumber + 2000) {
               // clear old backlogs
-              if (beaconContent.seqNo - firstSequenceNumber > 20000) {
-                log.info(`clearing logs older than ${firstSequenceNumber + 20000}`);
-                await BackLog.clearLogs(firstSequenceNumber + 20000);
+              if (beaconContent.seqNo - firstSequenceNumber > 25000) {
+                log.info(`clearing logs older than ${firstSequenceNumber + 25000}`);
+                await BackLog.clearLogs(firstSequenceNumber + 25000);
               } else {
                 log.info(`clearing logs older than ${beaconContent.seqNo}`);
                 await BackLog.clearLogs(beaconContent.seqNo);

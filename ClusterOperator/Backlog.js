@@ -344,9 +344,9 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 20000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           } else {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 20000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           }
           if (records.length) return records[0].count;
         }
