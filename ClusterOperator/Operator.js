@@ -420,7 +420,7 @@ class Operator {
     const randomNumber = Math.floor(Math.random() * 2000);
     let prevSeqNo = await BackLog.getKey('lastCompression', false);
     if (!prevSeqNo) {
-      const beaconContent = BackLog.readBeaconFile();
+      const beaconContent = await BackLog.readBeaconFile();
       if (beaconContent && beaconContent.seqNo) {
         prevSeqNo = beaconContent.seqNo;
       }
