@@ -732,10 +732,17 @@ class Operator {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
       // check for beacon file presence
-      let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
-      while (!status) {
-        await timer.setTimeout(3000);
-        status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort);
+      let tries = 1;
+      let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+      while (!status && tries < 5) {
+        status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+        tries += 1;
+      }
+      if (!status) {
+        log.warn('Master node not reachable, Sync proccess halted.', 'red');
+        await this.findMaster();
+        this.initMasterConnection();
+        return;
       }
       log.info(JSON.stringify(status));
       log.info(`current seq no: ${BackLog.sequenceNumber}`);
@@ -1126,7 +1133,7 @@ class Operator {
         if (!this.IamMaster && this.masterNode && this.status !== 'INIT') {
           let MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
           let tries = 1;
-          while ((MasterIP === null || MasterIP === 'null') && tries < 5) {
+          while ((MasterIP === null || MasterIP === 'null') && tries < 3) {
             tries += 1;
             log.info(`master not responding, tries :${tries}`);
             MasterIP = await fluxAPI.getMaster(this.masterNode, config.containerApiPort);
