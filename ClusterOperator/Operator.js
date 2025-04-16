@@ -731,6 +731,7 @@ class Operator {
   static async syncLocalDB() {
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.status = 'SYNC';
+      log.info('Status SYNC', 'yellow');
       // check for beacon file presence
       let tries = 1;
       let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
@@ -747,6 +748,7 @@ class Operator {
       log.info(JSON.stringify(status));
       log.info(`current seq no: ${BackLog.sequenceNumber}`);
       if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
+        log.info(`Master node's first SequenceNumber: ${status.firstSequenceNumber}`);
         let beaconContent = await BackLog.readBeaconFile();
         while (!beaconContent) {
           log.info('Waiting for beacon file to be created...');
