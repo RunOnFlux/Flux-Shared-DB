@@ -747,7 +747,7 @@ class Operator {
       }
       log.info(JSON.stringify(status));
       log.info(`current seq no: ${BackLog.sequenceNumber}`);
-      if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber) {
+      if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
         log.info(`Master node's first SequenceNumber: ${status.firstSequenceNumber}`);
         let beaconContent = await BackLog.readBeaconFile();
         while (!beaconContent) {
