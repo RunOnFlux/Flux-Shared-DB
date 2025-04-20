@@ -317,6 +317,7 @@ class Operator {
   * @param {object} param [description]
   */
   static handleAuthorize(param) {
+    log.info(JSON.stringify(param));
     try {
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
