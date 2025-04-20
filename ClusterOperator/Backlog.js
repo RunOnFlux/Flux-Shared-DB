@@ -123,7 +123,7 @@ class BackLog {
             this.sequenceNumber = seq;
           }
           const seqForThis = this.sequenceNumber;
-          const BLResult = await this.BLClient.execute(
+          const BLResult = this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
@@ -135,7 +135,7 @@ class BackLog {
           */
           this.writeLock = false;
           // Abort query execution if there is an error in backlog insert
-          if (Array.isArray(BLResult) && BLResult[2]) {
+          if (false && Array.isArray(BLResult) && BLResult[2]) {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
             if (this.exitOnError) {
               log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
