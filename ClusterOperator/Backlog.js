@@ -117,6 +117,7 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
+          const startTime = performance.now();
           let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else {
             this.sequenceNumber = seq;
@@ -126,7 +127,7 @@ class BackLog {
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
-          if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          const firstQ = performance.now() - startTime;
           /*
           this.BLqueryCache.put(seqForThis, {
             query, seq: seqForThis, timestamp, connId, ip: false,
@@ -146,6 +147,8 @@ class BackLog {
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
+            const totalT = performance.now() - startTime;
+            if (this.executeLogs) log.info(`executed ${seqForThis} (${firstQ}, ${totalT})`);
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
               if (this.exitOnError) {
