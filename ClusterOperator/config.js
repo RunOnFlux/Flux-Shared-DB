@@ -1,7 +1,7 @@
 module.exports = {
   dbHost: process.env.DB_COMPONENT_NAME || 'localhost',
   dbType: process.env.DB_TYPE || 'mysql',
-  dbUser: 'root',
+  dbUser: process.env.DB_USER || 'root',
   dbPass: process.env.DB_INIT_PASS || 'secret',
   dbPort: 3306,
   dbBacklog: 'flux_backlog',

@@ -317,7 +317,6 @@ class Operator {
   * @param {object} param [description]
   */
   static handleAuthorize(param) {
-    log.info(JSON.stringify(param));
     try {
       if (this.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
@@ -329,6 +328,9 @@ class Operator {
         return false;
       }
       const remoteIp = param.remoteIP;
+      if (param.username !== config.dbUser) {
+        log.warn(`wrong db username from ${remoteIp}:${param.username}`, 'yellow');
+      }
       if (this.authorizedApp === null && remoteIp.startsWith('172')) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
