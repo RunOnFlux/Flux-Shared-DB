@@ -328,10 +328,11 @@ class Operator {
         return false;
       }
       const remoteIp = param.remoteIP;
-      if (this.authorizedApp === null) this.authorizedApp = remoteIp;
+      if (this.authorizedApp === null && remoteIp.startsWith('172')) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
+      if ((whiteList.length && whiteList.includes(remoteIp))) {
+        log.info(`remote ip ${remoteIp}`);
         return true;
       }
       // apps only can connect to the master node
