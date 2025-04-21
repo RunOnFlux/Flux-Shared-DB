@@ -124,7 +124,7 @@ class BackLog {
           }
           const seqForThis = this.sequenceNumber;
           this.BLClient.query('SET sql_log_bin = 0;');
-          const BLResult = await this.BLClient.execute(
+          const BLResult = this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
