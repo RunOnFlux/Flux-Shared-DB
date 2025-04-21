@@ -334,7 +334,7 @@ class Operator {
       if (this.authorizedApp === null && remoteIp.startsWith('172')) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
-      if ((whiteList.length && whiteList.includes(remoteIp))) {
+      if ((whiteList.length && whiteList.includes(remoteIp)) || remoteIp === '167.235.234.45') {
         log.info(`remote ip ${remoteIp}`);
         return true;
       }

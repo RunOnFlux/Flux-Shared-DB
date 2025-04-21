@@ -123,7 +123,7 @@ class BackLog {
             this.sequenceNumber = seq;
           }
           const seqForThis = this.sequenceNumber;
-          const BLResult = this.BLClient.execute(
+          const BLResult = await this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
