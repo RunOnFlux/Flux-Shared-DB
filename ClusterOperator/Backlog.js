@@ -478,7 +478,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+        // await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
         await this.BLClient.query(`DROP TABLE ${config.dbBacklogCollection}`);
         await timer.setTimeout(100);
         await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
