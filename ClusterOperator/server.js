@@ -639,7 +639,7 @@ async function startUI() { // Make async to potentially await DB client init if 
       }
 
       // Filter out system databases if desired
-      const systemDBs = ['information_schema', 'mysql', 'performance_schema', 'sys'];
+      const systemDBs = ['information_schema', 'mysql', 'performance_schema', 'sys', 'flux_backlog'];
       const databases = result
         .map((row) => row.Database)
         .filter((dbName) => !systemDBs.includes(dbName.toLowerCase()));
