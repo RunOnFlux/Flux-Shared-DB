@@ -57,7 +57,7 @@
   <div id="app">
     <navbar @navigate="navigateTo" @logout="logout" :active-page="currentPage"></navbar>
 
-    <main :class="{'container-fluid mt-3'}">
+    <main :class="{'container-fluid mt-3': currentPage !== 'container-fluid mt-3'}">
         <dashboard-page v-if="currentPage === 'dashboard'" :api-url="apiUrl" :port="port"></dashboard-page>
         <time-machine-page v-if="currentPage === 'time-machine'" :api-url="apiUrl" @show-confirm="showConfirmModal"></time-machine-page>
         <backup-restore-page ref="backupRestorePageRef" v-if="currentPage === 'backup-restore'" :api-url="apiUrl" @show-confirm="showConfirmModal" @show-upload="showUploadModal"></backup-restore-page>
@@ -75,7 +75,7 @@
     </main>
 
     <footer class="mt-3 pb-3 text-center text-light small thin">
-        <span>© 2022-2024 InFlux Technologies</span> <span class="badge bg-dark">Beta</span> <span id="build_version">v1.6.5-Vue</span>
+        <span>InFlux Technologies</span> <span class="badge bg-dark">Beta</span> <span id="build_version">v1.6.5</span>
     </footer>
 
     <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
@@ -202,17 +202,16 @@
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'backup-restore' }" href="#backup-restore" @click.prevent="$emit('navigate', 'backup-restore')"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" :class="{ active: activePage === 'backlog-editor' }" href="#backlog-editor" @click.prevent="$emit('navigate', 'backlog-editor')"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
-                                    <li><a class="dropdown-item" :class="{ active: activePage === 'run-query' }" href="#run-query" @click.prevent="$emit('navigate', 'run-query')"><i class="fas fa-play"></i>Run Query</a></li>
                                 </ul>
                             </li>
+                            <!--  
                             <li class="nav-item dropdown"> <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownSystem" role="button" data-bs-toggle="dropdown" aria-expanded="false"> <i class="fas fa-cog"></i>System </a>
                                 <ul class="dropdown-menu" aria-labelledby="navbarDropdownSystem">
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'logs' }" href="#logs" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a></li>
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'settings' }" href="#settings" @click.prevent="$emit('navigate', 'settings')"><i class="fas fa-cog"></i>Settings</a></li>
                                 </ul>
                             </li>
+                            -->
                         </ul>
                         <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
                     </div>

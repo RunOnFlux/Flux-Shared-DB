@@ -87,6 +87,7 @@ class DBClient {
       return this.initPromise;
     }
     this.initializing = true;
+    // eslint-disable-next-line no-underscore-dangle
     this.initPromise = this._doInit(); // Store the promise
 
     try {
