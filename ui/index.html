@@ -1,603 +1,1051 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title>Flux Shared DB Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-	<!-- Add Bootstrap stylesheet -->
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-	<!-- Add Font Awesome stylesheet -->
- 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
-   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
-   <style>
-    /* Set styles for the icons */
-    .navbar {
-			border-bottom: #ffffff41 1px solid;
-		}
-		.navbar i {
-			margin-right: 10px;
-		}
-    body {
-      background: linear-gradient(-45deg, #e73c7e, #23a6d5);
-      background-size: 100% 100%;
-      height: 100vh;
-    }
-    .card-header {
-      background-color: #fff;
-      color: #898989;
-    }
-    .card-header h3 {
-      font-weight: 100;
-    }
-    .query {
-      font-size: 15px;
-      height: 30px;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      /*background-color: #efefef;*/
-      padding: 0px 15px 0px 15px;
-      /*margin-bottom: 1px;*/
-      cursor: pointer;
-      border-top: solid 1px #e3e3e3;
-    }
-    .query-h {
-      width: 100%;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      background-color: #efefef;
-      padding: 0px 15px 0px 15px;
-    }
-    .selected {
-      background-color: #525252;
-      color: white;
-    }
-    .q-date {
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-    .q-text {
-      flex-grow: 1;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-    .fs-7 {
-      font-size: 12px;
-    }
-    .queries-tm {
-    height: 700px;
-    overflow-y: scroll;
-    }
-    .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
-    background: #4e4e4e;
-    }
-    .dropdown-menu {
-      background-color: #ffffffc9;
-      border: 1px solid rgb(88 88 88 / 15%);
-    }
-	</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flux Shared DB Dashboard</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
+
+    <style>
+        /* Set styles for the icons */
+        .navbar {
+            border-bottom: #ffffff41 1px solid;
+        }
+        .navbar i {
+            margin-right: 10px;
+        }
+        html, body {
+             height: 100%; /* Ensure body takes full height */
+             margin: 0;
+             padding: 0;
+        }
+        #app {
+             min-height: 100vh; /* Ensure app div takes at least full viewport height */
+             display: flex;
+             flex-direction: column;
+             background: linear-gradient(-45deg, #e73c7e, #23a6d5);
+             background-size: 100% 100%;
+        }
+        main {
+            flex-grow: 1; /* Allow main content to grow and push footer down */
+        }
+        .card-header {
+            background-color: #fff;
+            color: #898989;
+        }
+        .card-header h3 {
+            font-weight: 100;
+        }
+        .query {
+            font-size: 15px;
+            height: 30px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding: 0px 15px 0px 15px;
+            cursor: pointer;
+            border-top: solid 1px #e3e3e3;
+        }
+        .query-h {
+            width: 100%;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            background-color: #efefef;
+            padding: 0px 15px 0px 15px;
+        }
+        .selected {
+            background-color: #525252;
+            color: white;
+        }
+        .q-date {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .q-text {
+            flex-grow: 1;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding-left: 5px; /* Added padding */
+        }
+        .fs-7 {
+            font-size: 12px;
+        }
+        .queries-tm {
+            height: 400px; /* Adjusted height */
+            overflow-y: scroll;
+            border: 1px solid #e3e3e3; /* Added border */
+        }
+        .datepicker-here { /* Target class for datepicker */
+             height: 250px; /* Ensure datepicker has space */
+        }
+        .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
+            background: #4e4e4e;
+        }
+        .dropdown-menu {
+            background-color: #ffffffc9;
+            border: 1px solid rgb(88 88 88 / 15%);
+        }
+        footer {
+            flex-shrink: 0; /* Prevent footer from shrinking */
+            margin-top: auto; /* Push footer to bottom */
+        }
+        .spinner-border-xs { /* Custom smaller spinner */
+             width: 1rem;
+             height: 1rem;
+             border-width: 0.2em;
+        }
+        .action-spinner { /* Spinner specifically for action buttons */
+             border: 0.2em solid #fff;
+             border-right-color: transparent;
+             margin-top: 2px;
+             margin-left: 5px; /* Space between text and spinner */
+        }
+         .clickable {
+             cursor: pointer;
+         }
+    </style>
 </head>
 <body>
-	<nav class="navbar navbar-expand-lg navbar-dark">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="#dashboard"><img src="/assets/flux_white-blue.svg" width="99" height="31" style="vertical-align: text-bottom;">
-         <span style="font-size: 28px;font-weight: 600;line-height: 10px;margin-left: -5px;color: #ffd600;">DB</span> <span style="letter-spacing: -1px;font-weight: 100;">Control Panel</span></a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item">
-            <a class="nav-link menu-link" data-page="dashboard" aria-current="page" href="#dashboard"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
-          </li>
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-database"></i>DB
-            </a>
-            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <li><a class="dropdown-item menu-link " data-page="time-machine" href="#time-machine"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
-              <li><a class="dropdown-item menu-link " data-page="backup-restore" href="#backup-restore"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
-              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
-              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-play"></i>Run Query</a></li>
-            </ul>
-          </li>
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-cog"></i>System
-            </a>
-            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-file-alt"></i>Logs</a></li>
-              <li><a class="dropdown-item menu-link " href="#"><i class="fas fa-cog"></i>Settings</a></li>
-            </ul>
-          </li>
+    <div id="app">
+        <navbar @navigate="navigateTo" @logout="logout" :active-page="currentPage"></navbar>
 
-        </ul>
-        
-          <button class="btn btn-outline-light" id="logout-btn">Log Out</button>
-       
-      </div>
+        <main class="container-fluid mt-3">
+            <dashboard-page v-if="currentPage === 'dashboard'" :api-url="apiUrl" :port="port"></dashboard-page>
+            <time-machine-page v-if="currentPage === 'time-machine'" :api-url="apiUrl" @show-confirm="showConfirmModal"></time-machine-page>
+            <backup-restore-page v-if="currentPage === 'backup-restore'" :api-url="apiUrl" @show-confirm="showConfirmModal" @show-upload="showUploadModal"></backup-restore-page>
+            <div v-if="!['dashboard', 'time-machine', 'backup-restore'].includes(currentPage)" class="card">
+                 <div class="card-body">
+                     <h5 class="card-title">Page Not Implemented</h5>
+                     <p class="card-text">The '{{ currentPage }}' page is not yet available in this Vue version.</p>
+                 </div>
+             </div>
+        </main>
+
+        <footer class="mt-3 pb-3 text-center text-light small thin">
+            <span>© InFlux Technologies</span>
+            <span class="badge bg-dark">Beta</span>
+            <span id="build_version">v1.6.3</span>
+        </footer>
+
+        <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
+
+        <upload-modal ref="uploadModal" :api-url="apiUrl" @upload-complete="refreshBackupList"></upload-modal>
+
     </div>
-  </nav>
 
-  <div class="container-fluid d-none mt-3" id="time-machine">
-    <div class="card">
-      <div class="card-header">
-      <h3 class="m-0"><i class="fas fa-history"></i> Point-in-time Recovery</h3>
-      </div>
-      <div class="card-body">
-        <div style="overflow:hidden;">
-          <div class="form-group">
-              <div class="row">
-                  <div class="col-xxl-2 col-xl-12" style="overflow:hidden;">
-                    <p class="text-secondary fs-5">1. Choose a Date</p>
-                    <div class="datepicker-tm"></div>
-                  </div>
-                  <div class="col-xxl-8 col-xl-12">
-                    <p class="text-secondary fs-5">2. Choose Recovery Point</p>
-                    <div class="queries-tm">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script> <script>
+        const { createApp, ref, reactive, onMounted, computed, nextTick } = Vue;
+
+        // --- Root Vue App ---
+        const app = createApp({
+            data() {
+                return {
+                    currentPage: 'dashboard', // Default page
+                    apiUrl: '',
+                    port: '',
+                    lock: false, // Global lock state (e.g., during rewind)
+                    confirmCallback: null,
+                    confirmParam: null,
+                    confirmMessage: '',
+                }
+            },
+            methods: {
+                // --- Navigation ---
+                navigateTo(page) {
+                    if (this.lock) return;
+                    this.currentPage = page;
+                    window.location.hash = page; // Update URL hash
+                     // If navigating back to backup-restore, trigger refresh
+                     if (page === 'backup-restore') {
+                        // Use nextTick to ensure the component is mounted before calling method
+                        nextTick(() => {
+                             const backupRestoreComponent = this.$refs.backupRestorePageRef; // Assuming you add a ref
+                             if (backupRestoreComponent && typeof backupRestoreComponent.fetchBackupFiles === 'function') {
+                                 backupRestoreComponent.fetchBackupFiles();
+                             } else {
+                                 // Fallback or direct call if ref isn't set up yet
+                                 // This might require finding the component instance differently
+                                 console.warn("Could not find BackupRestorePage component instance to refresh.");
+                             }
+                        });
+                    }
+                },
+                // --- Authentication ---
+                logout() {
+                    axios.get(`${this.apiUrl}/logout`)
+                        .then(response => {
+                            if (response.data === 'OK') {
+                                // Clear cookie (optional, server should handle session)
+                                // document.cookie = "loginphrase=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                                window.location.replace(this.apiUrl || '/'); // Redirect to login/base URL
+                            } else {
+                                console.error("Logout failed:", response.data);
+                                alert("Logout failed. Please try again.");
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Error during logout:", error);
+                            alert("An error occurred during logout.");
+                        });
+                },
+                 // --- Modal Handling ---
+                 showConfirmModal(payload) {
+                    this.confirmMessage = payload.message;
+                    this.confirmCallback = payload.callback; // Store the function reference
+                    this.confirmParam = payload.param;
+                    this.$refs.confirmModal.show(this.confirmMessage); // Call child component method
+                 },
+                 showUploadModal() {
+                     this.$refs.uploadModal.show();
+                 },
+                 handleConfirmation() {
+                     if (typeof this.confirmCallback === 'function') {
+                         this.confirmCallback(this.confirmParam); // Execute the stored callback
+                     } else {
+                         console.error("Confirmation callback is not a function:", this.confirmCallback);
+                     }
+                     // Reset callback info
+                     this.confirmCallback = null;
+                     this.confirmParam = null;
+                 },
+                 refreshBackupList() {
+                    // Find the BackupRestorePage component instance and call its refresh method
+                    // This is a common pattern, but requires careful component referencing
+                    const backupPageComponent = this.$root?.$children?.find(comp => comp.$options.name === 'BackupRestorePage');
+                    if (backupPageComponent && typeof backupPageComponent.fetchBackupFiles === 'function') {
+                         backupPageComponent.fetchBackupFiles();
+                    } else {
+                        console.warn("Could not trigger backup list refresh automatically.");
+                        // Optionally force navigation to refresh the component if needed
+                        if (this.currentPage === 'backup-restore') {
+                            const currentPage = this.currentPage;
+                            this.navigateTo(''); // Navigate away briefly
+                            nextTick(() => this.navigateTo(currentPage)); // Navigate back
+                        }
+                    }
+                 },
+                // --- Initialization ---
+                initialize() {
+                    let baseUrl = new URL(window.location.href);
+                    this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
+                    this.port = baseUrl.port;
+                    let fragment = baseUrl.hash;
+
+                    // Set initial page based on hash
+                    if (fragment && fragment.length > 1) {
+                        const pageFromHash = fragment.substring(1);
+                        // Basic validation if the page exists
+                        if (['dashboard', 'time-machine', 'backup-restore' /* add other valid pages */].includes(pageFromHash)) {
+                             this.currentPage = pageFromHash;
+                        } else {
+                            this.currentPage = 'dashboard'; // Fallback to dashboard
+                            window.location.hash = 'dashboard';
+                        }
+                    } else {
+                        this.currentPage = 'dashboard'; // Default page
+                        window.location.hash = 'dashboard';
+                    }
+
+                    // Handle back/forward navigation
+                    window.addEventListener('hashchange', () => {
+                        const newPage = window.location.hash.substring(1);
+                         if (['dashboard', 'time-machine', 'backup-restore'].includes(newPage)) {
+                             this.navigateTo(newPage);
+                         } else if (newPage === '') {
+                             this.navigateTo('dashboard'); // Go to default if hash is empty
+                         }
+                    });
+
+                    // Check login status (basic example using cookie)
+                    // const loginphrase = document.cookie.match('(^|;)\\s*loginphrase\\s*=\\s*([^;]+)')?.pop() || '';
+                    // if (!loginphrase) {
+                    //     console.log("Not logged in, redirecting...");
+                    //     // window.location.replace(this.apiUrl || '/'); // Redirect if not logged in
+                    // } else {
+                    //     console.log("Logged in with phrase:", loginphrase);
+                    // }
+                }
+            },
+            mounted() {
+                this.initialize();
+            }
+        });
+
+        // --- Navbar Component ---
+        app.component('navbar', {
+            props: ['activePage'],
+            emits: ['navigate', 'logout'],
+            template: `
+                <nav class="navbar navbar-expand-lg navbar-dark">
+                    <div class="container-fluid">
+                        <a class="navbar-brand clickable" @click.prevent="$emit('navigate', 'dashboard')">
+                            <span style="font-size: 28px;font-weight: 600;line-height: 10px;margin-left: -5px;color: #ffd600;">DB</span> <span style="letter-spacing: -1px;font-weight: 100;">Control Panel</span>
+                        </a>
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                                <li class="nav-item">
+                                    <a class="nav-link" :class="{ active: activePage === 'dashboard' }" href="#dashboard" @click.prevent="$emit('navigate', 'dashboard')"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+                                </li>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownDB" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-database"></i>DB
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownDB">
+                                        <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
+                                        <li><a class="dropdown-item" :class="{ active: activePage === 'backup-restore' }" href="#backup-restore" @click.prevent="$emit('navigate', 'backup-restore')"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
+                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'backlog-editor')"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
+                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'run-query')"><i class="fas fa-play"></i>Run Query</a></li>
+                                    </ul>
+                                </li>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownSystem" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-cog"></i>System
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownSystem">
+                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a></li>
+                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'settings')"><i class="fas fa-cog"></i>Settings</a></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
+                        </div>
                     </div>
-                  </div>
-                  <div class="col-xxl-2 col-xl-12">
-                    <p class="text-secondary fs-5">3. Rewind</p>
-                    <button type="button" class="btn btn-dark" id="tm-rewind"><i class="fas fa-history"></i> Rewind Database</button>
-                    <p class="text-secondary fs-7 mt-2">Caution! this action is irreversible and will permanently rewind your database to the selected date-time. All rewind points after the selected date will be removed.</p>
-                    <div class="d-none" id="tm-progress">
-                      <div class="spinner-border" style="width: 1rem; height: 1rem; border: 0.2em solid #000; border-right-color: transparent;" role="status">
-                      <span class="visually-hidden"></span>
-                      </div>
-                      <span>Rewind in proggress, Please wait...</span>
+                </nav>
+            `
+        });
+
+        // --- Dashboard Page Component ---
+        app.component('dashboard-page', {
+            props: ['apiUrl', 'port'],
+            data() {
+                return {
+                    nodes: [],
+                    isLoading: false,
+                    error: null,
+                    dbEngine: 'MYSQL 8' // Or fetch dynamically if needed
+                }
+            },
+            methods: {
+                async fetchNodeStatus(ip) {
+                    try {
+                        // Construct URL carefully, ensuring port is included
+                        const statusUrl = `http://${ip}:${this.port}/status`;
+                        // console.log(`Fetching status from: ${statusUrl}`); // Debugging
+                        const response = await axios.get(statusUrl, { timeout: 4000 });
+                        return response.data; // { sequenceNumber, masterIP, status, taskStatus }
+                    } catch (err) {
+                        console.error(`Error fetching status for node ${ip}:`, err.message);
+                        // Provide a clearer error status
+                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A' };
+                    }
+                },
+                async fetchClusterStats() {
+                    this.isLoading = true;
+                    this.error = null;
+                    this.nodes = []; // Clear previous nodes
+                    try {
+                        const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
+                        if (Array.isArray(response.data)) {
+                            const nodePromises = response.data.map(async (node, index) => {
+                                const statusData = await this.fetchNodeStatus(node.ip);
+                                let displayStatus = statusData.status;
+                                if (displayStatus === 'COMPRESSING' && statusData.taskStatus !== undefined) {
+                                    displayStatus += ` ${statusData.taskStatus}%`;
+                                }
+                                return {
+                                    id: index + 1,
+                                    ip: node.ip,
+                                    sequenceNumber: statusData.sequenceNumber,
+                                    masterIP: statusData.masterIP,
+                                    status: displayStatus
+                                };
+                            });
+                            this.nodes = await Promise.all(nodePromises);
+                        } else {
+                             throw new Error("Invalid data format received for nodelist.");
+                        }
+                    } catch (err) {
+                        console.error("Error fetching cluster stats:", err);
+                        this.error = `Failed to load cluster stats: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            },
+            mounted() {
+                this.fetchClusterStats();
+                // Optional: Set up an interval to refresh stats
+                // this.intervalId = setInterval(this.fetchClusterStats, 15000); // Refresh every 15 seconds
+            },
+            // beforeUnmount() {
+            //     // Clear interval when component is destroyed
+            //     if (this.intervalId) {
+            //         clearInterval(this.intervalId);
+            //     }
+            // },
+            template: `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
+                        <span class="fs-5">DB Engine: {{ dbEngine }}</span>
                     </div>
-                    <div class="d-none" id="tm-progress-done">
-                      <span><i class="fas fa-check-double text-success"></i> Rewind Finished</span>
+                    <div class="card-body">
+                        <div v-if="isLoading" class="d-flex justify-content-center">
+                            <div class="spinner-border text-info" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <div v-if="error" class="alert alert-danger">{{ error }}</div>
+                        <div v-if="!isLoading && !error">
+                            <h5>Active Nodes:</h5>
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" width="10">#</th>
+                                        <th scope="col" width="200">IP</th>
+                                        <th scope="col" width="200">Sequence Number</th>
+                                        <th scope="col" width="200">Master IP</th>
+                                        <th scope="col">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="nodes.length === 0">
+                                        <td colspan="5" class="text-center">No active nodes found.</td>
+                                    </tr>
+                                    <tr v-for="node in nodes" :key="node.ip">
+                                        <th scope="row">{{ node.id }}</th>
+                                        <td>{{ node.ip }}</td>
+                                        <td>{{ node.sequenceNumber }}</td>
+                                        <td>{{ node.masterIP }}</td>
+                                        <td>{{ node.status }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                  </div>
-              </div>
-          </div>
-      </div>
-      </div>
-    </div>
-  </div>
+                </div>
+            `
+        });
+
+        // --- Time Machine Page Component ---
+        app.component('time-machine-page', {
+             props: ['apiUrl'],
+             emits: ['show-confirm'], // Declare emitted events
+             data() {
+                 return {
+                     selectedDate: null,
+                     queries: [],
+                     selectedQuerySeq: null,
+                     isLoadingQueries: false,
+                     isRewinding: false,
+                     rewindSuccess: false,
+                     rewindError: null,
+                     datePickerInstance: null,
+                     totalRecords: 0,
+                 }
+             },
+             methods: {
+                 initializeDatePicker(minDate, maxDate) {
+                     // Ensure jQuery is available and the element exists
+                     if (typeof $ !== 'undefined' && this.$refs.datepickerContainer) {
+                         this.datePickerInstance = $(this.$refs.datepickerContainer).datepicker({
+                             language: 'en',
+                             inline: true,
+                             minDate: minDate ? new Date(minDate) : null,
+                             maxDate: maxDate ? new Date(maxDate) : null,
+                             onSelect: (formattedDate, date, inst) => {
+                                 if (date) {
+                                     this.selectedDate = date;
+                                     this.fetchLogsForDate(date);
+                                     this.selectedQuerySeq = null; // Reset selection
+                                     this.rewindSuccess = false; // Reset status
+                                     this.rewindError = null;
+                                 }
+                             }
+                         }).data('datepicker');
+                     } else {
+                         console.error("jQuery or datepicker container not found for initialization.");
+                     }
+                 },
+                 async fetchDateRange() {
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/getLogDateRange`);
+                         this.initializeDatePicker(response.data.min_timestamp, response.data.max_timestamp);
+                     } catch (error) {
+                         console.error("Error fetching date range:", error);
+                         // Initialize datepicker without range limits if API fails
+                         this.initializeDatePicker(null, null);
+                     }
+                 },
+                 async fetchLogsForDate(date) {
+                     if (!date) return;
+                     this.isLoadingQueries = true;
+                     this.queries = [];
+                     this.totalRecords = 0;
+                     const timestamp = Math.floor(date.getTime());
+                     // Fetch logs for the entire day (adjust length as needed)
+                     const startTime = new Date(date);
+                     startTime.setHours(0, 0, 0, 0);
+                     const endTime = new Date(date);
+                     endTime.setHours(23, 59, 59, 999);
+
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/getLogsByTime?starttime=${startTime.getTime()}&length=${endTime.getTime() - startTime.getTime()}`);
+                         let points = 0;
+                         const relevantQueries = [];
+                         const rawData = response.data; // Assuming response.data is the array
+
+                         for (let i = 0; i < rawData.length; i++) {
+                             if (rawData[i].query && rawData[i].query.toLowerCase().startsWith('set sess')) {
+                                 points++;
+                                 let ops = 1;
+                                 let currentSeq = rawData[i].seq; // Capture the seq of the 'set sess' query
+                                 let timestamp = rawData[i].timestamp; // Capture the timestamp
+
+                                 // Count operations until the next 'set sess' or end of data
+                                 let j = i + 1;
+                                 while (j < rawData.length && (!rawData[j].query || !rawData[j].query.toLowerCase().startsWith('set sess'))) {
+                                     ops++;
+                                     j++;
+                                 }
+
+                                 relevantQueries.push({
+                                     seq: currentSeq,
+                                     timestamp: timestamp,
+                                     ops: ops,
+                                     displayTime: new Date(timestamp).toLocaleString()
+                                 });
+                                 i = j - 1; // Move the outer loop index forward
+                             }
+                         }
+                         this.queries = relevantQueries;
+                         this.totalRecords = points;
+
+                     } catch (error) {
+                         console.error("Error fetching logs:", error);
+                         this.queries = []; // Clear queries on error
+                         this.totalRecords = 0;
+                     } finally {
+                         this.isLoadingQueries = false;
+                     }
+                 },
+                 selectQuery(seq) {
+                     if (this.isRewinding) return; // Prevent selection change during rewind
+                     this.selectedQuerySeq = seq;
+                     this.rewindSuccess = false; // Reset status
+                     this.rewindError = null;
+                 },
+                 confirmRewind() {
+                     if (!this.selectedQuerySeq) {
+                         alert("Please select a recovery point first.");
+                         return;
+                     }
+                      // Emit an event to the parent to show the confirmation modal
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible. Are you sure you want to rewind to sequence ${this.selectedQuerySeq}?</span>`,
+                          callback: this.executeRewind, // Pass the actual rewind method
+                          param: this.selectedQuerySeq   // Pass the sequence number
+                      });
+                 },
+                 async executeRewind(seq) {
+                     if (!seq) return; // Safety check
+
+                     this.isRewinding = true;
+                     this.rewindSuccess = false;
+                     this.rewindError = null;
+                     this.$root.lock = true; // Use root lock state if needed globally
+
+                     try {
+                         const response = await axios.post(`${this.apiUrl}/rollback`, { seqNo: seq });
+                         console.log('Rewind response:', response.data);
+                         this.rewindSuccess = true;
+                         // Optionally re-fetch logs or update UI state after successful rewind
+                         if (this.selectedDate) {
+                            this.fetchLogsForDate(this.selectedDate); // Refresh logs for the current date
+                         }
+                         this.selectedQuerySeq = null; // Deselect after rewind
+                     } catch (error) {
+                         console.error("Error during rewind:", error);
+                         this.rewindError = `Rewind failed: ${error.response?.data || error.message}`;
+                         this.rewindSuccess = false;
+                     } finally {
+                         this.isRewinding = false;
+                         this.$root.lock = false; // Release lock
+                     }
+                 }
+             },
+             mounted() {
+                 this.fetchDateRange(); // Fetch range and initialize datepicker
+             },
+             beforeUnmount() {
+                 // Clean up datepicker instance if it exists
+                 if (this.datePickerInstance) {
+                     this.datePickerInstance.destroy();
+                 }
+             },
+            computed: {
+                rewindButtonDisabled() {
+                    return !this.selectedQuerySeq || this.isRewinding;
+                }
+            },
+             template: `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="m-0"><i class="fas fa-history"></i> Point-in-time Recovery</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-xxl-3 col-xl-12 mb-3 mb-xxl-0">
+                                <p class="text-secondary fs-5">1. Choose a Date</p>
+                                <div ref="datepickerContainer" class="datepicker-here"></div>
+                            </div>
+
+                            <div class="col-xxl-7 col-xl-12 mb-3 mb-xxl-0">
+                                <p class="text-secondary fs-5">2. Choose Recovery Point</p>
+                                <div class="queries-tm">
+                                    <div class="query-h">
+                                        <span class="q-text">Total <b>{{ totalRecords }}</b> sessions found for selected date</span>
+                                        <span class="q-date">Date and Time</span>
+                                    </div>
+                                    <div v-if="isLoadingQueries" class="text-center p-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="queries.length === 0 && selectedDate" class="text-center p-3 text-muted">
+                                        No recovery points found for this date.
+                                    </div>
+                                     <div v-else-if="!selectedDate" class="text-center p-3 text-muted">
+                                         Please select a date.
+                                     </div>
+                                    <div v-else>
+                                        <div v-for="query in queries" :key="query.seq"
+                                             class="query"
+                                             :class="{ 'selected': query.seq === selectedQuerySeq }"
+                                             @click="selectQuery(query.seq)">
+                                             <span class="q-text"><i class="fas fa-circle text-warning me-2"></i> Seq: {{ query.seq }}</span>
+                                             <span class="q-date">{{ query.ops }} Ops - {{ query.displayTime }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-xxl-2 col-xl-12">
+                                <p class="text-secondary fs-5">3. Rewind</p>
+                                <button type="button" class="btn btn-dark w-100" @click="confirmRewind" :disabled="rewindButtonDisabled">
+                                    <i class="fas fa-history"></i> Rewind Database
+                                </button>
+                                <p class="text-secondary fs-7 mt-2">Caution! This action is irreversible and will permanently rewind your database to the selected point. All data after this point will be lost.</p>
+
+                                <div v-if="isRewinding" class="mt-2 d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-xs me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Rewind in progress, please wait...</span>
+                                </div>
+                                <div v-if="rewindSuccess && !isRewinding" class="mt-2 text-success">
+                                    <span><i class="fas fa-check-double me-1"></i> Rewind Finished Successfully!</span>
+                                </div>
+                                 <div v-if="rewindError && !isRewinding" class="mt-2 text-danger">
+                                     <span><i class="fas fa-times-circle me-1"></i> {{ rewindError }}</span>
+                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
+         });
+
+        // --- Backup & Restore Page Component ---
+        app.component('backup-restore-page', {
+             props: ['apiUrl'],
+             emits: ['show-confirm', 'show-upload'],
+             data() {
+                 return {
+                     backupFiles: [],
+                     isLoading: false,
+                     error: null,
+                     generatingBackup: false,
+                     executingBackup: null, // Store filename being executed
+                     importInProgress: false, // General flag
+                 }
+             },
+             methods: {
+                 async fetchBackupFiles() {
+                     this.isLoading = true;
+                     this.error = null;
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/listbackups`, { timeout: 5000 });
+                         if (Array.isArray(response.data)) {
+                             this.backupFiles = response.data.map((file, index) => ({
+                                 id: index + 1,
+                                 ...file,
+                                 fileNameWithoutExt: file.fileName.split('.')[0] // For actions
+                             }));
+                         } else {
+                             this.backupFiles = [];
+                             console.warn("Received non-array data for backup list:", response.data);
+                         }
+                     } catch (err) {
+                         console.error("Error fetching backup files:", err);
+                         this.error = `Failed to load backup files: ${err.message}`;
+                         this.backupFiles = [];
+                     } finally {
+                         this.isLoading = false;
+                     }
+                 },
+                 async generateBackup() {
+                     if (this.generatingBackup) return;
+                     this.generatingBackup = true;
+                     this.error = null; // Clear previous errors
+                     try {
+                         // Add a small delay for user feedback if needed
+                         // await new Promise(resolve => setTimeout(resolve, 500));
+                         await axios.post(`${this.apiUrl}/generatebackup`, {}, { timeout: 60000 }); // Increased timeout for generation
+                         // Wait a bit before refreshing the list
+                         await new Promise(resolve => setTimeout(resolve, 1500));
+                         await this.fetchBackupFiles(); // Refresh list after generation
+                     } catch (err) {
+                         console.error("Error generating backup:", err);
+                         this.error = `Failed to generate backup: ${err.response?.data || err.message}`;
+                     } finally {
+                         this.generatingBackup = false;
+                     }
+                 },
+                 confirmDelete(filename) {
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible. Are you sure you want to delete the backup file <strong>${filename}.sql</strong>?</span>`,
+                          callback: this.executeDelete,
+                          param: filename
+                      });
+                 },
+                 async executeDelete(filename) {
+                     this.error = null;
+                     try {
+                         await axios.post(`${this.apiUrl}/deletebackup`, { filename }, { timeout: 5000 });
+                         await this.fetchBackupFiles(); // Refresh list
+                     } catch (err) {
+                         console.error("Error deleting backup:", err);
+                         this.error = `Failed to delete backup ${filename}.sql: ${err.response?.data || err.message}`;
+                     }
+                 },
+                 confirmExecute(filename) {
+                     if (this.importInProgress) {
+                         alert("Another import/execute operation is already in progress.");
+                         return;
+                     }
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible and may overwrite existing data. Are you sure you want to execute the backup file <strong>${filename}.sql</strong>?</span>`,
+                          callback: this.executeBackup,
+                          param: filename
+                      });
+                 },
+                 async executeBackup(filename) {
+                     if (this.importInProgress) return; // Double check
+
+                     this.executingBackup = filename; // Mark which file is executing
+                     this.importInProgress = true;
+                     this.error = null;
+                     try {
+                         await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 300000 }); // Long timeout for execution
+                         alert(`Backup file ${filename}.sql executed successfully.`); // Simple feedback
+                     } catch (err) {
+                         console.error("Error executing backup:", err);
+                         this.error = `Failed to execute backup ${filename}.sql: ${err.response?.data || err.message}`;
+                         alert(`Error executing backup ${filename}.sql: ${this.error}`); // Show error
+                     } finally {
+                         this.executingBackup = null;
+                         this.importInProgress = false;
+                         await this.fetchBackupFiles(); // Refresh list regardless of outcome
+                     }
+                 },
+                 getDownloadUrl(filename) {
+                     return `${this.apiUrl}/getbackupfile/${filename}`;
+                 },
+                 triggerUploadModal() {
+                     this.$emit('show-upload');
+                 }
+             },
+             mounted() {
+                 this.fetchBackupFiles();
+             },
+             template: `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="m-0"><i class="fas fa-cloud-upload-alt"></i> Backup and Restore</h3>
+                    </div>
+                    <div class="card-body">
+                        <div v-if="error" class="alert alert-danger">{{ error }}</div>
+
+                        <div class="d-flex justify-content-between align-items-center p-2 mb-3 border-bottom">
+                            <h5>Local Backup Files:</h5>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="generateBackup" :disabled="generatingBackup || importInProgress">
+                                    <span v-if="generatingBackup" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                    <i v-else class="fas fa-plus me-1"></i>
+                                    {{ generatingBackup ? 'Generating...' : 'Generate New Backup' }}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="triggerUploadModal" :disabled="generatingBackup || importInProgress">
+                                    <i class="fas fa-upload me-1"></i> Upload Backup File
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="isLoading" class="d-flex justify-content-center my-4">
+                            <div id="backup-file-list-spinner" class="spinner-border text-info" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+
+                        <table v-else class="table table-hover table-bordered align-middle">
+                            <thead>
+                                <tr>
+                                    <th scope="col" width="10">#</th>
+                                    <th scope="col" width="300">Name</th>
+                                    <th scope="col" width="150">File Size</th>
+                                    <th scope="col" width="250">Date & Time</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="backupFiles.length === 0">
+                                    <td colspan="5" class="text-center text-muted">No backup files found.</td>
+                                </tr>
+                                <tr v-for="file in backupFiles" :key="file.fileName">
+                                    <th scope="row">{{ file.id }}</th>
+                                    <td>{{ file.fileName }}</td>
+                                    <td>{{ file.fileSize }}</td>
+                                    <td>{{ file.createdDateTime }}</td>
+                                    <td>
+                                        <a class="btn btn-sm btn-success me-1" :href="getDownloadUrl(file.fileNameWithoutExt)" target="_blank" :disabled="importInProgress">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                        <button class="btn btn-sm btn-danger me-1" @click="confirmDelete(file.fileNameWithoutExt)" :disabled="importInProgress || executingBackup === file.fileNameWithoutExt">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                        <button class="btn btn-sm btn-dark" @click="confirmExecute(file.fileNameWithoutExt)" :disabled="importInProgress || generatingBackup">
+                                            <i class="fas fa-play"></i> Execute
+                                            <span v-if="executingBackup === file.fileNameWithoutExt" class="spinner-border spinner-border-xs action-spinner" role="status" aria-hidden="true"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+             `
+         });
+
+        // --- Confirm Modal Component ---
+        app.component('confirm-modal', {
+             emits: ['confirmed'],
+             data() {
+                 return {
+                     modalInstance: null,
+                     message: 'Are you sure?', // Default message
+                     isLoading: false
+                 }
+             },
+             methods: {
+                 show(message) {
+                     this.message = message || 'Are you sure?';
+                     this.isLoading = false; // Reset loading state
+                     if (this.modalInstance) {
+                         this.modalInstance.show();
+                     }
+                 },
+                 hide() {
+                     if (this.modalInstance) {
+                         this.modalInstance.hide();
+                     }
+                 },
+                 confirmAction() {
+                     this.isLoading = true; // Show loading state on 'Yes' button
+                     // Introduce a small delay for visual feedback if needed,
+                     // otherwise the parent handles the actual async logic.
+                     setTimeout(() => {
+                         this.$emit('confirmed');
+                         // Consider hiding the modal immediately or letting the parent hide it after the action
+                         this.hide();
+                         this.isLoading = false; // Reset loading state after emitting
+                     }, 100); // Small delay
+                 }
+             },
+             mounted() {
+                 // Initialize Bootstrap modal instance
+                 const modalElement = this.$refs.modal;
+                 if (modalElement && typeof bootstrap !== 'undefined') {
+                     this.modalInstance = new bootstrap.Modal(modalElement);
+                 } else {
+                     console.error("Bootstrap modal could not be initialized.");
+                 }
+             },
+             template: `
+                <div class="modal fade" ref="modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="confirmModalLabel">Confirmation</h5>
+                                <button type="button" class="btn-close" @click="hide" aria-label="Close" :disabled="isLoading"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div v-html="message"></div>
+                                <div v-if="isLoading" class="mt-3">
+                                     <div class="spinner-border spinner-border-sm" role="status">
+                                         <span class="visually-hidden">Loading...</span>
+                                     </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" @click="hide" :disabled="isLoading">No</button>
+                                <button type="button" class="btn btn-dark" @click="confirmAction" :disabled="isLoading">
+                                     <span v-if="isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                     Yes
+                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
+         });
+
+        // --- Upload Modal Component ---
+        app.component('upload-modal', {
+             props: ['apiUrl'],
+             emits: ['upload-complete'],
+             data() {
+                 return {
+                     modalInstance: null,
+                     selectedFile: null,
+                     uploadStatus: '',
+                     isUploading: false,
+                 }
+             },
+             methods: {
+                 show() {
+                     this.reset();
+                     if (this.modalInstance) {
+                         this.modalInstance.show();
+                     }
+                 },
+                 hide() {
+                     if (this.modalInstance) {
+                         this.modalInstance.hide();
+                     }
+                 },
+                 handleFileChange(event) {
+                     this.selectedFile = event.target.files[0];
+                     this.uploadStatus = this.selectedFile ? `Selected: ${this.selectedFile.name}` : 'Please select an SQL file.';
+                 },
+                 async uploadFile() {
+                     if (!this.selectedFile) {
+                         this.uploadStatus = 'Please select an SQL file first.';
+                         return;
+                     }
+                     if (!this.selectedFile.name.toLowerCase().endsWith('.sql')) {
+                         this.uploadStatus = 'Error: Please select a valid .sql file.';
+                         return;
+                     }
+
+                     this.isUploading = true;
+                     this.uploadStatus = 'Uploading...';
+
+                     const formData = new FormData();
+                     formData.append('sqlFile', this.selectedFile);
+
+                     try {
+                         const response = await axios.post(`${this.apiUrl}/upload-sql`, formData, {
+                             headers: {
+                                 'Content-Type': 'multipart/form-data'
+                             },
+                             timeout: 120000 // Timeout for upload
+                         });
+                         this.uploadStatus = `Success: ${response.data}`;
+                         this.$emit('upload-complete'); // Notify parent
+                         // Optionally close modal after a short delay on success
+                         setTimeout(() => this.hide(), 1500);
+                     } catch (error) {
+                         console.error("Upload error:", error);
+                         this.uploadStatus = `Error: ${error.response?.data || error.message}`;
+                     } finally {
+                         this.isUploading = false;
+                     }
+                 },
+                 reset() {
+                     this.selectedFile = null;
+                     this.uploadStatus = 'Please select an SQL file.';
+                     this.isUploading = false;
+                     // Reset the file input visually if possible
+                     const fileInput = this.$refs.sqlFileInput;
+                     if(fileInput) {
+                         fileInput.value = '';
+                     }
+                 }
+             },
+             mounted() {
+                 const modalElement = this.$refs.modal;
+                 if (modalElement && typeof bootstrap !== 'undefined') {
+                     this.modalInstance = new bootstrap.Modal(modalElement);
+                     // Reset state when modal is hidden
+                     modalElement.addEventListener('hidden.bs.modal', this.reset);
+                 } else {
+                     console.error("Bootstrap modal could not be initialized for upload.");
+                 }
+             },
+             beforeUnmount() {
+                 // Clean up event listener
+                 const modalElement = this.$refs.modal;
+                 if (modalElement) {
+                     modalElement.removeEventListener('hidden.bs.modal', this.reset);
+                 }
+             },
+             template: `
+                <div class="modal fade" ref="modal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="uploadModalLabel">Upload Backup SQL File</h5>
+                                <button type="button" class="btn-close" @click="hide" aria-label="Close" :disabled="isUploading"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="sqlFile" class="form-label">Select an .sql file:</label>
+                                    <input type="file" class="form-control" id="sqlFile" ref="sqlFileInput" @change="handleFileChange" accept=".sql" :disabled="isUploading">
+                                </div>
+                                <div class="d-flex justify-content-end mb-2">
+                                    <button class="btn btn-dark" @click="uploadFile" :disabled="isUploading || !selectedFile">
+                                        <span v-if="isUploading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        {{ isUploading ? 'Uploading...' : 'Upload' }}
+                                    </button>
+                                </div>
+                                <div id="uploadStatus" class="mt-2 text-muted small">{{ uploadStatus }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
+         });
 
 
-  <div class="container-fluid d-none mt-3" id="backup-restore">
-    <div class="card">
-      <div class="card-header">
-      <h3 class="m-0"><i class="fas fa-history"></i> Backup and Restore</h3>
-      </div>
-      <div class="card-body">
-        <div style="overflow:hidden;">
-          <div class="d-flex justify-content-between p-2">
-            <h5>Local Backup Files:</h5>
-            <div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-generate-backup"><i class="fas fa-plus"></i> Genrate New Backup</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-upload-backup"><i class="fas fa-upload"></i> Upload Backup File</button>
-            </div>
-          </div>
-          
-          <table class="table table-hover table-bordered">
-            <thead>
-              <tr>
-                <th scope="col" width="10">#</th>
-                <th scope="col" width="300">Name</th>
-                <th scope="col" width="200">File Size</th>
-                <th scope="col" width="300">Date & Time</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="backup-file-list">
-            </tbody>
-          </table>
-          <div class="d-flex justify-content-center">
-            <div id="backup-file-list-spinner" class="spinner-border text-info" role="status">
-              <span class="sr-only">Loading...</span>
-            </div>
-          </div>
-      </div>
-      </div>
-    </div>
-  </div>
+        // Mount the app to the DOM
+        app.mount('#app');
 
+    </script>
 
-  <div class="container-fluid d-none mt-3" id="dashboard">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between">
-      <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
-      <span class="fs-5">DB Engine: MYSQL 8</span>
-      </div>
-      <div class="card-body">
-        <div style="overflow:hidden;">
-          <h5>Active Nodes:</h5>
-          <table class="table table-bordered table-hover">
-            <thead>
-              <tr>
-                <th scope="col" width="10">#</th>
-                <th scope="col" width="200">IP</th>
-                <th scope="col" width="200">Sequence Number</th>
-                <th scope="col" width="200">Master IP</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody id="nodelist">
-            </tbody>
-          </table>
-          <div class="d-flex justify-content-center">
-            <div id="nodelist-spinner" class="spinner-border text-info" role="status">
-              <span class="sr-only">Loading...</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body text-center">
-          ...
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">No</button>
-          <button type="button" class="btn btn-dark">Yes</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="modal fade" id="upload-modal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          Select an SQL file
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="d-flex justify-content-between">
-            <input type="file" id="sqlFile" accept=".sql">
-          <button class="btn btn-dark" id="uploadButton">Upload</button>
-          </div>
-          
-          <div id="uploadStatus"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <footer class="mt-3 pb-3 text-center text-light small thin">
-    <span>© 2022-2023 InFlux Technologies</span>
-    <span class="badge bg-dark">Beta</span>
-    <span id="build_version">v1.6.3</span>
-  </footer>
 </body>
 </html>
-<script>
-
-  function init() {
-    let baseUrl = new URL(window.location.href);
-    window.apiURL = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
-    window.port = baseUrl.port;
-    let fragment = baseUrl.hash;
-    window.lock = false;
-    window.import_in_progress = false;
-    window.loginphrase = getCookieValue('loginphrase');;
-    console.log(window.loginphrase);
-    // Menu & Page manager
-    let activePage = "dashboard";
-    if (fragment != '') activePage = fragment.substring(1);
-    startPage(activePage);
-    $('.menu-link.active').removeClass('active');
-    $(`*[data-page="${activePage}"` ).addClass('active');
-    $('#' + activePage).removeClass('d-none');
-    $('.menu-link').click(function() {
-      if(window.lock) return;
-      let newPage = $(this).data('page');
-      console.log(newPage);
-      $('#' + activePage).toggleClass('d-none');
-      $('#' + newPage).toggleClass('d-none');
-      $('.menu-link.active').removeClass('active');
-      $(this).addClass('active');
-      activePage = newPage;
-      startPage(newPage);
-    });
-
-    $('#tm-rewind').click(function() {
-      let seq = $(this).data('seq');
-      if (seq) {
-        $('#confirm-modal').modal('show');
-        $('#confirm-modal .modal-body').html('<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible, Are you sure?</span> ');
-        document.getElementById("confirm-modal").setAttribute('data-callback', 'rewind');
-        document.getElementById("confirm-modal").setAttribute('data-param', seq);
-      }
-    });
-
-    $('#btn-upload-backup').click(function() {
-      $('#upload-modal').modal('show');
-      uploadStatus.textContent = 'Please select an SQL file.';
-    });
-
-    $('#uploadButton').click(async function() {
-      const fileInput = document.getElementById('sqlFile');
-      const sqlFile = fileInput.files[0];
-
-      if (!sqlFile) {
-          uploadStatus.textContent = 'Please select an SQL file.';
-          return;
-      }
-
-      const formData = new FormData();
-      formData.append('sqlFile', sqlFile);
-
-      try {
-          const response = await axios.post(window.apiURL+'/upload-sql', formData, {
-              headers: {
-                  'Content-Type': 'multipart/form-data'
-              }
-          });
-          uploadStatus.textContent = response.data;
-          getBackupFileList();
-      } catch (error) {
-          uploadStatus.textContent = 'Error: ' + error.response.data;
-      }
-    });
-
-    $('#confirm-modal .btn-dark').click(function() {
-      let callback = document.getElementById("confirm-modal").getAttribute('data-callback');
-      let param = document.getElementById("confirm-modal").getAttribute('data-param');
-      window[callback](param);
-      $('#confirm-modal').modal('hide');
-    });
-
-    $('#logout-btn').click(function() {
-      $.ajax({
-      type: 'get', url: window.apiURL + `/logout`,
-      success: function (data, status, xhr) {
-        console.log(data);
-        if(data==='OK') window.location.replace(window.apiURL);
-      }
-    });
-    });
-    $('#btn-generate-backup').click(async function() {
-      console.log(window.generatingbackup);
-      if(!window.generatingbackup){
-        window.generatingbackup = true;
-        await axios.post(`${window.apiURL}/generatebackup`, { timeout: 2000 });
-        await getBackupFileList();
-        window.generatingbackup = false;
-      }
-    });
-
-  }
-  /*
-  function connectLogStream(){
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', `${window.apiURL}/getstatus`, true);
-      xhr.onreadystatechange = function(){
-        if (this.readyState === 3){
-          var chunks = this.response.split('\r\n\r\n').filter(Boolean);
-          var newestChunk = chunks.pop();
-          console.log(chunks);
-        }
-      }
-      xhr.send();
-      return xhr;      
-    }
-    */
-  async function startPage(page){
-    console.log(page);
-    if(page === 'time-machine'){
-      $.ajax({
-        type: 'GET', dataType:"json", url: window.apiURL + '/getLogDateRange',
-        success: function (data, status, xhr) {
-          console.log('data: ', data);
-          let startDate = new Date(data.min_timestamp);
-          let endDate = new Date(data.max_timestamp);
-          $('.datepicker-tm').datepicker({
-            language: 'en',
-            inline: true,
-            minDate: startDate,
-            maxDate: endDate,
-            onSelect: function (date , formattedDate, datepicker) {
-              let d = new Date(date);
-              //console.log(d.getTimezoneOffset() );
-              var timestamp = Math.floor(d.getTime());
-              $.ajax({
-                  type: 'GET', dataType:"json", url: window.apiURL + `/getLogsByTime?starttime=${timestamp}&length=86400000`,
-                  success: function (data, status, xhr) {
-                    // console.log('data: ', data);
-                    let points = 0;
-                    $('.queries-tm').html(`<div class="query-h"><span class="q-text">Total <span id="total-records"></span> sessions found</span><span class="q-date">Date and Time</span></div>`);
-                    for (let i = 0; i < data.length; i+=1) {
-                      if (data[i].query.toLowerCase().startsWith('set sess')){
-                        points +=1;
-                        let ops = 1;
-                        while (i + 1 < data.length && !data[i + 1].query.toLowerCase().startsWith('set sess')) { i += 1; ops +=1 }
-                        let date = new Date(data[i].timestamp);
-                        $('.queries-tm').append(`<div class="query" onClick="querySelect(event)" data-seq="${data[i].seq}"><span onClick="querySelectP(event)" class="q-text"><i onClick="dn(event)" class="fas fa-circle text-warning"></i> ${data[i].seq}</span><span onClick="querySelectP(event)" class="q-date">${ops} Ops - ${date.toLocaleString()}</span></div>`)
-                      }
-                    }
-                    $('#total-records').html(points);
-                  }
-                });
-
-              
-            },
-            
-          });
-
-
-        }
-      });
-    } else if(page === 'dashboard'){
-      generateClusterStats();
-    } else if(page === 'backup-restore'){
-      getBackupFileList();
-    }
-  }
-  async function getBackupFileList(){
-    try{   
-      $('#backup-file-list-spinner').show();
-      const backups = await axios.get(`${window.apiURL}/listbackups`, { timeout: 2000 });
-      console.log(backups.data);
-      if(Array.isArray(backups.data)){
-        
-        let html = '';
-        for( let i = 0; i< backups.data.length; i += 1){
-          const fileName = backups.data[i].fileName.split('.')[0];
-          html += `<tr><th scope="row">${i+1}</th>
-            <td>${backups.data[i].fileName}</td>
-            <td>${backups.data[i].fileSize}</td>
-            <td>${backups.data[i].createdDateTime}</td>
-            <td>
-              <a class="btn btn-sm btn-success bu-download" target="blank" href="${window.apiURL}/getbackupfile/${fileName}"><i class="fas fa-download"></i> Download</a>
-              <a class="btn btn-sm  btn-danger bu-delete" data-filename="${fileName}" onclick="deleteBUFile(event)"><i class="fas fa-trash"></i> delete</a>
-              <a class="btn btn-sm  btn-dark bu-play" data-filename="${fileName}" onclick="executeBUFile(event)"><i class="fas fa-play"></i> Execute <i class="spinner-border d-none" style="width: 1rem; height: 1rem; border: 0.2em solid #fff; border-right-color: transparent;margin-top: 2px;"></i></a>
-              </td></tr>`;
-        }
-        $('#backup-file-list').html(html);
-      }
-      $('#backup-file-list-spinner').hide();
-    } catch (err){
-      console.log(err);
-    }
-  }
-  async function generateClusterStats(){
-    try{   
-      $('#nodelist-spinner').show();
-      const nodelist = await axios.get(`${window.apiURL}/nodelist`, { timeout: 2000 });
-      console.log(nodelist.data);
-      if(Array.isArray(nodelist.data)){
-        
-        let html = '';
-        for( let i = 0; i< nodelist.data.length; i += 1){
-          try{
-            const nodeStatus = await axios.get(`http://${nodelist.data[i].ip}:${window.port}/status`, { timeout: 4000 });
-            if(nodeStatus.data.status === 'COMPRESSING') nodeStatus.data.status = nodeStatus.data.status + ' ' + nodeStatus.data.taskStatus + '%'
-            html += `<tr><th scope="row">${i+1}</th>
-              <td>${nodelist.data[i].ip}</td>
-              <td>${nodeStatus.data.sequenceNumber}</td>
-              <td>${nodeStatus.data.masterIP}</td>
-              <td>${nodeStatus.data.status}</td></tr>`;
-            console.log(nodeStatus.data);
-          } catch (err){
-            console.log(err);
-          }
-        }
-        $('#nodelist').html(html);
-      }
-      $('#nodelist-spinner').hide();
-    } catch (err){
-      console.log(err);
-    }
-  }
-  function escapeHtml(unsafe)
-  {
-      return unsafe
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-  }
-  function querySelect(e) {
-    if(window.lock) return;
-    e = e || window.event;
-    console.log(e);
-    var target = e.target || e.srcElement;
-    $('.query').removeClass('selected');
-    target.classList.add("selected");
-    var seq = target.getAttribute('data-seq');
-    $('#tm-rewind').data('seq', seq);
-    console.log(seq);
-    document.getElementById("tm-rewind").setAttribute("data-seq", seq);
-  }
-  function querySelectP(e) {
-    if(window.lock) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e = e || window.event;
-    console.log(e);
-    var target = e.target || e.srcElement;
-    $('.query').removeClass('selected');
-    target.parentElement.classList.add("selected");
-    var seq = target.parentElement.getAttribute('data-seq');
-    console.log(seq);
-    document.getElementById("tm-rewind").setAttribute("data-seq", seq);
-  }
-  function dn(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  function rewind(seq) {
-
-    document.getElementById("tm-rewind").disabled = true;
-    $('#tm-progress').removeClass('d-none');
-    $('#tm-progress-done').addClass('d-none');
-    window.lock = true;
-    console.log(seq);
-    $.ajax({
-      type: 'POST', url: window.apiURL + `/rollback`, data: {seqNo: seq},
-      success: function (data, status, xhr) {
-        console.log('data: ', data);
-        document.getElementById("tm-rewind").disabled = false;
-        window.lock = false;
-        $('#tm-progress').addClass('d-none');
-        $('#tm-progress-done').removeClass('d-none');
-      }
-    });
-
-  }
-  function deleteBUFile(e) {
-    e = e || window.event;
-    var target = e.target || e.srcElement;
-    var filename = target.getAttribute('data-filename');
-    console.log(filename);
-    $('#confirm-modal').modal('show');
-    $('#confirm-modal .modal-body').html(`<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible, Are you sure to delete this file?</span>`);
-    document.getElementById("confirm-modal").setAttribute('data-callback', 'deleteFile');
-    document.getElementById("confirm-modal").setAttribute('data-param', filename);
-    
-  }
-  async function deleteFile(filename){
-    await axios.post(`${window.apiURL}/deletebackup`, { filename }, { timeout: 2000 });
-    await getBackupFileList();
-  }
-  function executeBUFile(e) {
-    if(!window.import_in_progress){
-      e = e || window.event;
-      var target = e.target || e.srcElement;
-      window.execute_spinner = target.childNodes[2];
-      var filename = target.getAttribute('data-filename');
-      console.log(filename);
-      $('#confirm-modal').modal('show');
-      $('#confirm-modal .modal-body').html(`<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible, Are you sure to execute the sql file?</span></br>
-      <div class="spinner-border" id="modal-spinner" style="width: 1rem; height: 1rem; border: 0.2em solid #000; border-right-color: transparent;" role="status">`);
-      document.getElementById("confirm-modal").setAttribute('data-callback', 'executeFile');
-      document.getElementById("confirm-modal").setAttribute('data-param', filename);
-      $('#modal-spinner').hide();
-    }
-  }
-  async function executeFile(filename){
-    $('#modal-spinner').show();
-    window.execute_spinner.classList.remove('d-none');
-    window.import_in_progress = true;
-    await axios.post(`${window.apiURL}/executebackup`, { filename }, { timeout: 200000 });
-    $('#modal-spinner').hide();
-    window.import_in_progress = false;
-    window.execute_spinner.classList.add('d-none');
-    await getBackupFileList();
-  }
-  const getCookieValue = (name) => (
-  document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)')?.pop() || ''
-  )
-  init();
-</script>
