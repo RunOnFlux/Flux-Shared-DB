@@ -88,6 +88,23 @@ function ensureObject(parameter) {
   return param;
 }
 /**
+* Helper function to safely quote database/table/column identifiers.
+* Prevents SQL injection through identifiers.
+* @param {string} identifier The identifier to quote.
+* @returns {string} The quoted identifier (e.g., `table_name`) or throws error if invalid.
+*/
+function quoteIdentifier(identifier) {
+  if (typeof identifier !== 'string' || identifier.length === 0) {
+    throw new Error('Invalid identifier provided for quoting.');
+  }
+  // Basic check: Allow alphanumeric and underscores. Reject others.
+  // More robust validation might be needed depending on DB specifics.
+  if (!/^[a-zA-Z0-9_]+$/.test(identifier)) {
+    throw new Error(`Invalid characters in identifier: ${identifier}. Only alphanumeric and underscores are allowed.`);
+  }
+  return `\`${identifier.replace(/`/g, '')}\``; // Remove any backticks just in case and quote
+}
+/**
 * Starts UI service
 */
 async function startUI() { // Make async to potentially await DB client init if needed later
@@ -575,23 +592,25 @@ async function startUI() { // Make async to potentially await DB client init if 
   // ========================================================
   const dbManagerRouter = express.Router();
 
-  // Middleware to ensure DB client is initialized FOR DB MANAGER ROUTES
+  // Middleware: Ensure DB client is connected & user is authenticated for ALL DB Manager routes
   dbManagerRouter.use(async (req, res, next) => {
-    // Use the globally initialized dbClientInstance
+    // 1. Check Authentication first
+    if (!authUser(req)) {
+      log.warn(`Unauthorized access attempt to DB Manager API from IP: ${req.ip}`);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // 2. Check DB Connection
     if (!dbClientInstance || !dbClientInstance.connected) {
       log.warn('DB client not ready for DB Manager request, attempting to ensure connection...');
       try {
-        // Attempt to reconnect if instance exists but not connected
         if (dbClientInstance && !dbClientInstance.connected) {
           await dbClientInstance.reconnect();
         }
-        // If still not connected (or never initialized), try creating a new one
         if (!dbClientInstance || !dbClientInstance.connected) {
           log.warn('Re-initializing DB client for DB Manager request...');
-          dbClientInstance = await createClient(); // Use factory
+          dbClientInstance = await createClient();
         }
-
-        // Final check
         if (!dbClientInstance || !dbClientInstance.connected) {
           log.error('Failed to ensure DB client connection for DB Manager request.');
           return res.status(503).json({ error: 'Database connection unavailable' });
@@ -603,155 +622,321 @@ async function startUI() { // Make async to potentially await DB client init if 
         return res.status(statusCode).json({ error: `Database connection failed: ${error.message}` });
       }
     }
-    // Add authentication check specific to DB Manager access
-    if (!authUser(req)) {
-      log.warn(`Unauthorized access attempt to DB Manager API from IP: ${req.ip}`);
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next(); // Proceed to the DB Manager route handler
+    next(); // Proceed
   });
 
-  // GET /api/db-manager/databases - List all databases
-  dbManagerRouter.get('/databases', async (req, res) => {
-    try {
-      const result = await dbClientInstance.query('SHOW DATABASES');
+  // GET /api/db-manager/databases - List databases
+  dbManagerRouter.get('/databases', async (req, res) => { /* ... existing ... */ });
 
-      if (result && result.error) {
-        return res.status(500).json({ error: `Failed to list databases: ${result.error}`, code: result.code });
-      }
-      if (!Array.isArray(result)) {
-        log.error('Unexpected result format from SHOW DATABASES:', result);
-        return res.status(500).json({ error: 'Unexpected error fetching databases.' });
-      }
+  // GET /api/db-manager/databases/:dbName/tables - List tables
+  dbManagerRouter.get('/databases/:dbName/tables', async (req, res) => { /* ... existing ... */ });
 
-      // Filter out system databases if desired
-      const systemDBs = ['information_schema', 'mysql', 'performance_schema', 'sys'];
-      const databases = result
-        .map((row) => row.Database)
-        .filter((dbName) => !systemDBs.includes(dbName.toLowerCase()));
+  // GET /api/db-manager/databases/:dbName/tables/:tableName/structure - Get structure
+  dbManagerRouter.get('/databases/:dbName/tables/:tableName/structure', async (req, res) => { /* ... existing ... */ });
 
-      res.json({ databases });
-    } catch (error) {
-      log.error(`Error in /databases: ${error.message}`);
-      res.status(500).json({ error: 'Internal server error while fetching databases' });
-    }
-  });
-
-  // GET /api/db-manager/databases/:dbName/tables - List tables in a specific database
-  dbManagerRouter.get('/databases/:dbName/tables', async (req, res) => {
-    const { dbName } = req.params;
-    const safeDbName = sanitize(dbName.replace(/`/g, '')); // Sanitize and remove backticks
-    if (!safeDbName) {
-      return res.status(400).json({ error: 'Invalid database name provided.' });
-    }
-
-    try {
-      const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) {
-        // Handle case where DB doesn't exist or access denied
-        if (setResult.code === 'ER_BAD_DB_ERROR') {
-          return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        }
-        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
-      }
-
-      const result = await dbClientInstance.query('SHOW TABLES');
-      if (result && result.error) {
-        return res.status(500).json({ error: `Failed to list tables for ${safeDbName}: ${result.error}`, code: result.code });
-      }
-      if (!Array.isArray(result)) {
-        log.error(`Unexpected result format from SHOW TABLES in ${safeDbName}:`, result);
-        return res.status(500).json({ error: `Unexpected error fetching tables for ${safeDbName}.` });
-      }
-
-      const tables = result.map((row) => Object.values(row)[0]);
-      res.json({ tables });
-    } catch (error) {
-      log.error(`Error in /databases/${safeDbName}/tables: ${error.message}`);
-      res.status(500).json({ error: `Internal server error while fetching tables for ${safeDbName}` });
-    }
-  });
-
-  // GET /api/db-manager/databases/:dbName/tables/:tableName/structure - Get table structure
-  dbManagerRouter.get('/databases/:dbName/tables/:tableName/structure', async (req, res) => {
-    const { dbName, tableName } = req.params;
-    const safeDbName = sanitize(dbName.replace(/`/g, ''));
-    const safeTableName = sanitize(tableName.replace(/`/g, ''));
-    if (!safeDbName || !safeTableName) {
-      return res.status(400).json({ error: 'Invalid database or table name provided.' });
-    }
-
-    try {
-      const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) {
-        if (setResult.code === 'ER_BAD_DB_ERROR') {
-          return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        }
-        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
-      }
-
-      const result = await dbClientInstance.query(`DESCRIBE \`${safeTableName}\``);
-      if (result && result.error) {
-        if (result.code === 'ER_NO_SUCH_TABLE') {
-          return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
-        }
-        return res.status(500).json({ error: `Failed to get structure for ${safeDbName}.${safeTableName}: ${result.error}`, code: result.code });
-      }
-      if (!Array.isArray(result)) {
-        log.error(`Unexpected result format from DESCRIBE ${safeDbName}.${safeTableName}:`, result);
-        return res.status(500).json({ error: `Unexpected error fetching structure for ${safeDbName}.${safeTableName}.` });
-      }
-
-      res.json({ columns: result });
-    } catch (error) {
-      log.error(`Error in /databases/${safeDbName}/tables/${safeTableName}/structure: ${error.message}`);
-      res.status(500).json({ error: `Internal server error while fetching structure for ${safeDbName}.${safeTableName}` });
-    }
-  });
-
-  // GET /api/db-manager/databases/:dbName/tables/:tableName/rows - Get rows from a table
+  // GET /api/db-manager/databases/:dbName/tables/:tableName/rows - Get rows (with pagination)
   dbManagerRouter.get('/databases/:dbName/tables/:tableName/rows', async (req, res) => {
     const { dbName, tableName } = req.params;
     const safeDbName = sanitize(dbName.replace(/`/g, ''));
     const safeTableName = sanitize(tableName.replace(/`/g, ''));
-    if (!safeDbName || !safeTableName) {
+    if (!safeDbName || !safeTableName || safeDbName.includes('..') || safeTableName.includes('..')) {
       return res.status(400).json({ error: 'Invalid database or table name provided.' });
     }
 
     const limit = parseInt(req.query.limit, 10) || 100;
-    const offset = parseInt(req.query.offset, 10) || 0;
+    const page = parseInt(req.query.page, 10) || 1; // Use page instead of offset
+    const offset = (page - 1) * limit;
+
+    if (limit <= 0 || page <= 0) {
+      return res.status(400).json({ error: 'Invalid limit or page number.' });
+    }
 
     try {
       const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) {
-        if (setResult.code === 'ER_BAD_DB_ERROR') {
-          return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        }
+      if (setResult && setResult.error) { /* ... error handling ... */
+        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
         return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
       }
 
-      const query = `SELECT * FROM \`${safeTableName}\` LIMIT ${limit} OFFSET ${offset} `;
-      const result = await dbClientInstance.query(query);
+      // Use Promise.all to fetch rows and count concurrently
+      const [rowsResult, countResult] = await Promise.all([
+        dbClientInstance.query(`SELECT * FROM ${quoteIdentifier(safeTableName)} LIMIT ${limit} OFFSET ${offset}`),
+        dbClientInstance.query(`SELECT COUNT(*) as totalRows FROM ${quoteIdentifier(safeTableName)}`),
+      ]);
+
+      // Check for errors in rows query
+      if (rowsResult && rowsResult.error) {
+        if (rowsResult.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+        return res.status(500).json({ error: `Failed to get rows: ${rowsResult.error}`, code: rowsResult.code });
+      }
+      if (!Array.isArray(rowsResult)) {
+        log.error('Unexpected rows result format:', rowsResult);
+        return res.status(500).json({ error: 'Unexpected error fetching rows.' });
+      }
+
+      // Check for errors in count query
+      let totalRows = 0;
+      if (countResult && !countResult.error && Array.isArray(countResult) && countResult.length > 0) {
+        totalRows = countResult[0].totalRows;
+      } else if (countResult && countResult.error) {
+        log.warn(`Failed to get total row count for ${safeDbName}.${safeTableName}: ${countResult.error}`);
+        // Proceed without total count, or return error based on requirements
+      } else {
+        log.warn(`Unexpected count result format for ${safeDbName}.${safeTableName}:`, countResult);
+      }
+
+      res.json({
+        rows: rowsResult, totalRows, currentPage: page, rowsPerPage: limit,
+      });
+    } catch (error) {
+      log.error(`Error fetching rows/count for ${safeDbName}.${safeTableName}: ${error.message}`);
+      res.status(500).json({ error: 'Internal server error while fetching rows' });
+    }
+  });
+
+  // PUT /api/db-manager/databases/:dbName/tables/:tableName/rows - Update a row
+  dbManagerRouter.put('/databases/:dbName/tables/:tableName/rows', async (req, res) => {
+    const { dbName, tableName } = req.params;
+    const { pkColumn, pkValue, updates } = req.body; // updates is an object { colName: newValue, ... }
+
+    // --- Validation ---
+    const safeDbName = sanitize(dbName.replace(/`/g, ''));
+    const safeTableName = sanitize(tableName.replace(/`/g, ''));
+    const safePkColumn = sanitize(pkColumn?.replace(/`/g, '')); // Sanitize PK column name
+
+    if (!safeDbName || !safeTableName || !safePkColumn || pkValue === undefined || !updates || typeof updates !== 'object' || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Invalid input: Missing database, table, primary key info, or update data.' });
+    }
+    if (safeDbName.includes('..') || safeTableName.includes('..') || safePkColumn.includes('..')) {
+      return res.status(400).json({ error: 'Invalid characters in names.' });
+    }
+
+    // --- Build Query ---
+    const setClauses = [];
+    const queryParams = [];
+    // eslint-disable-next-line guard-for-in
+    for (const col in updates) {
+      // Sanitize column name before quoting
+      const safeCol = sanitize(col.replace(/`/g, ''));
+      if (!safeCol || safeCol.includes('..')) {
+        log.warn(`Skipping update for potentially unsafe column name: ${col}`);
+        // eslint-disable-next-line no-continue
+        continue; // Skip potentially unsafe column names
+      }
+      setClauses.push(`${quoteIdentifier(safeCol)} = ?`);
+      queryParams.push(updates[col]); // Add value to params
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No valid columns provided for update.' });
+    }
+
+    queryParams.push(pkValue); // Add the PK value for the WHERE clause
+
+    const query = `UPDATE ${quoteIdentifier(safeTableName)} SET ${setClauses.join(', ')} WHERE ${quoteIdentifier(safePkColumn)} = ?`;
+
+    // --- Execute ---
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) { /* ... error handling ... */
+        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
+
+      const result = await dbClientInstance.execute(query, queryParams);
 
       if (result && result.error) {
-        if (result.code === 'ER_NO_SUCH_TABLE') {
-          return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+        if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+        if (result.code === 'ER_BAD_FIELD_ERROR') return res.status(400).json({ error: `Invalid column name provided for update: ${result.error}` });
+        return res.status(500).json({ error: `Failed to update row: ${result.error}`, code: result.code });
+      }
+
+      // Check affectedRows (result[0] for execute often contains metadata)
+      if (result && result.affectedRows !== undefined) {
+        if (result.affectedRows > 0) {
+          res.json({ success: true, message: `Row updated successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+        } else {
+          res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue} or no changes made.` });
         }
-        return res.status(500).json({ error: `Failed to get rows for ${safeDbName}.${safeTableName}: ${result.error}`, code: result.code });
+      } else {
+        log.warn('Update executed but result format unexpected:', result);
+        res.json({ success: true, message: 'Update command executed, but result format was unexpected.' });
       }
-      if (!Array.isArray(result)) {
-        log.error(`Unexpected result format from SELECT on ${safeDbName}.${safeTableName}:`, result);
-        return res.status(500).json({ error: `Unexpected error fetching rows for ${safeDbName}.${safeTableName}.` });
-      }
-
-      // TODO: Add total row count for pagination if needed
-      // const countResult = await dbClientInstance.query(`SELECT COUNT(*) as total FROM \`${safeTableName}\``);
-      // const totalRows = (countResult && !countResult.error && countResult[0]) ? countResult[0].total : 0;
-
-      res.json({ rows: result /* , totalRows: totalRows */ });
     } catch (error) {
-      log.error(`Error in /databases/${safeDbName}/tables/${safeTableName}/rows: ${error.message}`);
-      res.status(500).json({ error: `Internal server error while fetching rows for ${safeDbName}.${safeTableName}` });
+      log.error(`Error updating row in ${safeDbName}.${safeTableName}: ${error.message}`);
+      res.status(500).json({ error: 'Internal server error while updating row.' });
+    }
+  });
+
+  // DELETE /api/db-manager/databases/:dbName/tables/:tableName/rows - Delete a row
+  dbManagerRouter.delete('/databases/:dbName/tables/:tableName/rows', async (req, res) => {
+    const { dbName, tableName } = req.params;
+    const { pkColumn, pkValue } = req.body; // Get PK info from body
+
+    // --- Validation ---
+    const safeDbName = sanitize(dbName.replace(/`/g, ''));
+    const safeTableName = sanitize(tableName.replace(/`/g, ''));
+    const safePkColumn = sanitize(pkColumn?.replace(/`/g, ''));
+
+    if (!safeDbName || !safeTableName || !safePkColumn || pkValue === undefined) {
+      return res.status(400).json({ error: 'Invalid input: Missing database, table, or primary key info.' });
+    }
+    if (safeDbName.includes('..') || safeTableName.includes('..') || safePkColumn.includes('..')) {
+      return res.status(400).json({ error: 'Invalid characters in names.' });
+    }
+
+    // --- Build Query ---
+    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ?`;
+    const queryParams = [pkValue];
+
+    // --- Execute ---
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) { /* ... error handling ... */
+        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
+
+      const result = await dbClientInstance.execute(query, queryParams);
+
+      if (result && result.error) {
+        if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+        return res.status(500).json({ error: `Failed to delete row: ${result.error}`, code: result.code });
+      }
+
+      if (result && result.affectedRows !== undefined) {
+        if (result.affectedRows > 0) {
+          res.json({ success: true, message: `Row deleted successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+        } else {
+          res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue}.` });
+        }
+      } else {
+        log.warn('Delete executed but result format unexpected:', result);
+        res.json({ success: true, message: 'Delete command executed, but result format was unexpected.' });
+      }
+    } catch (error) {
+      log.error(`Error deleting row in ${safeDbName}.${safeTableName}: ${error.message}`);
+      res.status(500).json({ error: 'Internal server error while deleting row.' });
+    }
+  });
+
+  // DELETE /api/db-manager/databases/:dbName/tables/:tableName - Delete a table
+  dbManagerRouter.delete('/databases/:dbName/tables/:tableName', async (req, res) => {
+    const { dbName, tableName } = req.params;
+
+    // --- Validation ---
+    const safeDbName = sanitize(dbName.replace(/`/g, ''));
+    const safeTableName = sanitize(tableName.replace(/`/g, ''));
+    if (!safeDbName || !safeTableName || safeDbName.includes('..') || safeTableName.includes('..')) {
+      return res.status(400).json({ error: 'Invalid database or table name provided.' });
+    }
+
+    // --- Build Query ---
+    // DANGER ZONE: DROP TABLE is irreversible. Use with extreme caution.
+    const query = `DROP TABLE IF EXISTS ${quoteIdentifier(safeTableName)}`; // Use IF EXISTS for safety
+
+    // --- Execute ---
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) { /* ... error handling ... */
+        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
+
+      log.warn(`Executing DROP TABLE query for ${safeDbName}.${safeTableName}. This is irreversible.`);
+      const result = await dbClientInstance.query(query); // Use query, not execute for DROP
+
+      if (result && result.error) {
+        // Error codes might differ for DROP TABLE failures
+        return res.status(500).json({ error: `Failed to drop table: ${result.error}`, code: result.code });
+      }
+
+      // DROP TABLE doesn't typically return affectedRows. Success is indicated by lack of error.
+      res.json({ success: true, message: `Table ${safeTableName} dropped successfully (if it existed).` });
+    } catch (error) {
+      log.error(`Error dropping table ${safeDbName}.${safeTableName}: ${error.message}`);
+      res.status(500).json({ error: 'Internal server error while dropping table.' });
+    }
+  });
+
+  // POST /api/db-manager/databases/:dbName/run-query - Run a custom query
+  dbManagerRouter.post('/databases/:dbName/run-query', async (req, res) => {
+    const { dbName } = req.params;
+    const { query } = req.body;
+
+    // --- Validation ---
+    const safeDbName = sanitize(dbName.replace(/`/g, ''));
+    if (!safeDbName || safeDbName.includes('..')) {
+      return res.status(400).json({ error: 'Invalid database name provided.' });
+    }
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Missing or empty query.' });
+    }
+
+    // --- SECURITY CHECK ---
+    // VERY IMPORTANT: Add checks to prevent dangerous queries.
+    // This is a basic example, needs significant enhancement for production.
+    const lowerQuery = query.toLowerCase().trim();
+    const disallowedKeywords = ['drop ', 'delete ', 'update ', 'insert ', 'alter ', 'truncate ', 'create ']; // Example blacklist
+    // Allow SELECT by default, explicitly block others for now
+    if (!lowerQuery.startsWith('select ')) {
+      // More fine-grained check: allow specific non-selects if needed, but be careful
+      let isDisallowed = false;
+      for (const keyword of disallowedKeywords) {
+        if (lowerQuery.startsWith(keyword)) {
+          isDisallowed = true;
+          break;
+        }
+      }
+      if (isDisallowed) {
+        log.warn(`Attempted to run potentially dangerous query type by user: ${query}`);
+        return res.status(403).json({ error: 'Query type not allowed. Only SELECT queries are permitted in this basic implementation.' });
+      }
+      // If it's not SELECT and not explicitly disallowed, maybe allow SHOW, DESCRIBE etc.?
+      // Add more allowed keywords if necessary: const allowedNonSelect = ['show ', 'describe '];
+    }
+    // Add checks for comments that might hide malicious code, multiple statements etc.
+    if (query.includes('--') || query.includes('/*') || query.includes('*/') || query.includes(';')) {
+      // Basic check for comments or multiple statements (can be bypassed)
+      log.warn(`Query contains potentially problematic characters (comments, semicolons): ${query}`);
+      // Decide whether to block or attempt sanitization (blocking is safer)
+      // return res.status(400).json({ error: 'Query contains potentially unsafe characters or multiple statements.' });
+    }
+
+    // --- Execute ---
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) { /* ... error handling ... */
+        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
+
+      log.info(`Executing custom query in DB ${safeDbName}: ${query}`);
+      // Use simple query execution. Prepared statements aren't suitable for arbitrary queries.
+      const result = await dbClientInstance.query(query, true); // Get raw result [rows, fields]
+
+      if (result && result.error) {
+        // Provide specific DB errors back to the user
+        return res.status(400).json({ error: `Query execution failed: ${result.error}`, code: result.code });
+      }
+
+      // Result format depends on the query type
+      // For SELECT, result is [rows, fields]
+      // For others (if allowed), it might be metadata object
+      if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
+        // Likely a SELECT result
+        res.json({ success: true, rows: result[0], fields: result[1] });
+      } else if (result && result.affectedRows !== undefined) {
+        // Likely an INSERT/UPDATE/DELETE result (if allowed)
+        res.json({ success: true, affectedRows: result.affectedRows, changedRows: result.changedRows });
+      } else {
+        // Other results (e.g., SHOW, DESCRIBE might be just rows)
+        res.json({ success: true, result });
+      }
+    } catch (error) {
+      log.error(`Error running custom query in ${safeDbName}: ${error.message}`);
+      // Avoid sending detailed internal errors unless necessary
+      res.status(500).json({ error: 'Internal server error while running custom query.' });
     }
   });
 

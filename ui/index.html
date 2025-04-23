@@ -10,368 +10,215 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
 
     <style>
-        /* Set styles for the icons */
-        .navbar {
-            border-bottom: #ffffff41 1px solid;
-        }
-        .navbar i {
-            margin-right: 10px;
-        }
-        html, body {
-             height: 100%; /* Ensure body takes full height */
-             margin: 0;
-             padding: 0;
-        }
-        #app {
-             min-height: 100vh; /* Ensure app div takes at least full viewport height */
-             display: flex;
-             flex-direction: column;
-             background: linear-gradient(-45deg, #e73c7e, #23a6d5);
-             background-size: 100% 100%;
-        }
-        main {
-            flex-grow: 1; /* Allow main content to grow and push footer down */
-        }
-        .card-header {
-            background-color: #fff;
-            color: #898989;
-        }
-        .card-header h3 {
-            font-weight: 100;
-        }
-        .query {
-            font-size: 15px;
-            height: 30px;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            padding: 0px 15px 0px 15px;
-            cursor: pointer;
-            border-top: solid 1px #e3e3e3;
-        }
-        .query-h {
-            width: 100%;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            background-color: #efefef;
-            padding: 0px 15px 0px 15px;
-        }
-        .selected {
-            background-color: #525252;
-            color: white;
-        }
-        .q-date {
-            flex-shrink: 0;
-            white-space: nowrap;
-        }
-        .q-text {
-            flex-grow: 1;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            padding-left: 5px; /* Added padding */
-        }
-        .fs-7 {
-            font-size: 12px;
-        }
-        .queries-tm {
-            height: 400px; /* Adjusted height */
-            overflow-y: scroll;
-            border: 1px solid #e3e3e3; /* Added border */
-        }
-        .datepicker-here { /* Target class for datepicker */
-             height: 250px; /* Ensure datepicker has space */
-        }
-        .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- {
-            background: #4e4e4e;
-        }
-        .dropdown-menu {
-            background-color: #ffffffc9;
-            border: 1px solid rgb(88 88 88 / 15%);
-        }
-        footer {
-            flex-shrink: 0; /* Prevent footer from shrinking */
-            margin-top: auto; /* Push footer to bottom */
-        }
-        .spinner-border-xs { /* Custom smaller spinner */
-             width: 1rem;
-             height: 1rem;
-             border-width: 0.2em;
-        }
-        .action-spinner { /* Spinner specifically for action buttons */
-             border: 0.2em solid #fff;
-             border-right-color: transparent;
-             margin-top: 2px;
-             margin-left: 5px; /* Space between text and spinner */
-        }
-         .clickable {
-             cursor: pointer;
-         }
-         /* Styles for DB Manager */
-         .db-manager-layout {
-             display: flex;
-             height: calc(100vh - 150px); /* Adjust based on navbar/footer height */
-         }
-         .db-sidebar {
-             width: 250px;
-             flex-shrink: 0;
-             background-color: #f8f9fa;
-             padding: 1rem;
-             overflow-y: auto;
-             border-right: 1px solid #dee2e6;
-         }
-         .db-content {
-             flex-grow: 1;
-             padding: 1rem;
-             overflow-y: auto;
-             background-color: #ffffff;
-         }
-         .list-group-item {
-             cursor: pointer;
-         }
-         .list-group-item.active {
-            background-color: #4e4e4e;
-            border-color: #4e4e4e;
-         }
-         .table-responsive {
-             max-height: calc(100vh - 300px); /* Adjust as needed */
-             overflow: auto;
-         }
-         .table thead th {
-            position: sticky;
-            top: 0;
-            background: white;
-            z-index: 1;
-         }
-    </style>
+      /* Base styles ... (keep existing styles) */
+      .navbar { border-bottom: #ffffff41 1px solid; }
+      .navbar i { margin-right: 10px; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      #app { min-height: 100vh; display: flex; flex-direction: column; background: linear-gradient(-45deg, #e73c7e, #23a6d5); background-size: 100% 100%; }
+      main { flex-grow: 1; }
+      .card-header { background-color: #fff; color: #898989; }
+      .card-header h3 { font-weight: 100; }
+      footer { flex-shrink: 0; margin-top: auto; }
+      .clickable { cursor: pointer; }
+      .spinner-border-xs { width: 1rem; height: 1rem; border-width: 0.2em; }
+      .action-spinner { border: 0.2em solid #fff; border-right-color: transparent; margin-top: 2px; margin-left: 5px; }
+      .dropdown-menu { background-color: #ffffffc9; border: 1px solid rgb(88 88 88 / 15%); }
+      .datepicker-here { height: 250px; }
+      .datepicker--cell.-selected-, .datepicker--cell.-selected-.-current-,.datepicker--cell.-selected-.-focus- { background: #4e4e4e; }
+      .query { font-size: 15px; height: 30px; width: 100%; display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0px 15px 0px 15px; cursor: pointer; border-top: solid 1px #e3e3e3; }
+      .query-h { width: 100%; height: 40px; display: flex; align-items: center; background-color: #efefef; padding: 0px 15px 0px 15px; }
+      .selected { background-color: #525252; color: white; }
+      .q-date { flex-shrink: 0; white-space: nowrap; }
+      .q-text { flex-grow: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 5px; }
+      .fs-7 { font-size: 12px; }
+      .queries-tm { height: 400px; overflow-y: scroll; border: 1px solid #e3e3e3; }
+
+      /* DB Manager specific styles */
+      .db-manager-layout { display: flex; height: calc(100vh - 150px); /* Adjust as needed */ }
+      .db-sidebar { width: 250px; flex-shrink: 0; background-color: #f8f9fa; padding: 1rem; overflow-y: auto; border-right: 1px solid #dee2e6; }
+      .db-content { flex-grow: 1; padding: 1rem; overflow-y: auto; background-color: #ffffff; display: flex; flex-direction: column; }
+      .list-group-item { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+      .list-group-item.active { background-color: #4e4e4e; border-color: #4e4e4e; color: white; }
+      .table-responsive-manager { flex-grow: 1; overflow: auto; /* Let table area grow */ }
+      .table thead th { position: sticky; top: 0; background: white; z-index: 1; }
+      .table td, .table th { white-space: nowrap; /* Prevent wrapping in cells */ }
+      .table td { max-width: 300px; overflow: hidden; text-overflow: ellipsis; } /* Truncate long cell content */
+      .action-buttons span { cursor: pointer; margin-left: 8px; }
+      .sidebar-item-actions { display: none; /* Hide by default */ }
+      .list-group-item:hover .sidebar-item-actions { display: inline-block; /* Show on hover */ }
+      .btn-xs { padding: 0.1rem 0.3rem; font-size: 0.75rem; }
+      .modal-body .form-control { margin-bottom: 0.5rem; }
+      .query-results-table { max-height: 400px; overflow: auto; } /* Limit height of query results */
+      .db-content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
+      .pagination-controls { flex-shrink: 0; /* Prevent pagination from shrinking */ margin-top: 1rem; }
+  </style>
 </head>
 <body>
-    <div id="app">
-        <navbar @navigate="navigateTo" @logout="logout" :active-page="currentPage"></navbar>
+  <div id="app">
+    <navbar @navigate="navigateTo" @logout="logout" :active-page="currentPage"></navbar>
 
-        <main :class="{'container-fluid mt-3': currentPage !== 'manage-database'}">
-            <dashboard-page v-if="currentPage === 'dashboard'" :api-url="apiUrl" :port="port"></dashboard-page>
-            <time-machine-page v-if="currentPage === 'time-machine'" :api-url="apiUrl" @show-confirm="showConfirmModal"></time-machine-page>
-            <backup-restore-page ref="backupRestorePageRef" v-if="currentPage === 'backup-restore'" :api-url="apiUrl" @show-confirm="showConfirmModal" @show-upload="showUploadModal"></backup-restore-page>
-            <manage-database-page v-if="currentPage === 'manage-database'" :api-url="apiUrl" :base-api-path="dbManagerApiPath"></manage-database-page>
+    <main :class="{'container-fluid mt-3': currentPage !== 'manage-database'}">
+        <dashboard-page v-if="currentPage === 'dashboard'" :api-url="apiUrl" :port="port"></dashboard-page>
+        <time-machine-page v-if="currentPage === 'time-machine'" :api-url="apiUrl" @show-confirm="showConfirmModal"></time-machine-page>
+        <backup-restore-page ref="backupRestorePageRef" v-if="currentPage === 'backup-restore'" :api-url="apiUrl" @show-confirm="showConfirmModal" @show-upload="showUploadModal"></backup-restore-page>
+        <manage-database-page
+            v-if="currentPage === 'manage-database'"
+            :api-url="apiUrl"
+            :base-api-path="dbManagerApiPath"
+            @show-confirm="showConfirmModal"
+            ref="manageDatabasePageRef"
+        ></manage-database-page>
 
-            <div v-if="!['dashboard', 'time-machine', 'backup-restore', 'manage-database'].includes(currentPage)" class="card container-fluid mt-3">
-                 <div class="card-body">
-                     <h5 class="card-title">Page Not Implemented</h5>
-                     <p class="card-text">The '{{ currentPage }}' page is not yet available in this Vue version.</p>
-                 </div>
-             </div>
-        </main>
+        <div v-if="!validPages.includes(currentPage)" class="card container-fluid mt-3">
+             <div class="card-body"> <h5 class="card-title">Page Not Implemented</h5> <p class="card-text">The '{{ currentPage }}' page is not yet available.</p> </div>
+        </div>
+    </main>
 
-        <footer class="mt-3 pb-3 text-center text-light small thin">
-            <span>© 2022-2023 InFlux Technologies</span>
-            <span class="badge bg-dark">Beta</span>
-            <span id="build_version">v1.6.4-Vue</span> </footer>
+    <footer class="mt-3 pb-3 text-center text-light small thin">
+        <span>© 2022-2024 InFlux Technologies</span> <span class="badge bg-dark">Beta</span> <span id="build_version">v1.6.5-Vue</span>
+    </footer>
 
-        <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
-
-        <upload-modal ref="uploadModal" :api-url="apiUrl" @upload-complete="refreshBackupList"></upload-modal>
-
+    <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
+    <upload-modal ref="uploadModal" :api-url="apiUrl" @upload-complete="refreshBackupList"></upload-modal>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script> <script>
-        const { createApp, ref, reactive, onMounted, computed, nextTick } = Vue;
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
-        // --- Root Vue App ---
-        const app = createApp({
-            data() {
-                return {
-                    currentPage: 'dashboard', // Default page
-                    apiUrl: '',
-                    port: '',
-                    dbManagerApiPath: '/api/db-manager', // Base path for the new DB Manager API
-                    lock: false, // Global lock state (e.g., during rewind)
-                    confirmCallback: null,
-                    confirmParam: null,
-                    confirmMessage: '',
-                    validPages: ['dashboard', 'time-machine', 'backup-restore', 'manage-database', 'backlog-editor', 'run-query', 'logs', 'settings'] // Added manage-database
-                }
-            },
-            methods: {
-                // --- Navigation ---
-                navigateTo(page) {
-                    if (this.lock) return;
-                    // Check if the page is valid before navigating
-                    if (!this.validPages.includes(page)) {
-                         console.warn(`Navigation to invalid page "${page}" blocked.`);
-                         // Optionally navigate to a default or error page
-                         this.currentPage = 'dashboard';
-                         window.location.hash = 'dashboard';
-                         return;
-                    }
+<script>
+    const { createApp, ref, reactive, onMounted, computed, nextTick, watch } = Vue;
 
-                    this.currentPage = page;
-                    window.location.hash = page; // Update URL hash
-
-                     // If navigating back to backup-restore, trigger refresh
-                     if (page === 'backup-restore') {
-                        nextTick(() => {
-                             // Access component using ref
-                             const backupRestoreComponent = this.$refs.backupRestorePageRef;
-                             if (backupRestoreComponent && typeof backupRestoreComponent.fetchBackupFiles === 'function') {
-                                 backupRestoreComponent.fetchBackupFiles();
-                             } else {
-                                 console.warn("Could not find BackupRestorePage component instance via ref to refresh.");
-                             }
-                        });
-                    }
-                },
-                // --- Authentication ---
-                logout() {
-                    axios.get(`${this.apiUrl}/logout`)
-                        .then(response => {
-                            if (response.data === 'OK') {
-                                window.location.replace(this.apiUrl || '/'); // Redirect to login/base URL
-                            } else {
-                                console.error("Logout failed:", response.data);
-                                alert("Logout failed. Please try again.");
-                            }
-                        })
-                        .catch(error => {
-                            console.error("Error during logout:", error);
-                            alert("An error occurred during logout.");
-                        });
-                },
-                 // --- Modal Handling ---
-                 showConfirmModal(payload) {
-                    this.confirmMessage = payload.message;
-                    this.confirmCallback = payload.callback; // Store the function reference
-                    this.confirmParam = payload.param;
-                    this.$refs.confirmModal.show(this.confirmMessage); // Call child component method
-                 },
-                 showUploadModal() {
-                     this.$refs.uploadModal.show();
-                 },
-                 handleConfirmation() {
-                     if (typeof this.confirmCallback === 'function') {
-                         this.confirmCallback(this.confirmParam); // Execute the stored callback
-                     } else {
-                         console.error("Confirmation callback is not a function:", this.confirmCallback);
-                     }
-                     // Reset callback info
-                     this.confirmCallback = null;
-                     this.confirmParam = null;
-                 },
-                 refreshBackupList() {
-                    // Use ref to find the component
-                    const backupPageComponent = this.$refs.backupRestorePageRef;
-                    if (backupPageComponent && typeof backupPageComponent.fetchBackupFiles === 'function') {
-                         backupPageComponent.fetchBackupFiles();
-                    } else {
-                        console.warn("Could not trigger backup list refresh via ref.");
-                        // Optional fallback (less reliable)
-                        // const backupPageComponentFallback = this.$root?.$children?.find(comp => comp.$options.name === 'BackupRestorePage');
-                        // if (backupPageComponentFallback && typeof backupPageComponentFallback.fetchBackupFiles === 'function') {
-                        //     backupPageComponentFallback.fetchBackupFiles();
-                        // } else {
-                        //     console.warn("Could not trigger backup list refresh automatically (fallback failed).");
-                        // }
-                    }
-                 },
-                // --- Initialization ---
-                initialize() {
-                    let baseUrl = new URL(window.location.href);
-                    this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
-                    this.port = baseUrl.port;
-                    let fragment = baseUrl.hash;
-
-                    // Set initial page based on hash
-                    if (fragment && fragment.length > 1) {
-                        const pageFromHash = fragment.substring(1);
-                        if (this.validPages.includes(pageFromHash)) {
-                             this.currentPage = pageFromHash;
-                        } else {
-                            console.warn(`Invalid page "${pageFromHash}" in hash, defaulting to dashboard.`);
-                            this.currentPage = 'dashboard'; // Fallback to dashboard
-                            window.location.hash = 'dashboard';
-                        }
-                    } else {
-                        this.currentPage = 'dashboard'; // Default page
-                        window.location.hash = 'dashboard';
-                    }
-
-                    // Handle back/forward navigation
-                    window.addEventListener('hashchange', () => {
-                        const newPage = window.location.hash.substring(1);
-                         if (this.validPages.includes(newPage)) {
-                             // Use navigateTo to handle potential refresh logic etc.
-                             this.navigateTo(newPage);
-                         } else if (newPage === '') {
-                             this.navigateTo('dashboard'); // Go to default if hash is empty
-                         } else {
-                              console.warn(`Invalid page "${newPage}" in hash during navigation, defaulting to dashboard.`);
-                              this.navigateTo('dashboard');
-                         }
-                    });
-
-                }
-            },
-            mounted() {
-                this.initialize();
+    // --- Root Vue App ---
+    const app = createApp({
+        data() {
+            return {
+                currentPage: 'dashboard',
+                apiUrl: '',
+                port: '',
+                dbManagerApiPath: '/api/db-manager',
+                lock: false,
+                confirmCallback: null,
+                confirmParam: null,
+                confirmMessage: '',
+                // Updated valid pages list
+                validPages: ['dashboard', 'time-machine', 'backup-restore', 'manage-database', 'backlog-editor', 'run-query', 'logs', 'settings']
             }
-        });
+        },
+        methods: {
+            navigateTo(page) { /* ... existing navigateTo logic ... */
+                 if (this.lock) return;
+                if (!this.validPages.includes(page)) {
+                     console.warn(`Navigation to invalid page "${page}" blocked.`);
+                     this.currentPage = 'dashboard';
+                     window.location.hash = 'dashboard';
+                     return;
+                }
+                this.currentPage = page;
+                window.location.hash = page;
+                 if (page === 'backup-restore') {
+                    nextTick(() => {
+                         const backupRestoreComponent = this.$refs.backupRestorePageRef;
+                         if (backupRestoreComponent?.fetchBackupFiles) {
+                             backupRestoreComponent.fetchBackupFiles();
+                         } else { console.warn("Could not find BackupRestorePage component instance via ref to refresh."); }
+                    });
+                }
+            },
+            logout() { /* ... existing logout logic ... */
+                axios.get(`${this.apiUrl}/logout`)
+                    .then(response => {
+                        if (response.data === 'OK') { window.location.replace(this.apiUrl || '/'); }
+                        else { console.error("Logout failed:", response.data); alert("Logout failed."); }
+                    })
+                    .catch(error => { console.error("Error during logout:", error); alert("An error occurred during logout."); });
+            },
+            showConfirmModal(payload) { /* ... existing showConfirmModal logic ... */
+                this.confirmMessage = payload.message;
+                this.confirmCallback = payload.callback;
+                this.confirmParam = payload.param;
+                this.$refs.confirmModal.show(this.confirmMessage);
+            },
+            showUploadModal() { /* ... existing showUploadModal logic ... */
+                 this.$refs.uploadModal.show();
+             },
+            handleConfirmation() { /* ... existing handleConfirmation logic ... */
+                 if (typeof this.confirmCallback === 'function') { this.confirmCallback(this.confirmParam); }
+                 else { console.error("Confirmation callback is not a function:", this.confirmCallback); }
+                 this.confirmCallback = null; this.confirmParam = null;
+             },
+            refreshBackupList() { /* ... existing refreshBackupList logic ... */
+                const backupPageComponent = this.$refs.backupRestorePageRef;
+                if (backupPageComponent?.fetchBackupFiles) { backupPageComponent.fetchBackupFiles(); }
+                else { console.warn("Could not trigger backup list refresh via ref."); }
+             },
+            initialize() { /* ... existing initialize logic ... */
+                let baseUrl = new URL(window.location.href);
+                this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
+                this.port = baseUrl.port;
+                let fragment = baseUrl.hash;
+                if (fragment && fragment.length > 1) {
+                    const pageFromHash = fragment.substring(1);
+                    if (this.validPages.includes(pageFromHash)) { this.currentPage = pageFromHash; }
+                    else { this.currentPage = 'dashboard'; window.location.hash = 'dashboard'; }
+                } else { this.currentPage = 'dashboard'; window.location.hash = 'dashboard'; }
+                window.addEventListener('hashchange', () => {
+                    const newPage = window.location.hash.substring(1);
+                     if (this.validPages.includes(newPage)) { this.navigateTo(newPage); }
+                     else if (newPage === '') { this.navigateTo('dashboard'); }
+                     else { this.navigateTo('dashboard'); }
+                });
+                // Add interceptor for auth errors (optional but good practice)
+                axios.interceptors.response.use(response => response, error => {
+                    if (error.response && error.response.status === 401) {
+                        console.warn('Unauthorized request detected, redirecting to login.');
+                        // Assuming logout clears session/cookie and redirects
+                        this.logout();
+                        // Or directly redirect: window.location.replace(this.apiUrl || '/');
+                    }
+                    return Promise.reject(error);
+                });
+            }
+        },
+        mounted() { this.initialize(); }
+    });
 
-        // --- Navbar Component ---
-        app.component('navbar', {
-            props: ['activePage'],
-            emits: ['navigate', 'logout'],
-            // Added 'Manage Database' menu item
-            template: `
-                <nav class="navbar navbar-expand-lg navbar-dark">
-                    <div class="container-fluid">
-                        <a class="navbar-brand clickable" @click.prevent="$emit('navigate', 'dashboard')">
-                            <span style="font-size: 28px;font-weight: 600;line-height: 10px;margin-left: -5px;color: #ffd600;">DB</span> <span style="letter-spacing: -1px;font-weight: 100;">Control Panel</span>
-                        </a>
-                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                            <span class="navbar-toggler-icon"></span>
-                        </button>
-                        <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                                <li class="nav-item">
-                                    <a class="nav-link" :class="{ active: activePage === 'dashboard' }" href="#dashboard" @click.prevent="$emit('navigate', 'dashboard')"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
-                                </li>
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownDB" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="fas fa-database"></i>DB
-                                    </a>
-                                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownDB">
-                                        <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
-                                        <li><a class="dropdown-item" :class="{ active: activePage === 'backup-restore' }" href="#backup-restore" @click.prevent="$emit('navigate', 'backup-restore')"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
-                                        <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'backlog-editor')"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
-                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'run-query')"><i class="fas fa-play"></i>Run Query</a></li>
-                                    </ul>
-                                </li>
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownSystem" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="fas fa-cog"></i>System
-                                    </a>
-                                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownSystem">
-                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a></li>
-                                        <li><a class="dropdown-item" href="#" @click.prevent="$emit('navigate', 'settings')"><i class="fas fa-cog"></i>Settings</a></li>
-                                    </ul>
-                                </li>
-                            </ul>
-                            <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
-                        </div>
+    // --- Navbar Component ---
+    app.component('navbar', { /* ... existing navbar component ... */
+        props: ['activePage'], emits: ['navigate', 'logout'],
+        template: `
+            <nav class="navbar navbar-expand-lg navbar-dark">
+                <div class="container-fluid">
+                    <a class="navbar-brand clickable" @click.prevent="$emit('navigate', 'dashboard')"> <span style="font-size: 28px;font-weight: 600;line-height: 10px;margin-left: -5px;color: #ffd600;">DB</span> <span style="letter-spacing: -1px;font-weight: 100;">Control Panel</span> </a>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"> <span class="navbar-toggler-icon"></span> </button>
+                    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                            <li class="nav-item"> <a class="nav-link" :class="{ active: activePage === 'dashboard' }" href="#dashboard" @click.prevent="$emit('navigate', 'dashboard')"><i class="fas fa-tachometer-alt"></i>Dashboard</a> </li>
+                            <li class="nav-item dropdown"> <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownDB" role="button" data-bs-toggle="dropdown" aria-expanded="false"> <i class="fas fa-database"></i>DB </a>
+                                <ul class="dropdown-menu" aria-labelledby="navbarDropdownDB">
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'backup-restore' }" href="#backup-restore" @click.prevent="$emit('navigate', 'backup-restore')"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'backlog-editor' }" href="#backlog-editor" @click.prevent="$emit('navigate', 'backlog-editor')"><i class="fas fa-clipboard-list"></i>Backlog Editor</a></li>
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'run-query' }" href="#run-query" @click.prevent="$emit('navigate', 'run-query')"><i class="fas fa-play"></i>Run Query</a></li>
+                                </ul>
+                            </li>
+                            <li class="nav-item dropdown"> <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownSystem" role="button" data-bs-toggle="dropdown" aria-expanded="false"> <i class="fas fa-cog"></i>System </a>
+                                <ul class="dropdown-menu" aria-labelledby="navbarDropdownSystem">
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'logs' }" href="#logs" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a></li>
+                                    <li><a class="dropdown-item" :class="{ active: activePage === 'settings' }" href="#settings" @click.prevent="$emit('navigate', 'settings')"><i class="fas fa-cog"></i>Settings</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                        <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
                     </div>
-                </nav>
-            `
-        });
+                </div>
+            </nav> `
+     });
         // --- Dashboard Page Component ---
         app.component('dashboard-page', {
             props: ['apiUrl', 'port'],
@@ -1087,7 +934,8 @@
 
         // --- Manage Database Page Component (NEW) ---
         app.component('manage-database-page', {
-            props: ['apiUrl', 'baseApiPath'], // apiUrl might be needed for base URL construction
+            props: ['apiUrl', 'baseApiPath'],
+            emits: ['show-confirm'], // To use the root confirm modal
             data() {
                 return {
                     databases: [],
@@ -1100,216 +948,457 @@
                     isLoadingTables: false,
                     isLoadingRows: false,
                     error: null,
-                    // Add pagination/filter state later if needed
+                    // Pagination state
                     currentPage: 1,
-                    rowsPerPage: 100, // Example limit
+                    rowsPerPage: 50, // Default rows per page
+                    totalRows: 0,
+                    // Editing state
+                    editingRow: null, // Holds the row data being edited
+                    editingRowIndex: null, // Index of the row being edited
+                    primaryKeyColumn: null, // Name of the primary key column (auto-detect or assume first)
+                    // Custom query state
+                    customQuery: '',
+                    queryResult: null,
+                    queryError: null,
+                    isQueryRunning: false,
+                    queryResultType: 'none', // 'rows', 'affected', 'error'
+                    // Modal instances (will be initialized in mounted)
+                    editModalInstance: null,
+                    queryModalInstance: null
+                }
+            },
+            computed: {
+                totalPages() {
+                    if (this.totalRows === 0 || this.rowsPerPage <= 0) return 1;
+                    return Math.ceil(this.totalRows / this.rowsPerPage);
                 }
             },
             methods: {
-                // Construct the full API path
-                getApiPath(endpoint) {
-                    // Ensure no double slashes
+                getApiPath(endpoint) { /* ... existing getApiPath ... */
                     const apiBase = this.baseApiPath.endsWith('/') ? this.baseApiPath.slice(0, -1) : this.baseApiPath;
                     const ep = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
                     return `${this.apiUrl}${apiBase}/${ep}`;
                 },
-                async fetchDatabases() {
-                    this.isLoadingDatabases = true;
-                    this.error = null;
-                    this.databases = [];
-                    this.tables = []; // Reset tables when fetching dbs
-                    this.rows = []; // Reset rows
-                    this.columns = [];
-                    this.selectedDatabase = null; // Reset selection
-                    this.selectedTable = null;
+                async fetchDatabases() { /* ... existing fetchDatabases ... */
+                    this.isLoadingDatabases = true; this.error = null; this.databases = []; this.tables = [];
+                    this.rows = []; this.columns = []; this.selectedDatabase = null; this.selectedTable = null;
                     try {
                         const response = await axios.get(this.getApiPath('databases'));
-                        // Assuming API returns { databases: ['db1', 'db2', ...] }
                         this.databases = response.data.databases || [];
-                    } catch (err) {
-                        console.error("Error fetching databases:", err);
-                        this.error = `Failed to load databases: ${err.response?.data?.error || err.message}`;
-                    } finally {
-                        this.isLoadingDatabases = false;
-                    }
+                    } catch (err) { this.error = `Failed to load databases: ${err.response?.data?.error || err.message}`; }
+                    finally { this.isLoadingDatabases = false; }
                 },
-                async selectDatabase(dbName) {
-                    if (this.selectedDatabase === dbName) return; // Avoid re-fetching if already selected
-
-                    this.selectedDatabase = dbName;
-                    this.selectedTable = null; // Reset table selection
-                    this.isLoadingTables = true;
-                    this.error = null;
-                    this.tables = [];
-                    this.rows = [];
-                    this.columns = [];
-
+                async selectDatabase(dbName) { /* ... existing selectDatabase (reset pagination) ... */
+                    if (this.selectedDatabase === dbName) return;
+                    this.selectedDatabase = dbName; this.selectedTable = null; this.isLoadingTables = true;
+                    this.error = null; this.tables = []; this.rows = []; this.columns = [];
+                    this.currentPage = 1; this.totalRows = 0; // Reset pagination
                     try {
                         const response = await axios.get(this.getApiPath(`databases/${dbName}/tables`));
-                         // Assuming API returns { tables: ['table1', 'table2', ...] }
                         this.tables = response.data.tables || [];
-                    } catch (err) {
-                        console.error(`Error fetching tables for ${dbName}:`, err);
-                        this.error = `Failed to load tables for ${dbName}: ${err.response?.data?.error || err.message}`;
-                    } finally {
-                        this.isLoadingTables = false;
-                    }
+                    } catch (err) { this.error = `Failed to load tables for ${dbName}: ${err.response?.data?.error || err.message}`; }
+                    finally { this.isLoadingTables = false; }
                 },
-                async selectTable(tableName) {
-                     if (!this.selectedDatabase || this.selectedTable === tableName) return;
+                async selectTable(tableName, page = 1) { // Add page parameter
+                     if (!this.selectedDatabase || (this.selectedTable === tableName && this.currentPage === page)) return; // Avoid refetch if same table/page
 
                      this.selectedTable = tableName;
+                     this.currentPage = page; // Set current page
                      this.isLoadingRows = true;
                      this.error = null;
                      this.rows = [];
                      this.columns = [];
+                     this.primaryKeyColumn = null; // Reset PK detection
 
                      try {
-                         // Fetch structure (columns) and rows concurrently
-                         const [structureResponse, rowsResponse] = await Promise.all([
-                             axios.get(this.getApiPath(`databases/${this.selectedDatabase}/tables/${tableName}/structure`)),
-                             axios.get(this.getApiPath(`databases/${this.selectedDatabase}/tables/${tableName}/rows?limit=${this.rowsPerPage}`)) // Add limit later
-                         ]);
-
-                         // Assuming structure API returns { columns: [{ Field: 'id', Type: 'int', ... }, ...] }
-                         this.columns = structureResponse.data.columns || [];
-                         // Assuming rows API returns { rows: [ {col1: val1, ...}, ...] }
+                         // Fetch structure only once if columns are empty
+                         if (this.columns.length === 0) {
+                             const structureResponse = await axios.get(this.getApiPath(`databases/${this.selectedDatabase}/tables/${tableName}/structure`));
+                             this.columns = structureResponse.data.columns || [];
+                             // Basic Primary Key Detection (assume first column or one named 'id')
+                             if (this.columns.length > 0) {
+                                const idCol = this.columns.find(c => c.Field.toLowerCase() === 'id');
+                                const pkCol = this.columns.find(c => c.Key === 'PRI');
+                                this.primaryKeyColumn = pkCol ? pkCol.Field : (idCol ? idCol.Field : this.columns[0].Field);
+                                console.log("Detected PK:", this.primaryKeyColumn);
+                             }
+                         }
+                         // Fetch rows for the current page
+                         const rowsResponse = await axios.get(this.getApiPath(`databases/${this.selectedDatabase}/tables/${tableName}/rows?limit=${this.rowsPerPage}&page=${this.currentPage}`));
                          this.rows = rowsResponse.data.rows || [];
+                         this.totalRows = rowsResponse.data.totalRows || 0;
 
                      } catch (err) {
                          console.error(`Error fetching data for ${this.selectedDatabase}.${tableName}:`, err);
                          this.error = `Failed to load data for ${tableName}: ${err.response?.data?.error || err.message}`;
-                         this.columns = []; // Clear on error
-                         this.rows = [];
+                         this.columns = []; this.rows = []; this.totalRows = 0;
                      } finally {
                          this.isLoadingRows = false;
                      }
                 },
-                 // --- Helper Methods ---
-                 formatValue(value) {
-                     if (value === null) return '<i class="text-muted">NULL</i>';
-                     if (typeof value === 'string' && value.length > 100) {
-                         // Truncate long strings for display
-                         return value.substring(0, 100) + '...';
+                // --- Row Actions ---
+                openEditModal(row, index) {
+                    if (!this.primaryKeyColumn) {
+                        this.error = 'Cannot edit row: Primary key column not identified.';
+                        return;
+                    }
+                    // Deep copy the row to avoid modifying the original data directly
+                    this.editingRow = JSON.parse(JSON.stringify(row));
+                    this.editingRowIndex = index;
+                    this.editModalInstance?.show();
+                },
+                async saveRowChanges() {
+                    if (!this.editingRow || !this.primaryKeyColumn || this.editingRow[this.primaryKeyColumn] === undefined) {
+                        this.error = 'Error saving: Missing data or primary key for editing.';
+                        return;
+                    }
+                    const pkValue = this.editingRow[this.primaryKeyColumn];
+                    // Prepare updates, excluding the PK itself
+                    const updates = { ...this.editingRow };
+                    delete updates[this.primaryKeyColumn];
+
+                    this.isLoadingRows = true; // Indicate loading state
+                    this.error = null;
+                    try {
+                        await axios.put(this.getApiPath(`databases/${this.selectedDatabase}/tables/${this.selectedTable}/rows`), {
+                            pkColumn: this.primaryKeyColumn,
+                            pkValue: pkValue,
+                            updates: updates
+                        });
+                        // Refresh current page data after successful update
+                        await this.selectTable(this.selectedTable, this.currentPage);
+                        this.editModalInstance?.hide(); // Close modal on success
+                    } catch (err) {
+                        console.error("Error updating row:", err);
+                        this.error = `Failed to update row (PK: ${pkValue}): ${err.response?.data?.error || err.message}`;
+                        // Keep modal open on error
+                    } finally {
+                         this.isLoadingRows = false;
+                    }
+                },
+                confirmDeleteRow(row, index) {
+                    if (!this.primaryKeyColumn) {
+                        this.error = 'Cannot delete row: Primary key column not identified.';
+                        return;
+                    }
+                    const pkValue = row[this.primaryKeyColumn];
+                    if (pkValue === undefined) {
+                         this.error = 'Cannot delete row: Primary key value not found.';
+                         return;
+                    }
+                    this.$emit('show-confirm', {
+                        message: `Are you sure you want to delete the row where ${this.primaryKeyColumn} = ${pkValue}? This action cannot be undone.`,
+                        callback: this.executeDeleteRow,
+                        param: { pkValue: pkValue } // Pass PK value
+                    });
+                },
+                async executeDeleteRow(params) {
+                    const { pkValue } = params;
+                    this.isLoadingRows = true;
+                    this.error = null;
+                    try {
+                        await axios.delete(this.getApiPath(`databases/${this.selectedDatabase}/tables/${this.selectedTable}/rows`), {
+                           // Send PK info in the request body for DELETE
+                           data: {
+                               pkColumn: this.primaryKeyColumn,
+                               pkValue: pkValue
+                           }
+                        });
+                        // Refresh data (go to page 1 if last item on page deleted?) - simple refresh for now
+                        await this.selectTable(this.selectedTable, this.currentPage);
+                    } catch (err) {
+                        console.error("Error deleting row:", err);
+                        this.error = `Failed to delete row (PK: ${pkValue}): ${err.response?.data?.error || err.message}`;
+                    } finally {
+                         this.isLoadingRows = false;
+                    }
+                },
+                // --- Table Actions ---
+                confirmDeleteTable(tableName) {
+                     this.$emit('show-confirm', {
+                        message: `Are you sure you want to permanently delete the table "${tableName}" from database "${this.selectedDatabase}"? This action cannot be undone.`,
+                        callback: this.executeDeleteTable,
+                        param: tableName
+                    });
+                },
+                async executeDeleteTable(tableName) {
+                    this.isLoadingTables = true; // Use table loading indicator
+                    this.error = null;
+                    try {
+                        await axios.delete(this.getApiPath(`databases/${this.selectedDatabase}/tables/${tableName}`));
+                        // Refresh tables list and reset view if the deleted table was selected
+                        if (this.selectedTable === tableName) {
+                            this.selectedTable = null;
+                            this.rows = [];
+                            this.columns = [];
+                            this.currentPage = 1;
+                            this.totalRows = 0;
+                        }
+                        // Re-fetch tables for the current DB
+                        const response = await axios.get(this.getApiPath(`databases/${this.selectedDatabase}/tables`));
+                        this.tables = response.data.tables || [];
+
+                    } catch (err) {
+                         console.error(`Error deleting table ${tableName}:`, err);
+                         this.error = `Failed to delete table "${tableName}": ${err.response?.data?.error || err.message}`;
+                    } finally {
+                        this.isLoadingTables = false;
+                    }
+                },
+                 // --- Custom Query ---
+                 openQueryModal() {
+                     this.customQuery = '';
+                     this.queryResult = null;
+                     this.queryError = null;
+                     this.queryResultType = 'none';
+                     this.queryModalInstance?.show();
+                 },
+                 async runCustomQuery() {
+                     if (!this.customQuery.trim()) {
+                         this.queryError = 'Query cannot be empty.';
+                         return;
                      }
-                     if (typeof value === 'object') {
-                         // Basic JSON display for objects/arrays
-                         try {
-                             return JSON.stringify(value);
-                         } catch {
-                             return '[Object]';
+                     this.isQueryRunning = true;
+                     this.queryResult = null;
+                     this.queryError = null;
+                     this.queryResultType = 'none';
+
+                     try {
+                         const response = await axios.post(this.getApiPath(`databases/${this.selectedDatabase}/run-query`), {
+                             query: this.customQuery
+                         });
+                         // Determine result type based on response structure
+                         if (response.data.rows !== undefined) {
+                             this.queryResultType = 'rows';
+                             this.queryResult = response.data; // { rows: [], fields: [] }
+                         } else if (response.data.affectedRows !== undefined) {
+                             this.queryResultType = 'affected';
+                             this.queryResult = response.data; // { affectedRows: N }
+                         } else {
+                              this.queryResultType = 'other';
+                              this.queryResult = response.data.result !== undefined ? response.data.result : response.data; // Fallback
                          }
+
+                     } catch (err) {
+                         console.error("Error running custom query:", err);
+                         this.queryError = `Query failed: ${err.response?.data?.error || err.message}`;
+                         this.queryResultType = 'error';
+                     } finally {
+                         this.isQueryRunning = false;
                      }
+                 },
+                 // --- Helpers ---
+                 formatValue(value) { /* ... existing formatValue ... */
+                     if (value === null) return '<i class="text-muted">NULL</i>';
+                     if (typeof value === 'string' && value.length > 100) { return value.substring(0, 100) + '...'; }
+                     if (typeof value === 'object') { try { return JSON.stringify(value); } catch { return '[Object]'; } }
                      return value;
                  },
-                 // --- Action Placeholders ---
-                 editRow(rowIndex) {
-                     alert(`Edit action triggered for row index: ${rowIndex}. Feature not implemented.`);
-                     // TODO: Implement modal or inline editing
+                 // --- Pagination ---
+                 changePage(newPage) {
+                    if (newPage >= 1 && newPage <= this.totalPages && newPage !== this.currentPage) {
+                        this.selectTable(this.selectedTable, newPage);
+                    }
                  },
-                 deleteRow(rowIndex) {
-                      alert(`Delete action triggered for row index: ${rowIndex}. Feature not implemented.`);
-                     // TODO: Implement confirmation and API call
+                 // --- Modal Initialization ---
+                 initializeModals() {
+                     // Edit Row Modal
+                     const editModalElement = this.$refs.editRowModal;
+                     if (editModalElement && typeof bootstrap !== 'undefined') {
+                         this.editModalInstance = new bootstrap.Modal(editModalElement);
+                     } else { console.error("Could not initialize edit row modal."); }
+                     // Run Query Modal
+                     const queryModalElement = this.$refs.runQueryModal;
+                      if (queryModalElement && typeof bootstrap !== 'undefined') {
+                          this.queryModalInstance = new bootstrap.Modal(queryModalElement);
+                      } else { console.error("Could not initialize run query modal."); }
                  }
             },
             mounted() {
-                this.fetchDatabases(); // Load databases when component mounts
+                this.fetchDatabases(); // Load databases on mount
+                // Initialize Bootstrap Modals after component is mounted
+                nextTick(() => {
+                    this.initializeModals();
+                });
+            },
+            // Watch for selected table changes to reset page
+            watch: {
+                selectedTable(newTable, oldTable) {
+                    if (newTable !== oldTable) {
+                        this.currentPage = 1; // Reset to page 1 when table changes
+                        // Fetching is handled by selectTable method
+                    }
+                }
             },
             template: `
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="m-0"><i class="fas fa-edit"></i> Manage Database</h3>
-                    </div>
-                    <div class="card-body p-0"> <div class="db-manager-layout">
+                    <div class="card-header"> <h3 class="m-0"><i class="fas fa-edit"></i> Manage Database</h3> </div>
+                    <div class="card-body p-0">
+                        <div class="db-manager-layout">
                             <div class="db-sidebar">
                                 <h5>Databases</h5>
-                                <div v-if="isLoadingDatabases" class="text-center">
-                                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                                </div>
+                                <div v-if="isLoadingDatabases" class="text-center"> <div class="spinner-border spinner-border-sm" role="status"></div> </div>
                                 <div v-else class="list-group list-group-flush mb-3">
-                                    <a v-for="db in databases" :key="db"
-                                       href="#"
-                                       class="list-group-item list-group-item-action py-1"
-                                       :class="{ active: selectedDatabase === db }"
-                                       @click.prevent="selectDatabase(db)">
-                                       <i class="fas fa-database me-2"></i>{{ db }}
+                                    <a v-for="db in databases" :key="db" href="#" class="list-group-item list-group-item-action py-1" :class="{ active: selectedDatabase === db }" @click.prevent="selectDatabase(db)">
+                                       <span><i class="fas fa-database me-2"></i>{{ db }}</span>
                                     </a>
-                                     <small v-if="!databases.length" class="text-muted">No databases found.</small>
+                                    <small v-if="!databases.length" class="text-muted p-2">No databases found.</small>
                                 </div>
 
                                 <div v-if="selectedDatabase">
                                     <h5 class="mt-3">Tables in {{ selectedDatabase }}</h5>
-                                    <div v-if="isLoadingTables" class="text-center">
-                                        <div class="spinner-border spinner-border-sm" role="status"></div>
-                                    </div>
+                                    <div v-if="isLoadingTables" class="text-center"> <div class="spinner-border spinner-border-sm" role="status"></div> </div>
                                     <div v-else class="list-group list-group-flush">
-                                        <a v-for="table in tables" :key="table"
-                                           href="#"
-                                           class="list-group-item list-group-item-action py-1"
-                                           :class="{ active: selectedTable === table }"
-                                           @click.prevent="selectTable(table)">
-                                           <i class="fas fa-table me-2"></i>{{ table }}
+                                        <a v-for="table in tables" :key="table" href="#" class="list-group-item list-group-item-action py-1" :class="{ active: selectedTable === table }" @click.prevent="selectTable(table, 1)">
+                                            <span><i class="fas fa-table me-2"></i>{{ table }}</span>
+                                            <span class="sidebar-item-actions">
+                                                <i class="fas fa-trash-alt text-danger clickable" title="Delete Table" @click.stop.prevent="confirmDeleteTable(table)"></i>
+                                            </span>
                                         </a>
-                                         <small v-if="!tables.length" class="text-muted">No tables found.</small>
+                                        <small v-if="!tables.length" class="text-muted p-2">No tables found.</small>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="db-content">
-                                <div v-if="error" class="alert alert-danger">{{ error }}</div>
+                                <div v-if="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    {{ error }}
+                                    <button type="button" class="btn-close" @click="error = null" aria-label="Close"></button>
+                                </div>
 
-                                <div v-if="!selectedDatabase" class="text-center text-muted mt-5">
-                                    <i class="fas fa-arrow-left fa-2x mb-3"></i>
-                                    <p>Select a database from the sidebar to begin.</p>
-                                </div>
-                                <div v-else-if="!selectedTable && !isLoadingTables" class="text-center text-muted mt-5">
-                                     <i class="fas fa-arrow-left fa-2x mb-3"></i>
-                                    <p>Select a table from the sidebar to view its data.</p>
-                                </div>
-                                <div v-else-if="selectedTable">
-                                    <h4>Data for {{ selectedDatabase }}.{{ selectedTable }}</h4>
-                                    <div v-if="isLoadingRows" class="text-center mt-4">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading data...</span>
-                                        </div>
+                                <div v-if="!selectedDatabase" class="text-center text-muted mt-5"> <i class="fas fa-arrow-left fa-2x mb-3"></i> <p>Select a database from the sidebar.</p> </div>
+                                <div v-else-if="!selectedTable && !isLoadingTables" class="text-center text-muted mt-5"> <i class="fas fa-arrow-left fa-2x mb-3"></i> <p>Select a table from the sidebar.</p> </div>
+
+                                <template v-else-if="selectedTable">
+                                    <div class="db-content-header">
+                                        <h4>Data: {{ selectedDatabase }}.{{ selectedTable }}</h4>
+                                        <button class="btn btn-sm btn-outline-secondary" @click="openQueryModal" title="Run Custom SQL Query">
+                                            <i class="fas fa-terminal me-1"></i> Run Query
+                                        </button>
                                     </div>
-                                    <div v-else-if="!columns.length" class="alert alert-warning">
-                                        No columns found or unable to load table structure.
-                                    </div>
-                                     <div v-else-if="!rows.length" class="alert alert-info">
-                                         Table appears to be empty or no rows were returned.
-                                     </div>
-                                    <div v-else class="table-responsive">
+
+                                    <div v-if="isLoadingRows" class="text-center mt-4"> <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> </div>
+                                    <div v-else-if="!columns.length" class="alert alert-warning"> No columns found or unable to load table structure. </div>
+                                    <div v-else-if="!rows.length" class="alert alert-info"> Table appears to be empty. </div>
+                                    <div v-else class="table-responsive-manager">
                                         <table class="table table-bordered table-striped table-sm table-hover">
                                             <thead>
                                                 <tr>
-                                                    <th scope="col">Actions</th>
-                                                    <th v-for="col in columns" :key="col.Field" scope="col">
-                                                        {{ col.Field }} <small class="text-muted">({{ col.Type }})</small>
+                                                    <th scope="col" style="width: 80px;">Actions</th> <th v-for="col in columns" :key="col.Field" scope="col">
+                                                        {{ col.Field }}
+                                                        <i v-if="col.Key === 'PRI'" class="fas fa-key text-warning ms-1" title="Primary Key"></i>
+                                                        <small class="text-muted d-block">({{ col.Type }})</small>
                                                     </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
-                                                    <td>
-                                                        <button class="btn btn-xs btn-outline-primary me-1 py-0 px-1" @click="editRow(rowIndex)" title="Edit Row">
-                                                            <i class="fas fa-pencil-alt fa-xs"></i>
-                                                        </button>
-                                                        <button class="btn btn-xs btn-outline-danger py-0 px-1" @click="deleteRow(rowIndex)" title="Delete Row">
-                                                            <i class="fas fa-trash-alt fa-xs"></i>
-                                                        </button>
+                                                <tr v-for="(row, rowIndex) in rows" :key="row[primaryKeyColumn] || rowIndex"> <td class="action-buttons">
+                                                        <span @click="openEditModal(row, rowIndex)" class="text-primary" title="Edit Row"> <i class="fas fa-pencil-alt"></i> </span>
+                                                        <span @click="confirmDeleteRow(row, rowIndex)" class="text-danger" title="Delete Row"> <i class="fas fa-trash-alt"></i> </span>
                                                     </td>
-                                                    <td v-for="col in columns" :key="col.Field" v-html="formatValue(row[col.Field])"></td>
-                                                </tr>
+                                                    <td v-for="col in columns" :key="col.Field" v-html="formatValue(row[col.Field])" :title="row[col.Field]"></td> </tr>
                                             </tbody>
                                         </table>
-                                        </div>
+                                    </div>
+                                     <nav v-if="totalRows > 0 && totalPages > 1" aria-label="Table navigation" class="pagination-controls">
+                                         <ul class="pagination pagination-sm justify-content-center">
+                                             <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                                 <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">&laquo; Prev</a>
+                                             </li>
+                                             <li class="page-item disabled"><span class="page-link">Page {{ currentPage }} of {{ totalPages }}</span></li>
+                                              <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                                 <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next &raquo;</a>
+                                             </li>
+                                         </ul>
+                                         <p class="text-center text-muted small">Showing rows {{ (currentPage - 1) * rowsPerPage + 1 }} - {{ Math.min(currentPage * rowsPerPage, totalRows) }} of {{ totalRows }}</p>
+                                     </nav>
+                                </template> </div> </div> </div> <div class="modal fade" ref="editRowModal" tabindex="-1" aria-labelledby="editRowModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="editRowModalLabel">Edit Row in {{ selectedTable }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body" v-if="editingRow">
+                                    <div v-for="col in columns" :key="col.Field" class="mb-2">
+                                        <label :for="'editField_' + col.Field" class="form-label">{{ col.Field }} <small class="text-muted">({{ col.Type }})</small></label>
+                                        <input v-if="col.Type.toLowerCase().includes('text') || col.Type.toLowerCase().includes('blob')"
+                                               :id="'editField_' + col.Field"
+                                               class="form-control form-control-sm"
+                                               v-model="editingRow[col.Field]"
+                                               :disabled="col.Field === primaryKeyColumn"
+                                               as="textarea" rows="3">
+                                        </input>
+                                        <input v-else
+                                               :type="col.Type.toLowerCase().includes('int') || col.Type.toLowerCase().includes('decimal') ? 'number' : 'text'"
+                                               :id="'editField_' + col.Field"
+                                               class="form-control form-control-sm"
+                                               v-model="editingRow[col.Field]"
+                                               :disabled="col.Field === primaryKeyColumn">
+                                    </div>
+                                    <div v-if="error" class="alert alert-danger mt-2">{{ error }}</div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" @click="saveRowChanges" :disabled="isLoadingRows">
+                                        <span v-if="isLoadingRows" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        Save Changes
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `
+
+                     <div class="modal fade" ref="runQueryModal" tabindex="-1" aria-labelledby="runQueryModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl"> <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="runQueryModalLabel">Run Custom Query in {{ selectedDatabase }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label for="customQueryTextarea" class="form-label">SQL Query (Only SELECT is recommended for safety)</label>
+                                        <textarea class="form-control font-monospace" id="customQueryTextarea" rows="5" v-model="customQuery" placeholder="e.g., SELECT * FROM your_table WHERE id = 1;"></textarea>
+                                        <small class="text-muted">Warning: Running arbitrary SQL queries can be dangerous. Avoid UPDATE, DELETE, DROP unless absolutely necessary.</small>
+                                    </div>
+                                    <button class="btn btn-primary" @click="runCustomQuery" :disabled="isQueryRunning || !customQuery.trim()">
+                                         <span v-if="isQueryRunning" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                         Run Query
+                                    </button>
+                                    <hr/>
+                                    <div v-if="isQueryRunning" class="text-center"> <div class="spinner-border text-primary" role="status"></div> </div>
+                                    <div v-if="queryError" class="alert alert-danger mt-3">{{ queryError }}</div>
+                                    <div v-if="queryResult">
+                                        <div v-if="queryResultType === 'rows'" class="mt-3">
+                                            <h6>Query Results ({{ queryResult.rows?.length || 0 }} rows)</h6>
+                                            <div v-if="queryResult.rows?.length > 0" class="query-results-table table-responsive">
+                                                <table class="table table-sm table-bordered table-striped">
+                                                    <thead>
+                                                        <tr> <th v-for="field in queryResult.fields" :key="field.name">{{ field.name }}</th> </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr v-for="(resRow, rIdx) in queryResult.rows" :key="rIdx">
+                                                             <td v-for="field in queryResult.fields" :key="field.name" v-html="formatValue(resRow[field.name])"></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <p v-else class="text-muted">Query executed successfully, but returned no rows.</p>
+                                        </div>
+                                        <div v-else-if="queryResultType === 'affected'" class="alert alert-success mt-3">
+                                            Query executed successfully. Affected Rows: {{ queryResult.affectedRows }}
+                                        </div>
+                                         <div v-else-if="queryResultType === 'other'" class="alert alert-info mt-3">
+                                             Query executed successfully. Result: <pre>{{ JSON.stringify(queryResult, null, 2) }}</pre>
+                                         </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer"> <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button> </div>
+                        </div> </div>
+                    </div>
+
+
+                </div> `
         });
 
         // Mount the app to the DOM
