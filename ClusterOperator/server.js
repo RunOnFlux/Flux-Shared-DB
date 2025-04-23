@@ -448,8 +448,26 @@ async function startUI() { // Make async to potentially await DB client init if 
       res.status(401).send('Unauthorized');
     }
   });
-
+  app.post('/compressbacklog', async (req, res) => {
+    if (authUser(req)) {
+      if (Operator.IamMaster) {
+        await Operator.comperssBacklog();
+      } else {
+        res.status(500).send('operation is only allowed on master node');
+      }
+    } else {
+      res.status(401).send('Unauthorized');
+    }
+  });
   // --- Authentication Routes ---
+  app.get('/isloggedin/', (req, res) => {
+    if (authUser(req)) {
+      res.cookie('loginphrase', req.headers.loginphrase);
+      res.send('OK');
+    } else {
+      res.status(401).send('Unauthorized');
+    }
+  });
   app.post('/verifylogin/', async (req, res) => { // Make async
     // Original code had duplicate logic for body parsing. Simplified.
     try {
