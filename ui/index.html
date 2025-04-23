@@ -57,7 +57,7 @@
   <div id="app">
     <navbar @navigate="navigateTo" @logout="logout" :active-page="currentPage"></navbar>
 
-    <main :class="{'container-fluid mt-3': currentPage !== 'manage-database'}">
+    <main :class="{'container-fluid mt-3'}">
         <dashboard-page v-if="currentPage === 'dashboard'" :api-url="apiUrl" :port="port"></dashboard-page>
         <time-machine-page v-if="currentPage === 'time-machine'" :api-url="apiUrl" @show-confirm="showConfirmModal"></time-machine-page>
         <backup-restore-page ref="backupRestorePageRef" v-if="currentPage === 'backup-restore'" :api-url="apiUrl" @show-confirm="showConfirmModal" @show-upload="showUploadModal"></backup-restore-page>
