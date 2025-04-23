@@ -730,9 +730,8 @@ async function startUI() { // Make async to potentially await DB client init if 
         return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
       }
 
-      const query = `SELECT * FROM \`${safeTableName}\` LIMIT ? OFFSET ?`;
-      const params = [limit, offset];
-      const result = await dbClientInstance.execute(query, params);
+      const query = `SELECT * FROM \`${safeTableName}\` LIMIT ${limit} OFFSET ${offset} `;
+      const result = await dbClientInstance.query(query);
 
       if (result && result.error) {
         if (result.code === 'ER_NO_SUCH_TABLE') {

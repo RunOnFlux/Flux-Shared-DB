@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flux Shared DB Dashboard (Vue.js)</title>
+    <title>Flux Shared DB Dashboard</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -372,39 +372,718 @@
                 </nav>
             `
         });
-
-        // --- Dashboard Page Component (No changes needed here) ---
+        // --- Dashboard Page Component ---
         app.component('dashboard-page', {
             props: ['apiUrl', 'port'],
-            data() { /* ... */ },
-            methods: { /* ... */ },
-            mounted() { /* ... */ },
-            template: ``
+            data() {
+                return {
+                    nodes: [],
+                    isLoading: false,
+                    error: null,
+                    dbEngine: 'MYSQL 8' // Or fetch dynamically if needed
+                }
+            },
+            methods: {
+                async fetchNodeStatus(ip) {
+                    try {
+                        // Construct URL carefully, ensuring port is included
+                        const statusUrl = `http://${ip}:${this.port}/status`;
+                        // console.log(`Fetching status from: ${statusUrl}`); // Debugging
+                        const response = await axios.get(statusUrl, { timeout: 4000 });
+                        return response.data; // { sequenceNumber, masterIP, status, taskStatus }
+                    } catch (err) {
+                        console.error(`Error fetching status for node ${ip}:`, err.message);
+                        // Provide a clearer error status
+                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A' };
+                    }
+                },
+                async fetchClusterStats() {
+                    this.isLoading = true;
+                    this.error = null;
+                    this.nodes = []; // Clear previous nodes
+                    try {
+                        const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
+                        if (Array.isArray(response.data)) {
+                            const nodePromises = response.data.map(async (node, index) => {
+                                const statusData = await this.fetchNodeStatus(node.ip);
+                                let displayStatus = statusData.status;
+                                if (displayStatus === 'COMPRESSING' && statusData.taskStatus !== undefined) {
+                                    displayStatus += ` ${statusData.taskStatus}%`;
+                                }
+                                return {
+                                    id: index + 1,
+                                    ip: node.ip,
+                                    sequenceNumber: statusData.sequenceNumber,
+                                    masterIP: statusData.masterIP,
+                                    status: displayStatus
+                                };
+                            });
+                            this.nodes = await Promise.all(nodePromises);
+                        } else {
+                             throw new Error("Invalid data format received for nodelist.");
+                        }
+                    } catch (err) {
+                        console.error("Error fetching cluster stats:", err);
+                        this.error = `Failed to load cluster stats: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            },
+            mounted() {
+                this.fetchClusterStats();
+                // Optional: Set up an interval to refresh stats
+                // this.intervalId = setInterval(this.fetchClusterStats, 15000); // Refresh every 15 seconds
+            },
+            // beforeUnmount() {
+            //     // Clear interval when component is destroyed
+            //     if (this.intervalId) {
+            //         clearInterval(this.intervalId);
+            //     }
+            // },
+            template: `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
+                        <span class="fs-5">DB Engine: {{ dbEngine }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div v-if="isLoading" class="d-flex justify-content-center">
+                            <div class="spinner-border text-info" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <div v-if="error" class="alert alert-danger">{{ error }}</div>
+                        <div v-if="!isLoading && !error">
+                            <h5>Active Nodes:</h5>
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" width="10">#</th>
+                                        <th scope="col" width="200">IP</th>
+                                        <th scope="col" width="200">Sequence Number</th>
+                                        <th scope="col" width="200">Master IP</th>
+                                        <th scope="col">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="nodes.length === 0">
+                                        <td colspan="5" class="text-center">No active nodes found.</td>
+                                    </tr>
+                                    <tr v-for="node in nodes" :key="node.ip">
+                                        <th scope="row">{{ node.id }}</th>
+                                        <td>{{ node.ip }}</td>
+                                        <td>{{ node.sequenceNumber }}</td>
+                                        <td>{{ node.masterIP }}</td>
+                                        <td>{{ node.status }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `
         });
 
-        // --- Time Machine Page Component (No changes needed here) ---
+        // --- Time Machine Page Component ---
         app.component('time-machine-page', {
              props: ['apiUrl'],
-             emits: ['show-confirm'],
-             data() { /* ... */ },
-             methods: { /* ... */ },
-             mounted() { /* ... */ },
-             beforeUnmount() { /* ... */ },
-            computed: { /* ... */ },
-             template: ``
+             emits: ['show-confirm'], // Declare emitted events
+             data() {
+                 return {
+                     selectedDate: null,
+                     queries: [],
+                     selectedQuerySeq: null,
+                     isLoadingQueries: false,
+                     isRewinding: false,
+                     rewindSuccess: false,
+                     rewindError: null,
+                     datePickerInstance: null,
+                     totalRecords: 0,
+                 }
+             },
+             methods: {
+                 initializeDatePicker(minDate, maxDate) {
+                     // Ensure jQuery is available and the element exists
+                     if (typeof $ !== 'undefined' && this.$refs.datepickerContainer) {
+                         this.datePickerInstance = $(this.$refs.datepickerContainer).datepicker({
+                             language: 'en',
+                             inline: true,
+                             minDate: minDate ? new Date(minDate) : null,
+                             maxDate: maxDate ? new Date(maxDate) : null,
+                             onSelect: (formattedDate, date, inst) => {
+                                 if (date) {
+                                     this.selectedDate = date;
+                                     this.fetchLogsForDate(date);
+                                     this.selectedQuerySeq = null; // Reset selection
+                                     this.rewindSuccess = false; // Reset status
+                                     this.rewindError = null;
+                                 }
+                             }
+                         }).data('datepicker');
+                     } else {
+                         console.error("jQuery or datepicker container not found for initialization.");
+                     }
+                 },
+                 async fetchDateRange() {
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/getLogDateRange`);
+                         this.initializeDatePicker(response.data.min_timestamp, response.data.max_timestamp);
+                     } catch (error) {
+                         console.error("Error fetching date range:", error);
+                         // Initialize datepicker without range limits if API fails
+                         this.initializeDatePicker(null, null);
+                     }
+                 },
+                 async fetchLogsForDate(date) {
+                     if (!date) return;
+                     this.isLoadingQueries = true;
+                     this.queries = [];
+                     this.totalRecords = 0;
+                     const timestamp = Math.floor(date.getTime());
+                     // Fetch logs for the entire day (adjust length as needed)
+                     const startTime = new Date(date);
+                     startTime.setHours(0, 0, 0, 0);
+                     const endTime = new Date(date);
+                     endTime.setHours(23, 59, 59, 999);
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/getLogsByTime?starttime=${startTime.getTime()}&length=${endTime.getTime() - startTime.getTime()}`);
+                         let points = 0;
+                         const relevantQueries = [];
+                         const rawData = response.data; // Assuming response.data is the array
+
+                         for (let i = 0; i < rawData.length; i++) {
+                             if (rawData[i].query && rawData[i].query.toLowerCase().startsWith('set sess')) {
+                                 points++;
+                                 let ops = 1;
+                                 let currentSeq = rawData[i].seq; // Capture the seq of the 'set sess' query
+                                 let timestamp = rawData[i].timestamp; // Capture the timestamp
+
+                                 // Count operations until the next 'set sess' or end of data
+                                 let j = i + 1;
+                                 while (j < rawData.length && (!rawData[j].query || !rawData[j].query.toLowerCase().startsWith('set sess'))) {
+                                     ops++;
+                                     j++;
+                                 }
+
+                                 relevantQueries.push({
+                                     seq: currentSeq,
+                                     timestamp: timestamp,
+                                     ops: ops,
+                                     displayTime: new Date(timestamp).toLocaleString()
+                                 });
+                                 i = j - 1; // Move the outer loop index forward
+                             }
+                         }
+                         this.queries = relevantQueries;
+                         this.totalRecords = points;
+
+                     } catch (error) {
+                         console.error("Error fetching logs:", error);
+                         this.queries = []; // Clear queries on error
+                         this.totalRecords = 0;
+                     } finally {
+                         this.isLoadingQueries = false;
+                     }
+                 },
+                 selectQuery(seq) {
+                     if (this.isRewinding) return; // Prevent selection change during rewind
+                     this.selectedQuerySeq = seq;
+                     this.rewindSuccess = false; // Reset status
+                     this.rewindError = null;
+                 },
+                 confirmRewind() {
+                     if (!this.selectedQuerySeq) {
+                         alert("Please select a recovery point first.");
+                         return;
+                     }
+                      // Emit an event to the parent to show the confirmation modal
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible. Are you sure you want to rewind to sequence ${this.selectedQuerySeq}?</span>`,
+                          callback: this.executeRewind, // Pass the actual rewind method
+                          param: this.selectedQuerySeq   // Pass the sequence number
+                      });
+                 },
+                 async executeRewind(seq) {
+                     if (!seq) return; // Safety check
+
+                     this.isRewinding = true;
+                     this.rewindSuccess = false;
+                     this.rewindError = null;
+                     this.$root.lock = true; // Use root lock state if needed globally
+
+                     try {
+                         const response = await axios.post(`${this.apiUrl}/rollback`, { seqNo: seq });
+                         console.log('Rewind response:', response.data);
+                         this.rewindSuccess = true;
+                         // Optionally re-fetch logs or update UI state after successful rewind
+                         if (this.selectedDate) {
+                            this.fetchLogsForDate(this.selectedDate); // Refresh logs for the current date
+                         }
+                         this.selectedQuerySeq = null; // Deselect after rewind
+                     } catch (error) {
+                         console.error("Error during rewind:", error);
+                         this.rewindError = `Rewind failed: ${error.response?.data || error.message}`;
+                         this.rewindSuccess = false;
+                     } finally {
+                         this.isRewinding = false;
+                         this.$root.lock = false; // Release lock
+                     }
+                 }
+             },
+             mounted() {
+                 this.fetchDateRange(); // Fetch range and initialize datepicker
+             },
+             beforeUnmount() {
+                 // Clean up datepicker instance if it exists
+                 if (this.datePickerInstance) {
+                     this.datePickerInstance.destroy();
+                 }
+             },
+            computed: {
+                rewindButtonDisabled() {
+                    return !this.selectedQuerySeq || this.isRewinding;
+                }
+            },
+             template: `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="m-0"><i class="fas fa-history"></i> Point-in-time Recovery</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-xxl-3 col-xl-12 mb-3 mb-xxl-0">
+                                <p class="text-secondary fs-5">1. Choose a Date</p>
+                                <div ref="datepickerContainer" class="datepicker-here"></div>
+                            </div>
+
+                            <div class="col-xxl-7 col-xl-12 mb-3 mb-xxl-0">
+                                <p class="text-secondary fs-5">2. Choose Recovery Point</p>
+                                <div class="queries-tm">
+                                    <div class="query-h">
+                                        <span class="q-text">Total <b>{{ totalRecords }}</b> sessions found for selected date</span>
+                                        <span class="q-date">Date and Time</span>
+                                    </div>
+                                    <div v-if="isLoadingQueries" class="text-center p-3">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="queries.length === 0 && selectedDate" class="text-center p-3 text-muted">
+                                        No recovery points found for this date.
+                                    </div>
+                                     <div v-else-if="!selectedDate" class="text-center p-3 text-muted">
+                                         Please select a date.
+                                     </div>
+                                    <div v-else>
+                                        <div v-for="query in queries" :key="query.seq"
+                                             class="query"
+                                             :class="{ 'selected': query.seq === selectedQuerySeq }"
+                                             @click="selectQuery(query.seq)">
+                                             <span class="q-text"><i class="fas fa-circle text-warning me-2"></i> Seq: {{ query.seq }}</span>
+                                             <span class="q-date">{{ query.ops }} Ops - {{ query.displayTime }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-xxl-2 col-xl-12">
+                                <p class="text-secondary fs-5">3. Rewind</p>
+                                <button type="button" class="btn btn-dark w-100" @click="confirmRewind" :disabled="rewindButtonDisabled">
+                                    <i class="fas fa-history"></i> Rewind Database
+                                </button>
+                                <p class="text-secondary fs-7 mt-2">Caution! This action is irreversible and will permanently rewind your database to the selected point. All data after this point will be lost.</p>
+
+                                <div v-if="isRewinding" class="mt-2 d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-xs me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Rewind in progress, please wait...</span>
+                                </div>
+                                <div v-if="rewindSuccess && !isRewinding" class="mt-2 text-success">
+                                    <span><i class="fas fa-check-double me-1"></i> Rewind Finished Successfully!</span>
+                                </div>
+                                 <div v-if="rewindError && !isRewinding" class="mt-2 text-danger">
+                                     <span><i class="fas fa-times-circle me-1"></i> {{ rewindError }}</span>
+                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
          });
 
-        // --- Backup & Restore Page Component (No changes needed here) ---
+        // --- Backup & Restore Page Component ---
         app.component('backup-restore-page', {
              props: ['apiUrl'],
              emits: ['show-confirm', 'show-upload'],
-             // Add name option for easier finding if needed, though ref is preferred
-             name: 'BackupRestorePage',
-             data() { /* ... */ },
-             methods: { /* ... */ },
-             mounted() { /* ... */ },
-             template: ``
+             data() {
+                 return {
+                     backupFiles: [],
+                     isLoading: false,
+                     error: null,
+                     generatingBackup: false,
+                     executingBackup: null, // Store filename being executed
+                     importInProgress: false, // General flag
+                 }
+             },
+             methods: {
+                 async fetchBackupFiles() {
+                     this.isLoading = true;
+                     this.error = null;
+                     try {
+                         const response = await axios.get(`${this.apiUrl}/listbackups`, { timeout: 5000 });
+                         if (Array.isArray(response.data)) {
+                             this.backupFiles = response.data.map((file, index) => ({
+                                 id: index + 1,
+                                 ...file,
+                                 fileNameWithoutExt: file.fileName.split('.')[0] // For actions
+                             }));
+                         } else {
+                             this.backupFiles = [];
+                             console.warn("Received non-array data for backup list:", response.data);
+                         }
+                     } catch (err) {
+                         console.error("Error fetching backup files:", err);
+                         this.error = `Failed to load backup files: ${err.message}`;
+                         this.backupFiles = [];
+                     } finally {
+                         this.isLoading = false;
+                     }
+                 },
+                 async generateBackup() {
+                     if (this.generatingBackup) return;
+                     this.generatingBackup = true;
+                     this.error = null; // Clear previous errors
+                     try {
+                         // Add a small delay for user feedback if needed
+                         // await new Promise(resolve => setTimeout(resolve, 500));
+                         await axios.post(`${this.apiUrl}/generatebackup`, {}, { timeout: 60000 }); // Increased timeout for generation
+                         // Wait a bit before refreshing the list
+                         await new Promise(resolve => setTimeout(resolve, 1500));
+                         await this.fetchBackupFiles(); // Refresh list after generation
+                     } catch (err) {
+                         console.error("Error generating backup:", err);
+                         this.error = `Failed to generate backup: ${err.response?.data || err.message}`;
+                     } finally {
+                         this.generatingBackup = false;
+                     }
+                 },
+                 confirmDelete(filename) {
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible. Are you sure you want to delete the backup file <strong>${filename}.sql</strong>?</span>`,
+                          callback: this.executeDelete,
+                          param: filename
+                      });
+                 },
+                 async executeDelete(filename) {
+                     this.error = null;
+                     try {
+                         await axios.post(`${this.apiUrl}/deletebackup`, { filename }, { timeout: 5000 });
+                         await this.fetchBackupFiles(); // Refresh list
+                     } catch (err) {
+                         console.error("Error deleting backup:", err);
+                         this.error = `Failed to delete backup ${filename}.sql: ${err.response?.data || err.message}`;
+                     }
+                 },
+                 confirmExecute(filename) {
+                     if (this.importInProgress) {
+                         alert("Another import/execute operation is already in progress.");
+                         return;
+                     }
+                      this.$emit('show-confirm', {
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible and may overwrite existing data. Are you sure you want to execute the backup file <strong>${filename}.sql</strong>?</span>`,
+                          callback: this.executeBackup,
+                          param: filename
+                      });
+                 },
+                 async executeBackup(filename) {
+                     if (this.importInProgress) return; // Double check
+
+                     this.executingBackup = filename; // Mark which file is executing
+                     this.importInProgress = true;
+                     this.error = null;
+                     try {
+                         await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 300000 }); // Long timeout for execution
+                         alert(`Backup file ${filename}.sql executed successfully.`); // Simple feedback
+                     } catch (err) {
+                         console.error("Error executing backup:", err);
+                         this.error = `Failed to execute backup ${filename}.sql: ${err.response?.data || err.message}`;
+                         alert(`Error executing backup ${filename}.sql: ${this.error}`); // Show error
+                     } finally {
+                         this.executingBackup = null;
+                         this.importInProgress = false;
+                         await this.fetchBackupFiles(); // Refresh list regardless of outcome
+                     }
+                 },
+                 getDownloadUrl(filename) {
+                     return `${this.apiUrl}/getbackupfile/${filename}`;
+                 },
+                 triggerUploadModal() {
+                     this.$emit('show-upload');
+                 }
+             },
+             mounted() {
+                 this.fetchBackupFiles();
+             },
+             template: `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="m-0"><i class="fas fa-cloud-upload-alt"></i> Backup and Restore</h3>
+                    </div>
+                    <div class="card-body">
+                        <div v-if="error" class="alert alert-danger">{{ error }}</div>
+
+                        <div class="d-flex justify-content-between align-items-center p-2 mb-3 border-bottom">
+                            <h5>Local Backup Files:</h5>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="generateBackup" :disabled="generatingBackup || importInProgress">
+                                    <span v-if="generatingBackup" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                    <i v-else class="fas fa-plus me-1"></i>
+                                    {{ generatingBackup ? 'Generating...' : 'Generate New Backup' }}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="triggerUploadModal" :disabled="generatingBackup || importInProgress">
+                                    <i class="fas fa-upload me-1"></i> Upload Backup File
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="isLoading" class="d-flex justify-content-center my-4">
+                            <div id="backup-file-list-spinner" class="spinner-border text-info" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+
+                        <table v-else class="table table-hover table-bordered align-middle">
+                            <thead>
+                                <tr>
+                                    <th scope="col" width="10">#</th>
+                                    <th scope="col" width="300">Name</th>
+                                    <th scope="col" width="150">File Size</th>
+                                    <th scope="col" width="250">Date & Time</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="backupFiles.length === 0">
+                                    <td colspan="5" class="text-center text-muted">No backup files found.</td>
+                                </tr>
+                                <tr v-for="file in backupFiles" :key="file.fileName">
+                                    <th scope="row">{{ file.id }}</th>
+                                    <td>{{ file.fileName }}</td>
+                                    <td>{{ file.fileSize }}</td>
+                                    <td>{{ file.createdDateTime }}</td>
+                                    <td>
+                                        <a class="btn btn-sm btn-success me-1" :href="getDownloadUrl(file.fileNameWithoutExt)" target="_blank" :disabled="importInProgress">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                        <button class="btn btn-sm btn-danger me-1" @click="confirmDelete(file.fileNameWithoutExt)" :disabled="importInProgress || executingBackup === file.fileNameWithoutExt">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                        <button class="btn btn-sm btn-dark" @click="confirmExecute(file.fileNameWithoutExt)" :disabled="importInProgress || generatingBackup">
+                                            <i class="fas fa-play"></i> Execute
+                                            <span v-if="executingBackup === file.fileNameWithoutExt" class="spinner-border spinner-border-xs action-spinner" role="status" aria-hidden="true"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+             `
          });
+
+        // --- Confirm Modal Component ---
+        app.component('confirm-modal', {
+             emits: ['confirmed'],
+             data() {
+                 return {
+                     modalInstance: null,
+                     message: 'Are you sure?', // Default message
+                     isLoading: false
+                 }
+             },
+             methods: {
+                 show(message) {
+                     this.message = message || 'Are you sure?';
+                     this.isLoading = false; // Reset loading state
+                     if (this.modalInstance) {
+                         this.modalInstance.show();
+                     }
+                 },
+                 hide() {
+                     if (this.modalInstance) {
+                         this.modalInstance.hide();
+                     }
+                 },
+                 confirmAction() {
+                     this.isLoading = true; // Show loading state on 'Yes' button
+                     // Introduce a small delay for visual feedback if needed,
+                     // otherwise the parent handles the actual async logic.
+                     setTimeout(() => {
+                         this.$emit('confirmed');
+                         // Consider hiding the modal immediately or letting the parent hide it after the action
+                         this.hide();
+                         this.isLoading = false; // Reset loading state after emitting
+                     }, 100); // Small delay
+                 }
+             },
+             mounted() {
+                 // Initialize Bootstrap modal instance
+                 const modalElement = this.$refs.modal;
+                 if (modalElement && typeof bootstrap !== 'undefined') {
+                     this.modalInstance = new bootstrap.Modal(modalElement);
+                 } else {
+                     console.error("Bootstrap modal could not be initialized.");
+                 }
+             },
+             template: `
+                <div class="modal fade" ref="modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="confirmModalLabel">Confirmation</h5>
+                                <button type="button" class="btn-close" @click="hide" aria-label="Close" :disabled="isLoading"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div v-html="message"></div>
+                                <div v-if="isLoading" class="mt-3">
+                                     <div class="spinner-border spinner-border-sm" role="status">
+                                         <span class="visually-hidden">Loading...</span>
+                                     </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" @click="hide" :disabled="isLoading">No</button>
+                                <button type="button" class="btn btn-dark" @click="confirmAction" :disabled="isLoading">
+                                     <span v-if="isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                     Yes
+                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
+         });
+
+        // --- Upload Modal Component ---
+        app.component('upload-modal', {
+             props: ['apiUrl'],
+             emits: ['upload-complete'],
+             data() {
+                 return {
+                     modalInstance: null,
+                     selectedFile: null,
+                     uploadStatus: '',
+                     isUploading: false,
+                 }
+             },
+             methods: {
+                 show() {
+                     this.reset();
+                     if (this.modalInstance) {
+                         this.modalInstance.show();
+                     }
+                 },
+                 hide() {
+                     if (this.modalInstance) {
+                         this.modalInstance.hide();
+                     }
+                 },
+                 handleFileChange(event) {
+                     this.selectedFile = event.target.files[0];
+                     this.uploadStatus = this.selectedFile ? `Selected: ${this.selectedFile.name}` : 'Please select an SQL file.';
+                 },
+                 async uploadFile() {
+                     if (!this.selectedFile) {
+                         this.uploadStatus = 'Please select an SQL file first.';
+                         return;
+                     }
+                     if (!this.selectedFile.name.toLowerCase().endsWith('.sql')) {
+                         this.uploadStatus = 'Error: Please select a valid .sql file.';
+                         return;
+                     }
+
+                     this.isUploading = true;
+                     this.uploadStatus = 'Uploading...';
+
+                     const formData = new FormData();
+                     formData.append('sqlFile', this.selectedFile);
+
+                     try {
+                         const response = await axios.post(`${this.apiUrl}/upload-sql`, formData, {
+                             headers: {
+                                 'Content-Type': 'multipart/form-data'
+                             },
+                             timeout: 120000 // Timeout for upload
+                         });
+                         this.uploadStatus = `Success: ${response.data}`;
+                         this.$emit('upload-complete'); // Notify parent
+                         // Optionally close modal after a short delay on success
+                         setTimeout(() => this.hide(), 1500);
+                     } catch (error) {
+                         console.error("Upload error:", error);
+                         this.uploadStatus = `Error: ${error.response?.data || error.message}`;
+                     } finally {
+                         this.isUploading = false;
+                     }
+                 },
+                 reset() {
+                     this.selectedFile = null;
+                     this.uploadStatus = 'Please select an SQL file.';
+                     this.isUploading = false;
+                     // Reset the file input visually if possible
+                     const fileInput = this.$refs.sqlFileInput;
+                     if(fileInput) {
+                         fileInput.value = '';
+                     }
+                 }
+             },
+             mounted() {
+                 const modalElement = this.$refs.modal;
+                 if (modalElement && typeof bootstrap !== 'undefined') {
+                     this.modalInstance = new bootstrap.Modal(modalElement);
+                     // Reset state when modal is hidden
+                     modalElement.addEventListener('hidden.bs.modal', this.reset);
+                 } else {
+                     console.error("Bootstrap modal could not be initialized for upload.");
+                 }
+             },
+             beforeUnmount() {
+                 // Clean up event listener
+                 const modalElement = this.$refs.modal;
+                 if (modalElement) {
+                     modalElement.removeEventListener('hidden.bs.modal', this.reset);
+                 }
+             },
+             template: `
+                <div class="modal fade" ref="modal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="uploadModalLabel">Upload Backup SQL File</h5>
+                                <button type="button" class="btn-close" @click="hide" aria-label="Close" :disabled="isUploading"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="sqlFile" class="form-label">Select an .sql file:</label>
+                                    <input type="file" class="form-control" id="sqlFile" ref="sqlFileInput" @change="handleFileChange" accept=".sql" :disabled="isUploading">
+                                </div>
+                                <div class="d-flex justify-content-end mb-2">
+                                    <button class="btn btn-dark" @click="uploadFile" :disabled="isUploading || !selectedFile">
+                                        <span v-if="isUploading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        {{ isUploading ? 'Uploading...' : 'Upload' }}
+                                    </button>
+                                </div>
+                                <div id="uploadStatus" class="mt-2 text-muted small">{{ uploadStatus }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             `
+         });
+
+
 
         // --- Manage Database Page Component (NEW) ---
         app.component('manage-database-page', {
@@ -632,28 +1311,6 @@
                 </div>
             `
         });
-
-
-        // --- Confirm Modal Component (No changes needed here) ---
-        app.component('confirm-modal', {
-             emits: ['confirmed'],
-             data() { /* ... */ },
-             methods: { /* ... */ },
-             mounted() { /* ... */ },
-             template: ``
-         });
-
-        // --- Upload Modal Component (No changes needed here) ---
-        app.component('upload-modal', {
-             props: ['apiUrl'],
-             emits: ['upload-complete'],
-             data() { /* ... */ },
-             methods: { /* ... */ },
-             mounted() { /* ... */ },
-             beforeUnmount() { /* ... */ },
-             template: ``
-         });
-
 
         // Mount the app to the DOM
         app.mount('#app');
