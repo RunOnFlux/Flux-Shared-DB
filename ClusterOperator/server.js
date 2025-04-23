@@ -1012,6 +1012,8 @@ async function startUI() { // Make async to potentially await DB client init if 
         if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
           // Likely a SELECT result
           res.json({ success: true, rows: result[0], fields: result[1] });
+        } else {
+          res.json({ success: true, result });
         }
       } else {
         // eslint-disable-next-line no-lonely-if
