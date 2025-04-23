@@ -800,9 +800,8 @@ async function startUI() { // Make async to potentially await DB client init if 
       return res.status(400).json({ error: 'Invalid characters in names.' });
     }
 
-    // --- Build Query ---
+    // --- Build Query using manual escaping ---
     const setClauses = [];
-    const queryParams = [];
     // eslint-disable-next-line guard-for-in
     for (const col in updates) {
       // Sanitize column name before quoting
@@ -812,17 +811,20 @@ async function startUI() { // Make async to potentially await DB client init if 
         // eslint-disable-next-line no-continue
         continue; // Skip potentially unsafe column names
       }
-      setClauses.push(`${quoteIdentifier(safeCol)} = ?`);
-      queryParams.push(updates[col]); // Add value to params
+      // Manually escape the value using the connection's escape method
+      const escapedValue = dbClientInstance.connection.escape(updates[col]); // Use dbClient.connection.escape
+      setClauses.push(`${quoteIdentifier(safeCol)} = ${escapedValue}`);
     }
 
     if (setClauses.length === 0) {
       return res.status(400).json({ error: 'No valid columns provided for update.' });
     }
 
-    queryParams.push(pkValue); // Add the PK value for the WHERE clause
+    // Escape the primary key value for the WHERE clause
+    const escapedPkValue = dbClientInstance.connection.escape(pkValue);
 
-    const query = `UPDATE ${quoteIdentifier(safeTableName)} SET ${setClauses.join(', ')} WHERE ${quoteIdentifier(safePkColumn)} = ${queryParams}`;
+    // Construct the final query string
+    const query = `UPDATE ${quoteIdentifier(safeTableName)} SET ${setClauses.join(', ')} WHERE ${quoteIdentifier(safePkColumn)} = ${escapedPkValue}`;
 
     // --- Execute ---
     try {
@@ -964,7 +966,7 @@ async function startUI() { // Make async to potentially await DB client init if 
     // VERY IMPORTANT: Add checks to prevent dangerous queries.
     // This is a basic example, needs significant enhancement for production.
     const lowerQuery = query.toLowerCase().trim();
-    const disallowedKeywords = ['drop ', 'delete ', 'update ', 'insert ', 'alter ', 'truncate ', 'create ']; // Example blacklist
+    const disallowedKeywords = ['drop ', 'delete ', 'alter ', 'truncate ']; // Example blacklist
     let writeQuery = false;
     // Allow SELECT by default, explicitly block others for now
     if (!lowerQuery.startsWith('select ')) {
