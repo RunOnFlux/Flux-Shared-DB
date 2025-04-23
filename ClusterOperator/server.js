@@ -822,34 +822,31 @@ async function startUI() { // Make async to potentially await DB client init if 
 
     queryParams.push(pkValue); // Add the PK value for the WHERE clause
 
-    const query = `UPDATE ${quoteIdentifier(safeTableName)} SET ${setClauses.join(', ')} WHERE ${quoteIdentifier(safePkColumn)} = ?`;
+    const query = `UPDATE ${quoteIdentifier(safeTableName)} SET ${setClauses.join(', ')} WHERE ${quoteIdentifier(safePkColumn)} = ${queryParams}`;
 
     // --- Execute ---
     try {
-      const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) { /* ... error handling ... */
-        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
-      }
-
-      const result = await dbClientInstance.execute(query, queryParams);
-
-      if (result && result.error) {
-        if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
-        if (result.code === 'ER_BAD_FIELD_ERROR') return res.status(400).json({ error: `Invalid column name provided for update: ${result.error}` });
-        return res.status(500).json({ error: `Failed to update row: ${result.error}`, code: result.code });
-      }
-
-      // Check affectedRows (result[0] for execute often contains metadata)
-      if (result && result.affectedRows !== undefined) {
-        if (result.affectedRows > 0) {
-          res.json({ success: true, message: `Row updated successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+      if (Operator.IamMaster) {
+        // Emit a message to all nodes if needed (e.g., for replication)
+        const result = await Operator.sendWriteQuery(query);
+        if (result && result.error) {
+          if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+          if (result.code === 'ER_BAD_FIELD_ERROR') return res.status(400).json({ error: `Invalid column name provided for update: ${result.error}` });
+          return res.status(500).json({ error: `Failed to update row: ${result.error}`, code: result.code });
+        }
+        // Check affectedRows (result[0] for execute often contains metadata)
+        if (result && result.affectedRows !== undefined) {
+          if (result.affectedRows > 0) {
+            res.json({ success: true, message: `Row updated successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+          } else {
+            res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue} or no changes made.` });
+          }
         } else {
-          res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue} or no changes made.` });
+          log.warn('Update executed but result format unexpected:', result);
+          res.json({ success: true, message: 'Update command executed, but result format was unexpected.' });
         }
       } else {
-        log.warn('Update executed but result format unexpected:', result);
-        res.json({ success: true, message: 'Update command executed, but result format was unexpected.' });
+        return res.status(500).json({ error: 'Failed: only master nodes can do this' });
       }
     } catch (error) {
       log.error(`Error updating row in ${safeDbName}.${safeTableName}: ${error.message}`);
@@ -875,33 +872,30 @@ async function startUI() { // Make async to potentially await DB client init if 
     }
 
     // --- Build Query ---
-    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ?`;
     const queryParams = [pkValue];
+    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ${queryParams}`;
 
     // --- Execute ---
     try {
-      const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) { /* ... error handling ... */
-        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
-      }
-
-      const result = await dbClientInstance.execute(query, queryParams);
-
-      if (result && result.error) {
-        if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
-        return res.status(500).json({ error: `Failed to delete row: ${result.error}`, code: result.code });
-      }
-
-      if (result && result.affectedRows !== undefined) {
-        if (result.affectedRows > 0) {
-          res.json({ success: true, message: `Row deleted successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+      if (Operator.IamMaster) {
+        // Emit a message to all nodes if needed (e.g., for replication)
+        const result = await Operator.sendWriteQuery(query);
+        if (result && result.error) {
+          if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+          return res.status(500).json({ error: `Failed to delete row: ${result.error}`, code: result.code });
+        }
+        if (result && result.affectedRows !== undefined) {
+          if (result.affectedRows > 0) {
+            res.json({ success: true, message: `Row deleted successfully (PK: ${pkValue}).`, affectedRows: result.affectedRows });
+          } else {
+            res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue}.` });
+          }
         } else {
-          res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue}.` });
+          log.warn('Delete executed but result format unexpected:', result);
+          res.json({ success: true, message: 'Delete command executed, but result format was unexpected.' });
         }
       } else {
-        log.warn('Delete executed but result format unexpected:', result);
-        res.json({ success: true, message: 'Delete command executed, but result format was unexpected.' });
+        return res.status(500).json({ error: 'Failed: only master nodes can do this' });
       }
     } catch (error) {
       log.error(`Error deleting row in ${safeDbName}.${safeTableName}: ${error.message}`);
@@ -933,11 +927,15 @@ async function startUI() { // Make async to potentially await DB client init if 
       }
 
       log.warn(`Executing DROP TABLE query for ${safeDbName}.${safeTableName}. This is irreversible.`);
-      const result = await dbClientInstance.query(query); // Use query, not execute for DROP
-
-      if (result && result.error) {
-        // Error codes might differ for DROP TABLE failures
-        return res.status(500).json({ error: `Failed to drop table: ${result.error}`, code: result.code });
+      if (Operator.IamMaster) {
+        // Emit a message to all nodes if needed (e.g., for replication)
+        const result = await Operator.sendWriteQuery(query);
+        if (result && result.error) {
+          // Error codes might differ for DROP TABLE failures
+          return res.status(500).json({ error: `Failed to drop table: ${result.error}`, code: result.code });
+        }
+      } else {
+        return res.status(500).json({ error: 'Failed: only master nodes can do this' });
       }
 
       // DROP TABLE doesn't typically return affectedRows. Success is indicated by lack of error.
@@ -967,10 +965,12 @@ async function startUI() { // Make async to potentially await DB client init if 
     // This is a basic example, needs significant enhancement for production.
     const lowerQuery = query.toLowerCase().trim();
     const disallowedKeywords = ['drop ', 'delete ', 'update ', 'insert ', 'alter ', 'truncate ', 'create ']; // Example blacklist
+    let writeQuery = false;
     // Allow SELECT by default, explicitly block others for now
     if (!lowerQuery.startsWith('select ')) {
       // More fine-grained check: allow specific non-selects if needed, but be careful
       let isDisallowed = false;
+      writeQuery = true;
       for (const keyword of disallowedKeywords) {
         if (lowerQuery.startsWith(keyword)) {
           isDisallowed = true;
@@ -994,33 +994,42 @@ async function startUI() { // Make async to potentially await DB client init if 
 
     // --- Execute ---
     try {
-      const setResult = await dbClientInstance.setDB(safeDbName);
-      if (setResult && setResult.error) { /* ... error handling ... */
-        if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
-        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
-      }
-
-      log.info(`Executing custom query in DB ${safeDbName}: ${query}`);
-      // Use simple query execution. Prepared statements aren't suitable for arbitrary queries.
-      const result = await dbClientInstance.query(query, true); // Get raw result [rows, fields]
-
-      if (result && result.error) {
-        // Provide specific DB errors back to the user
-        return res.status(400).json({ error: `Query execution failed: ${result.error}`, code: result.code });
-      }
-
-      // Result format depends on the query type
-      // For SELECT, result is [rows, fields]
-      // For others (if allowed), it might be metadata object
-      if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
-        // Likely a SELECT result
-        res.json({ success: true, rows: result[0], fields: result[1] });
-      } else if (result && result.affectedRows !== undefined) {
-        // Likely an INSERT/UPDATE/DELETE result (if allowed)
-        res.json({ success: true, affectedRows: result.affectedRows, changedRows: result.changedRows });
+      if (!writeQuery) {
+        const setResult = await dbClientInstance.setDB(safeDbName);
+        if (setResult && setResult.error) { /* ... error handling ... */
+          if (setResult.code === 'ER_BAD_DB_ERROR') return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+          return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+        }
+        log.info(`Executing custom query in DB ${safeDbName}: ${query}`);
+        // Use simple query execution. Prepared statements aren't suitable for arbitrary queries.
+        const result = await dbClientInstance.query(query, true); // Get raw result [rows, fields]
+        if (result && result.error) {
+          // Provide specific DB errors back to the user
+          return res.status(400).json({ error: `Query execution failed: ${result.error}`, code: result.code });
+        }
+        if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
+          // Likely a SELECT result
+          res.json({ success: true, rows: result[0], fields: result[1] });
+        }
       } else {
-        // Other results (e.g., SHOW, DESCRIBE might be just rows)
-        res.json({ success: true, result });
+        // eslint-disable-next-line no-lonely-if
+        if (Operator.IamMaster) {
+          // Emit a message to all nodes if needed (e.g., for replication)
+          const result = await Operator.sendWriteQuery(query);
+          if (result && result.error) {
+            // Provide specific DB errors back to the user
+            return res.status(400).json({ error: `Query execution failed: ${result.error}`, code: result.code });
+          }
+          if (result && result.affectedRows !== undefined) {
+            // Likely an INSERT/UPDATE/DELETE result (if allowed)
+            res.json({ success: true, affectedRows: result.affectedRows, changedRows: result.changedRows });
+          } else {
+            // Other results (e.g., SHOW, DESCRIBE might be just rows)
+            res.json({ success: true, result });
+          }
+        } else {
+          return res.status(500).json({ error: 'Failed: only master nodes can do this' });
+        }
       }
     } catch (error) {
       log.error(`Error running custom query in ${safeDbName}: ${error.message}`);
