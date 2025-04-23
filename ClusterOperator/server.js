@@ -1005,6 +1005,7 @@ async function startUI() { // Make async to potentially await DB client init if 
         log.info(`Executing custom query in DB ${safeDbName}: ${query}`);
         // Use simple query execution. Prepared statements aren't suitable for arbitrary queries.
         const result = await dbClientInstance.query(query, true); // Get raw result [rows, fields]
+        log.debug(`Query result: ${JSON.stringify(result)}`);
         if (result && result.error) {
           // Provide specific DB errors back to the user
           return res.status(400).json({ error: `Query execution failed: ${result.error}`, code: result.code });
@@ -1117,7 +1118,7 @@ async function initServer() {
           log.debug(`Operator node connected: ${ip}`);
           // Operator node specific event listeners
           socket.on('disconnect', (reason) => {
-            log.info(`Operator node disconnected: ${ip}, Reason: ${reason}`);
+            // log.info(`Operator node disconnected: ${ip}, Reason: ${reason}`);
           });
           socket.on('getStatus', async (callback) => {
             log.info(`getStatus from Operator ${ip}`);
@@ -1150,11 +1151,11 @@ async function initServer() {
             }
           });
           socket.on('writeQuery', async (query, connId, callback) => {
-            log.info(`writeQuery from Operator ${ip}:${connId}`);
+            // log.info(`writeQuery from Operator ${ip}:${connId}`);
             try {
               const result = await BackLog.pushQuery(query); // [result, seq, timestamp]
               if (result && result.length >= 3) {
-                log.info(`Broadcasting query seq ${result[1]} to peers.`);
+                // log.info(`Broadcasting query seq ${result[1]} to peers.`);
                 socket.broadcast.emit('query', query, result[1], result[2], false); // Broadcast to other operators
                 socket.emit('query', query, result[1], result[2], connId); // Echo back to sender with connId
                 // Cache write queries
