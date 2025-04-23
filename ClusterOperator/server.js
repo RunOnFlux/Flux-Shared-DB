@@ -625,7 +625,33 @@ async function startUI() { // Make async to potentially await DB client init if 
     next(); // Proceed
   });
 
-  // GET /api/db-manager/databases - List databases
+  /// GET /api/db-manager/databases - List all databases
+  dbManagerRouter.get('/databases', async (req, res) => {
+    try {
+      const result = await dbClientInstance.query('SHOW DATABASES');
+
+      if (result && result.error) {
+        return res.status(500).json({ error: `Failed to list databases: ${result.error}`, code: result.code });
+      }
+      if (!Array.isArray(result)) {
+        log.error('Unexpected result format from SHOW DATABASES:', result);
+        return res.status(500).json({ error: 'Unexpected error fetching databases.' });
+      }
+
+      // Filter out system databases if desired
+      const systemDBs = ['information_schema', 'mysql', 'performance_schema', 'sys'];
+      const databases = result
+        .map((row) => row.Database)
+        .filter((dbName) => !systemDBs.includes(dbName.toLowerCase()));
+
+      res.json({ databases });
+    } catch (error) {
+      log.error(`Error in /databases: ${error.message}`);
+      res.status(500).json({ error: 'Internal server error while fetching databases' });
+    }
+  });
+
+  // GET /api/db-manager/databases/:dbName/tables - List tables in a specific database
   dbManagerRouter.get('/databases/:dbName/tables', async (req, res) => {
     const { dbName } = req.params;
     const safeDbName = sanitize(dbName.replace(/`/g, '')); // Sanitize and remove backticks
