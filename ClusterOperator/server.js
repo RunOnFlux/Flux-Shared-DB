@@ -626,13 +626,76 @@ async function startUI() { // Make async to potentially await DB client init if 
   });
 
   // GET /api/db-manager/databases - List databases
-  dbManagerRouter.get('/databases', async (req, res) => { /* ... existing ... */ });
+  dbManagerRouter.get('/databases/:dbName/tables', async (req, res) => {
+    const { dbName } = req.params;
+    const safeDbName = sanitize(dbName.replace(/`/g, '')); // Sanitize and remove backticks
+    if (!safeDbName) {
+      return res.status(400).json({ error: 'Invalid database name provided.' });
+    }
 
-  // GET /api/db-manager/databases/:dbName/tables - List tables
-  dbManagerRouter.get('/databases/:dbName/tables', async (req, res) => { /* ... existing ... */ });
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) {
+        // Handle case where DB doesn't exist or access denied
+        if (setResult.code === 'ER_BAD_DB_ERROR') {
+          return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        }
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
 
-  // GET /api/db-manager/databases/:dbName/tables/:tableName/structure - Get structure
-  dbManagerRouter.get('/databases/:dbName/tables/:tableName/structure', async (req, res) => { /* ... existing ... */ });
+      const result = await dbClientInstance.query('SHOW TABLES');
+      if (result && result.error) {
+        return res.status(500).json({ error: `Failed to list tables for ${safeDbName}: ${result.error}`, code: result.code });
+      }
+      if (!Array.isArray(result)) {
+        log.error(`Unexpected result format from SHOW TABLES in ${safeDbName}:`, result);
+        return res.status(500).json({ error: `Unexpected error fetching tables for ${safeDbName}.` });
+      }
+
+      const tables = result.map((row) => Object.values(row)[0]);
+      res.json({ tables });
+    } catch (error) {
+      log.error(`Error in /databases/${safeDbName}/tables: ${error.message}`);
+      res.status(500).json({ error: `Internal server error while fetching tables for ${safeDbName}` });
+    }
+  });
+
+  // GET /api/db-manager/databases/:dbName/tables/:tableName/structure - Get table structure
+  dbManagerRouter.get('/databases/:dbName/tables/:tableName/structure', async (req, res) => {
+    const { dbName, tableName } = req.params;
+    const safeDbName = sanitize(dbName.replace(/`/g, ''));
+    const safeTableName = sanitize(tableName.replace(/`/g, ''));
+    if (!safeDbName || !safeTableName) {
+      return res.status(400).json({ error: 'Invalid database or table name provided.' });
+    }
+
+    try {
+      const setResult = await dbClientInstance.setDB(safeDbName);
+      if (setResult && setResult.error) {
+        if (setResult.code === 'ER_BAD_DB_ERROR') {
+          return res.status(404).json({ error: `Database '${safeDbName}' not found or access denied.` });
+        }
+        return res.status(500).json({ error: `Failed to select database ${safeDbName}: ${setResult.error}`, code: setResult.code });
+      }
+
+      const result = await dbClientInstance.query(`DESCRIBE \`${safeTableName}\``);
+      if (result && result.error) {
+        if (result.code === 'ER_NO_SUCH_TABLE') {
+          return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+        }
+        return res.status(500).json({ error: `Failed to get structure for ${safeDbName}.${safeTableName}: ${result.error}`, code: result.code });
+      }
+      if (!Array.isArray(result)) {
+        log.error(`Unexpected result format from DESCRIBE ${safeDbName}.${safeTableName}:`, result);
+        return res.status(500).json({ error: `Unexpected error fetching structure for ${safeDbName}.${safeTableName}.` });
+      }
+
+      res.json({ columns: result });
+    } catch (error) {
+      log.error(`Error in /databases/${safeDbName}/tables/${safeTableName}/structure: ${error.message}`);
+      res.status(500).json({ error: `Internal server error while fetching structure for ${safeDbName}.${safeTableName}` });
+    }
+  });
 
   // GET /api/db-manager/databases/:dbName/tables/:tableName/rows - Get rows (with pagination)
   dbManagerRouter.get('/databases/:dbName/tables/:tableName/rows', async (req, res) => {
