@@ -34,8 +34,8 @@
       .queries-tm { height: 400px; overflow-y: scroll; border: 1px solid #e3e3e3; }
 
       /* DB Manager specific styles */
-      .db-manager-layout { display: flex; height: calc(100vh - 150px); /* Adjust as needed */ }
-      .db-sidebar { width: 250px; flex-shrink: 0; background-color: #f8f9fa; padding: 1rem; overflow-y: auto; border-right: 1px solid #dee2e6; }
+      .db-manager-layout { display: flex; height: calc(100vh - 170px); /* Adjust as needed */ }
+      .db-sidebar { width: 260px; flex-shrink: 0; background-color: #f8f9fa; padding: 1rem; overflow-y: auto; border-right: 1px solid #dee2e6; }
       .db-content { flex-grow: 1; padding: 1rem; overflow-y: auto; background-color: #ffffff; display: flex; flex-direction: column; }
       .list-group-item { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
       .list-group-item.active { background-color: #4e4e4e; border-color: #4e4e4e; color: white; }
@@ -75,7 +75,7 @@
     </main>
 
     <footer class="mt-3 pb-3 text-center text-light small thin">
-        <span>InFlux Technologies</span> <span class="badge bg-dark">Beta</span> <span id="build_version">v1.6.5</span>
+        <span>InFlux Technologies</span> <span class="badge bg-dark">Beta</span> <span id="build_version">v1.7.0</span>
     </footer>
 
     <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
