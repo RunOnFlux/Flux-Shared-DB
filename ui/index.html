@@ -204,14 +204,6 @@
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
                                 </ul>
                             </li>
-                            <!--  
-                            <li class="nav-item dropdown"> <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownSystem" role="button" data-bs-toggle="dropdown" aria-expanded="false"> <i class="fas fa-cog"></i>System </a>
-                                <ul class="dropdown-menu" aria-labelledby="navbarDropdownSystem">
-                                    <li><a class="dropdown-item" :class="{ active: activePage === 'logs' }" href="#logs" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a></li>
-                                    <li><a class="dropdown-item" :class="{ active: activePage === 'settings' }" href="#settings" @click.prevent="$emit('navigate', 'settings')"><i class="fas fa-cog"></i>Settings</a></li>
-                                </ul>
-                            </li>
-                            -->
                         </ul>
                         <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
                     </div>
@@ -1187,12 +1179,20 @@
                      }
                  },
                  // --- Helpers ---
-                 formatValue(value) { /* ... existing formatValue ... */
-                     if (value === null) return '<i class="text-muted">NULL</i>';
-                     if (typeof value === 'string' && value.length > 100) { return value.substring(0, 100) + '...'; }
-                     if (typeof value === 'object') { try { return JSON.stringify(value); } catch { return '[Object]'; } }
-                     return value;
-                 },
+                 formatValue(value) {
+                    if (value === null) return '<i class="text-muted">NULL</i>';
+                    if (typeof value === 'string') {
+                         const tempDiv = document.createElement('div');
+                         tempDiv.textContent = value;
+                         const escapedValue = tempDiv.innerHTML;
+                         if (escapedValue.length > 100) {
+                            return escapedValue.substring(0, 100) + '...';
+                         }
+                         return escapedValue;
+                    }
+                    if (typeof value === 'object') { try { return JSON.stringify(value); } catch { return '[Object]'; } }
+                    return value;
+                },
                  // --- Pagination ---
                  changePage(newPage) {
                     if (newPage >= 1 && newPage <= this.totalPages && newPage !== this.currentPage) {
