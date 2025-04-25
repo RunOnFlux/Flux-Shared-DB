@@ -199,7 +199,7 @@
                             <li class="nav-item"> <a class="nav-link" :class="{ active: activePage === 'dashboard' }" href="#dashboard" @click.prevent="$emit('navigate', 'dashboard')"><i class="fas fa-tachometer-alt"></i>Dashboard</a> </li>
                             <li class="nav-item dropdown"> <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownDB" role="button" data-bs-toggle="dropdown" aria-expanded="false"> <i class="fas fa-database"></i>DB </a>
                                 <ul class="dropdown-menu" aria-labelledby="navbarDropdownDB">
-                                    <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li>
+                                    <!-- <li><a class="dropdown-item" :class="{ active: activePage === 'time-machine' }" href="#time-machine" @click.prevent="$emit('navigate', 'time-machine')"><i class="fas fa-history"></i>Point-in-time Recovery</a></li> -->
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'backup-restore' }" href="#backup-restore" @click.prevent="$emit('navigate', 'backup-restore')"><i class="fas fa-cloud-upload-alt"></i>Backup &amp; Restore</a></li>
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
                                 </ul>
@@ -626,11 +626,11 @@
                  },
                  confirmExecute(filename) {
                      if (this.importInProgress) {
-                         alert("Another import/execute operation is already in progress.");
+                         alert("Another import/restore operation is already in progress.");
                          return;
                      }
                       this.$emit('show-confirm', {
-                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible and may overwrite existing data. Are you sure you want to execute the backup file <strong>${filename}.sql</strong>?</span>`,
+                          message: `<span><i class="fas fa-exclamation-triangle text-danger"></i> This action is irreversible and may overwrite existing data. Are you sure you want to restore the backup file <strong>${filename}.sql</strong>?</span>`,
                           callback: this.executeBackup,
                           param: filename
                       });
@@ -643,10 +643,10 @@
                      this.error = null;
                      try {
                          await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 300000 }); // Long timeout for execution
-                         alert(`Backup file ${filename}.sql executed successfully.`); // Simple feedback
+                         alert(`Backup file ${filename}.sql restored successfully.`); // Simple feedback
                      } catch (err) {
                          console.error("Error executing backup:", err);
-                         this.error = `Failed to execute backup ${filename}.sql: ${err.response?.data || err.message}`;
+                         this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data || err.message}`;
                          alert(`Error executing backup ${filename}.sql: ${this.error}`); // Show error
                      } finally {
                          this.executingBackup = null;
@@ -719,7 +719,7 @@
                                             <i class="fas fa-trash"></i> Delete
                                         </button>
                                         <button class="btn btn-sm btn-dark" @click="confirmExecute(file.fileNameWithoutExt)" :disabled="importInProgress || generatingBackup">
-                                            <i class="fas fa-play"></i> Execute
+                                            <i class="fas fa-play"></i> Restore
                                             <span v-if="executingBackup === file.fileNameWithoutExt" class="spinner-border spinner-border-xs action-spinner" role="status" aria-hidden="true"></span>
                                         </button>
                                     </td>
