@@ -1173,7 +1173,7 @@ async function initServer() {
             }
           });
           socket.on('askQuery', async (index, callback) => {
-            log.info(`Operator ${ip} asking for seqNo: ${index}`, 'magenta');
+            log.info(`${ip} asking for seqNo: ${index}`, 'magenta');
             let record = queryCache.get(index);
             let connId = false;
             let source = 'cache';

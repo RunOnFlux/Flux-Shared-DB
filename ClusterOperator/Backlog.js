@@ -148,8 +148,8 @@ class BackLog {
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
-            const totalT = performance.now() - startTime;
-            if (this.executeLogs) log.info(`executed ${seqForThis} (${firstQ}, ${totalT})`);
+            // const totalT = performance.now() - startTime;
+            if (this.executeLogs) log.info(`executed ${seqForThis})`);
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
               if (this.exitOnError) {
