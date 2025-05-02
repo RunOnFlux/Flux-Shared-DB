@@ -117,16 +117,18 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
+          const startTime = performance.now();
           let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else {
             this.sequenceNumber = seq;
           }
           const seqForThis = this.sequenceNumber;
-          const BLResult = await this.BLClient.execute(
+          this.BLClient.query('SET sql_log_bin = 0;');
+          const BLResult = this.BLClient.execute(
             `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
             [seqForThis, query, timestamp],
           );
-          if (this.executeLogs) log.info(`executed ${seqForThis}`);
+          const firstQ = performance.now() - startTime;
           /*
           this.BLqueryCache.put(seqForThis, {
             query, seq: seqForThis, timestamp, connId, ip: false,
@@ -134,7 +136,7 @@ class BackLog {
           */
           this.writeLock = false;
           // Abort query execution if there is an error in backlog insert
-          if (Array.isArray(BLResult) && BLResult[2]) {
+          if (false && Array.isArray(BLResult) && BLResult[2]) {
             log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
             if (this.exitOnError) {
               log.info(`restarting... error executing query, ${query}, ${seq}`, 'red');
@@ -146,6 +148,8 @@ class BackLog {
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
+            // const totalT = performance.now() - startTime;
+            if (this.executeLogs) log.info(`executed ${seqForThis})`);
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
               if (this.exitOnError) {
@@ -475,7 +479,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+        // await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
         await this.BLClient.query(`DROP TABLE ${config.dbBacklogCollection}`);
         await timer.setTimeout(100);
         await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
