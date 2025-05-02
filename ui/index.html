@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/css/datepicker.min.css" />
 
     <style>
-      /* Base styles ... (keep existing styles) */
       .navbar { border-bottom: #ffffff41 1px solid; }
       .navbar i { margin-right: 10px; }
       html, body { height: 100%; margin: 0; padding: 0; }
@@ -109,7 +108,7 @@
             }
         },
         methods: {
-            navigateTo(page) { /* ... existing navigateTo logic ... */
+            navigateTo(page) {
                  if (this.lock) return;
                 if (!this.validPages.includes(page)) {
                      console.warn(`Navigation to invalid page "${page}" blocked.`);
@@ -128,7 +127,7 @@
                     });
                 }
             },
-            logout() { /* ... existing logout logic ... */
+            logout() {
                 axios.get(`${this.apiUrl}/logout`)
                     .then(response => {
                         if (response.data === 'OK') { window.location.replace(this.apiUrl || '/'); }
@@ -136,26 +135,26 @@
                     })
                     .catch(error => { console.error("Error during logout:", error); alert("An error occurred during logout."); });
             },
-            showConfirmModal(payload) { /* ... existing showConfirmModal logic ... */
+            showConfirmModal(payload) {
                 this.confirmMessage = payload.message;
                 this.confirmCallback = payload.callback;
                 this.confirmParam = payload.param;
                 this.$refs.confirmModal.show(this.confirmMessage);
             },
-            showUploadModal() { /* ... existing showUploadModal logic ... */
+            showUploadModal() {
                  this.$refs.uploadModal.show();
              },
-            handleConfirmation() { /* ... existing handleConfirmation logic ... */
+            handleConfirmation() {
                  if (typeof this.confirmCallback === 'function') { this.confirmCallback(this.confirmParam); }
                  else { console.error("Confirmation callback is not a function:", this.confirmCallback); }
                  this.confirmCallback = null; this.confirmParam = null;
              },
-            refreshBackupList() { /* ... existing refreshBackupList logic ... */
+            refreshBackupList() {
                 const backupPageComponent = this.$refs.backupRestorePageRef;
                 if (backupPageComponent?.fetchBackupFiles) { backupPageComponent.fetchBackupFiles(); }
                 else { console.warn("Could not trigger backup list refresh via ref."); }
              },
-            initialize() { /* ... existing initialize logic ... */
+            initialize() {
                 let baseUrl = new URL(window.location.href);
                 this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
                 this.port = baseUrl.port;
@@ -187,7 +186,7 @@
     });
 
     // --- Navbar Component ---
-    app.component('navbar', { /* ... existing navbar component ... */
+    app.component('navbar', {
         props: ['activePage'], emits: ['navigate', 'logout'],
         template: `
             <nav class="navbar navbar-expand-lg navbar-dark">
@@ -965,12 +964,12 @@
                 }
             },
             methods: {
-                getApiPath(endpoint) { /* ... existing getApiPath ... */
+                getApiPath(endpoint) {
                     const apiBase = this.baseApiPath.endsWith('/') ? this.baseApiPath.slice(0, -1) : this.baseApiPath;
                     const ep = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
                     return `${this.apiUrl}${apiBase}/${ep}`;
                 },
-                async fetchDatabases() { /* ... existing fetchDatabases ... */
+                async fetchDatabases() {
                     this.isLoadingDatabases = true; this.error = null; this.databases = []; this.tables = [];
                     this.rows = []; this.columns = []; this.selectedDatabase = null; this.selectedTable = null;
                     try {
@@ -979,7 +978,7 @@
                     } catch (err) { this.error = `Failed to load databases: ${err.response?.data?.error || err.message}`; }
                     finally { this.isLoadingDatabases = false; }
                 },
-                async selectDatabase(dbName) { /* ... existing selectDatabase (reset pagination) ... */
+                async selectDatabase(dbName) {
                     if (this.selectedDatabase === dbName) return;
                     this.selectedDatabase = dbName; this.selectedTable = null; this.isLoadingTables = true;
                     this.error = null; this.tables = []; this.rows = []; this.columns = [];

@@ -158,11 +158,9 @@ async function startUI() { // Make async to potentially await DB client init if 
     res.sendFile(path.join(__dirname, '../ui/assets/Flux_white-blue.svg'));
   });
 
-  // --- Existing API Routes (Apply limiter if needed) ---
   app.use(limiter); // Apply rate limiter to all API routes below
 
   app.get('/logs/:file?', (req, res) => {
-    // ... (existing logs route logic) ...
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
     file = file || req.query.file;

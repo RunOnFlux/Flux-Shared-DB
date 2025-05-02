@@ -79,7 +79,7 @@ class DBClient {
   /**
   * [init] - Public init method, ensures only one init runs at a time
   */
-  async init() { /* ... existing ... */
+  async init() {
     // Prevent concurrent initialization attempts
     if (this.initializing) {
       log.warn('Initialization already in progress.');
@@ -189,7 +189,7 @@ class DBClient {
   /**
    * [reconnect] - Handles reconnection attempts
    */
-  async reconnect() { /* ... existing ... */
+  async reconnect() {
     if (this.connected) return; // Already connected
     if (this.reconnecting) {
       log.warn('Reconnect already in progress.');
@@ -205,10 +205,11 @@ class DBClient {
     const delay = 2000; // 2 seconds
 
     while (attempts < maxAttempts && !this.connected) {
-      attempts++;
+      attempts += 1;
       log.info(`Reconnect attempt ${attempts}/${maxAttempts}...`);
       try {
         // Use _doInit directly to avoid the initializing flag issue during reconnect
+        // eslint-disable-next-line no-await-in-loop, no-underscore-dangle
         await this._doInit();
         if (this.connected) {
           log.info('Reconnected to the database successfully.');
@@ -217,6 +218,7 @@ class DBClient {
       } catch (err) {
         log.error(`Reconnection attempt ${attempts} failed: ${err.message}`);
         if (attempts < maxAttempts) {
+          // eslint-disable-next-line no-await-in-loop, no-loop-func, no-promise-executor-return
           await new Promise((resolve) => setTimeout(resolve, delay * 2 ** (attempts - 1))); // Exponential backoff
         }
       }
