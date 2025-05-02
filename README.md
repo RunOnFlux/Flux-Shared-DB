@@ -22,12 +22,16 @@ Using Flux Shared DB in your project is easy, you just need to link it to a DB e
 * DB_COMPONENT_NAME (required) - hostname for the DB engine component, it should be provided with this format: `flux[db engine component name]_[application name]`
 * INIT_DB_NAME - initial database name that will be created immediately after initialization.
 * DB_INIT_PASS - root password for DB engine.
+* DB_USER - username that can authenticate with the operator. Default is `root`.
 * DB_PORT - external DB port for DB interface, this port can be used to connect to the cluster remotely and manage the database.
 * API_PORT - external API port for cluster communication.
 * DB_APPNAME (required) - the name of the application on the Flux network.
 * CLIENT_APPNAME (required) - the name of the application on the Flux network.If you want to give access to an application outside the local compose network, give name of the application running on Flux
 * WHITELIST - comma separated list of IPs that can connect to the DB_PORT remotely
 * authMasterOnly - if set to "true", only master node will authenticate DB access from the app. Its useful if you want to have only one master node, and can use it to return an error page to the FDM so that only the master node will be reachable to the end users.
+
+### Operator Options (containerData):
+For containerData field use `s:/app/dumps`
 
 ## Secret Management API
 
