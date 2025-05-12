@@ -117,7 +117,7 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
-          onst startTime = performance.now();
+          const startTime = performance.now();
           let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else {
             this.sequenceNumber = seq;
