@@ -117,7 +117,7 @@ class BackLog {
           return [null, seq, timestamp];
         } else {
           this.writeLock = true;
-          const startTime = performance.now();
+          onst startTime = performance.now();
           let result = null;
           if (seq === 0) { this.sequenceNumber += 1; } else {
             this.sequenceNumber = seq;
@@ -148,8 +148,8 @@ class BackLog {
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
-            // const totalT = performance.now() - startTime;
-            if (this.executeLogs) log.info(`executed ${seqForThis})`);
+            const totalT = performance.now() - startTime;
+            if (this.executeLogs) log.info(`executed ${seqForThis}, (${firstQ}, ${totalT})`);
             if (Array.isArray(result) && result[2]) {
               log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
               if (this.exitOnError) {
