@@ -562,6 +562,8 @@
                      generatingBackup: false,
                      executingBackup: null, // Store filename being executed
                      importInProgress: false, // General flag
+                     restoreProgress: 0, // Current restore progress percentage (0-100)
+                     statusIntervalId: null,
                  }
              },
              methods: {
@@ -635,24 +637,69 @@
                       });
                  },
                  async executeBackup(filename) {
-                     if (this.importInProgress) return; // Double check
+                    if (this.importInProgress) return; // Double check
 
-                     this.executingBackup = filename; // Mark which file is executing
-                     this.importInProgress = true;
-                     this.error = null;
-                     try {
-                         await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 300000 }); // Long timeout for execution
-                         alert(`Backup file ${filename}.sql restored successfully.`); // Simple feedback
-                     } catch (err) {
-                         console.error("Error executing backup:", err);
-                         this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data || err.message}`;
-                         alert(`Error executing backup ${filename}.sql: ${this.error}`); // Show error
-                     } finally {
-                         this.executingBackup = null;
-                         this.importInProgress = false;
-                         await this.fetchBackupFiles(); // Refresh list regardless of outcome
-                     }
-                 },
+                    this.executingBackup = filename; // Mark which file is executing
+                    this.importInProgress = true;
+                    this.restoreProgress = 0;     // Reset progress
+                    this.error = null;            // Clear previous errors
+
+                    // Start polling for status
+                    if (this.statusIntervalId) {
+                        clearInterval(this.statusIntervalId); // Clear any existing interval
+                    }
+                    this.statusIntervalId = setInterval(this.checkRestoreStatus, 3000); // Poll every 3 seconds
+
+                    try {
+                        // Call /executebackup with an extended timeout (e.g., 1 hour = 3600000 ms)
+                        await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 3600000 }); 
+                        // If the call completes successfully, status polling should have already set progress to 100
+                        // or will be cleared in finally.
+                        this.restoreProgress = 100; // Ensure it shows 100% on success
+                        alert(`Backup file ${filename}.sql restored successfully.`);
+                    } catch (err) {
+                        console.error("Error executing backup:", err);
+                        this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data?.message || err.response?.data || err.message}`;
+                        alert(`Error executing backup ${filename}.sql: ${this.error}`); 
+                    } finally {
+                        // Stop polling and reset state
+                        if (this.statusIntervalId) {
+                            clearInterval(this.statusIntervalId);
+                            this.statusIntervalId = null;
+                        }
+                        this.executingBackup = null;
+                        this.importInProgress = false;
+                        this.restoreProgress = 0; // Reset progress for the next operation
+                        await this.fetchBackupFiles(); // Refresh list regardless of outcome
+                    }
+                },
+                async checkRestoreStatus() {
+                    if (!this.executingBackup) { // Stop if no backup is being executed
+                        if (this.statusIntervalId) {
+                            clearInterval(this.statusIntervalId);
+                            this.statusIntervalId = null;
+                        }
+                        return;
+                    }
+                    try {
+                        const response = await axios.get(`${this.apiUrl}/status`, { timeout: 2500 }); // Short timeout for status check
+                        if (response.data && response.data.taskStatus !== undefined) {
+                            const taskStatus = response.data.taskStatus;
+                            if (taskStatus >= 0 && taskStatus <= 100) {
+                                this.restoreProgress = taskStatus;
+                            } else if (taskStatus === -1) {
+                                this.restoreProgress = 100; // Task is done
+                                if (this.statusIntervalId) {
+                                    clearInterval(this.statusIntervalId); // Stop polling
+                                    this.statusIntervalId = null;
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Error fetching restore status:", err.message);
+                        // Optionally, stop polling after a few errors, or let executeBackup's finally handle it.
+                    }
+                },
                  getDownloadUrl(filename) {
                      return `${this.apiUrl}/getbackupfile/${filename}`;
                  },
@@ -663,74 +710,94 @@
              mounted() {
                  this.fetchBackupFiles();
              },
+             beforeUnmount() {
+                // Clear interval when component is destroyed to prevent memory leaks
+                if (this.statusIntervalId) {
+                    clearInterval(this.statusIntervalId);
+                }
+            },
              template: `
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="m-0"><i class="fas fa-cloud-upload-alt"></i> Backup and Restore</h3>
-                    </div>
-                    <div class="card-body">
-                        <div v-if="error" class="alert alert-danger">{{ error }}</div>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="m-0"><i class="fas fa-cloud-upload-alt"></i> Backup and Restore</h3>
+            </div>
+            <div class="card-body">
+                <div v-if="error" class="alert alert-danger">{{ error }}</div>
 
-                        <div class="d-flex justify-content-between align-items-center p-2 mb-3 border-bottom">
-                            <h5>Local Backup Files:</h5>
-                            <div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="generateBackup" :disabled="generatingBackup || importInProgress">
-                                    <span v-if="generatingBackup" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                    <i v-else class="fas fa-plus me-1"></i>
-                                    {{ generatingBackup ? 'Generating...' : 'Generate New Backup' }}
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="triggerUploadModal" :disabled="generatingBackup || importInProgress">
-                                    <i class="fas fa-upload me-1"></i> Upload Backup File
-                                </button>
-                            </div>
-                        </div>
-
-                        <div v-if="isLoading" class="d-flex justify-content-center my-4">
-                            <div id="backup-file-list-spinner" class="spinner-border text-info" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-
-                        <table v-else class="table table-hover table-bordered align-middle">
-                            <thead>
-                                <tr>
-                                    <th scope="col" width="10">#</th>
-                                    <th scope="col" width="300">Name</th>
-                                    <th scope="col" width="150">File Size</th>
-                                    <th scope="col" width="250">Date & Time</th>
-                                    <th scope="col">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-if="backupFiles.length === 0">
-                                    <td colspan="5" class="text-center text-muted">No backup files found.</td>
-                                </tr>
-                                <tr v-for="file in backupFiles" :key="file.fileName">
-                                    <th scope="row">{{ file.id }}</th>
-                                    <td>{{ file.fileName }}</td>
-                                    <td>{{ file.fileSize }}</td>
-                                    <td>{{ file.createdDateTime }}</td>
-                                    <td>
-                                        <a class="btn btn-sm btn-success me-1" :href="getDownloadUrl(file.fileNameWithoutExt)" target="_blank" :disabled="importInProgress">
-                                            <i class="fas fa-download"></i> Download
-                                        </a>
-                                        <button class="btn btn-sm btn-danger me-1" @click="confirmDelete(file.fileNameWithoutExt)" :disabled="importInProgress || executingBackup === file.fileNameWithoutExt">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                        <button class="btn btn-sm btn-dark" @click="confirmExecute(file.fileNameWithoutExt)" :disabled="importInProgress || generatingBackup">
-                                            <i class="fas fa-play"></i> Restore
-                                            <span v-if="executingBackup === file.fileNameWithoutExt" class="spinner-border spinner-border-xs action-spinner" role="status" aria-hidden="true"></span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <p>
-                        Notice: Deleting backup files may disrupt database replication. Refrain from deleting any files unless you are fully aware of the consequences.
-                        </p>
+                <div class="d-flex justify-content-between align-items-center p-2 mb-3 border-bottom">
+                    <h5>Local Backup Files:</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="generateBackup" :disabled="generatingBackup || importInProgress">
+                            <span v-if="generatingBackup" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            <i v-else class="fas fa-plus me-1"></i>
+                            {{ generatingBackup ? 'Generating...' : 'Generate New Backup' }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="triggerUploadModal" :disabled="generatingBackup || importInProgress">
+                            <i class="fas fa-upload me-1"></i> Upload Backup File
+                        </button>
                     </div>
                 </div>
-             `
+
+                <div v-if="isLoading" class="d-flex justify-content-center my-4">
+                    <div id="backup-file-list-spinner" class="spinner-border text-info" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <table v-else class="table table-hover table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col" width="10">#</th>
+                            <th scope="col" width="300">Name</th>
+                            <th scope="col" width="150">File Size</th>
+                            <th scope="col" width="250">Date & Time</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="backupFiles.length === 0">
+                            <td colspan="5" class="text-center text-muted">No backup files found.</td>
+                        </tr>
+                        <tr v-for="file in backupFiles" :key="file.fileName">
+                            <th scope="row">{{ file.id }}</th>
+                            <td>{{ file.fileName }}</td>
+                            <td>{{ file.fileSize }}</td>
+                            <td>{{ file.createdDateTime }}</td>
+                            <td>
+                                <a class="btn btn-sm btn-success me-1" :href="getDownloadUrl(file.fileNameWithoutExt)" target="_blank" :disabled="importInProgress">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                                <button class="btn btn-sm btn-danger me-1" @click="confirmDelete(file.fileNameWithoutExt)" :disabled="importInProgress || executingBackup === file.fileNameWithoutExt">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+
+                                <button class="btn btn-sm btn-dark" @click="confirmExecute(file.fileNameWithoutExt)" 
+                                        :disabled="importInProgress || generatingBackup">
+                                    <template v-if="executingBackup === file.fileNameWithoutExt">
+                                        <span v-if="statusIntervalId && restoreProgress >= 0 && restoreProgress < 100">
+                                            Restoring ({{ restoreProgress }}%)
+                                        </span>
+                                        <span v-else-if="statusIntervalId && restoreProgress === 100">
+                                            Finalizing
+                                        </span>
+                                        <span v-else> Restoring
+                                        </span>
+                                        <span class="spinner-border spinner-border-xs action-spinner ms-1" role="status" aria-hidden="true"></span>
+                                    </template>
+                                    <template v-else>
+                                        <i class="fas fa-play"></i> Restore
+                                    </template>
+                                </button>
+                                </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>
+                    Notice: Deleting backup files may disrupt database replication. Refrain from deleting any files unless you are fully aware of the consequences.
+                </p>
+            </div>
+        </div>
+    `
          });
 
         // --- Confirm Modal Component ---

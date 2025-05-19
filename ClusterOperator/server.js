@@ -442,6 +442,7 @@ async function startUI() { // Make async to potentially await DB client init if 
           importer.onProgress((progress) => {
             const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
             log.info(`Import progress for ${safeFilename}.sql: ${percent}% Completed`, 'cyan');
+            BackLog.compressionTask = percent;
             // Consider sending progress via WebSocket if needed for UI feedback
           });
 
@@ -452,6 +453,7 @@ async function startUI() { // Make async to potentially await DB client init if 
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported successfully (${safeFilename}.sql).`);
           res.send('OK');
+          BackLog.compressionTask = -1;
         } catch (err) {
           log.error(`Error during backup execution (${safeFilename}.sql): ${err.message || err}`);
           res.status(500).send({ error: `Failed to execute backup file: ${err.message || err}` });
