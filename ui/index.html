@@ -239,7 +239,8 @@
                     this.error = null;
                     this.nodes = []; // Clear previous nodes
                     try {
-                        const response = await axios.get(`https://api.allorigins.win/raw?url=${this.apiUrl}/status`, { timeout: 3000 });
+                      const fullUrl = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+                        const response = await axios.get(`https://api.allorigins.win/raw?url=${fullUrl}/status`, { timeout: 3000 });
 
                         if (Array.isArray(response.data)) {
 
@@ -683,7 +684,7 @@
                 },
                 async checkRestoreStatus() {
                     this.statusCalls += 1;
-                    if (sthis.tatusCalls < 2) return;
+                    if (this.statusCalls < 2) return;
                     if (!this.executingBackup) { // Stop if no backup is being executed
                         if (this.statusIntervalId) {
                             clearInterval(this.statusIntervalId);
