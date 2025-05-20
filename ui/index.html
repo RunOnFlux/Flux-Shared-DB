@@ -563,6 +563,7 @@
                      executingBackup: null, // Store filename being executed
                      importInProgress: false, // General flag
                      restoreProgress: 0, // Current restore progress percentage (0-100)
+                     statusCalls: 0,
                      statusIntervalId: null,
                  }
              },
@@ -643,6 +644,7 @@
                     this.importInProgress = true;
                     this.restoreProgress = 0;     // Reset progress
                     this.error = null;            // Clear previous errors
+                    this.statusCalls = 0;
 
                     // Start polling for status
                     if (this.statusIntervalId) {
@@ -658,22 +660,28 @@
                         this.restoreProgress = 100; // Ensure it shows 100% on success
                         alert(`Backup file ${filename}.sql restored successfully.`);
                     } catch (err) {
-                        console.error("Error executing backup:", err);
-                        this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data?.message || err.response?.data || err.message}`;
-                        alert(`Error executing backup ${filename}.sql: ${this.error}`); 
-                    } finally {
-                        // Stop polling and reset state
-                        if (this.statusIntervalId) {
-                            clearInterval(this.statusIntervalId);
-                            this.statusIntervalId = null;
+                        if(this.restoreProgress !== 0){
+                          console.error("Error executing backup:", err);
+                          this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data?.message || err.response?.data || err.message}`;
+                          alert(`Error executing backup ${filename}.sql: ${this.error}`); 
                         }
-                        this.executingBackup = null;
-                        this.importInProgress = false;
-                        this.restoreProgress = 0; // Reset progress for the next operation
-                        await this.fetchBackupFiles(); // Refresh list regardless of outcome
+                    } finally {
+                      if(this.restoreProgress !== 0){
+                          // Stop polling and reset state
+                          if (this.statusIntervalId) {
+                              clearInterval(this.statusIntervalId);
+                              this.statusIntervalId = null;
+                          }
+                          this.executingBackup = null;
+                          this.importInProgress = false;
+                          this.restoreProgress = 0; // Reset progress for the next operation
+                          await this.fetchBackupFiles(); // Refresh list regardless of outcome
+                      }
                     }
                 },
                 async checkRestoreStatus() {
+                    if (statusCalls < 2) return;
+                    statusCalls += 1; 
                     if (!this.executingBackup) { // Stop if no backup is being executed
                         if (this.statusIntervalId) {
                             clearInterval(this.statusIntervalId);
@@ -688,11 +696,14 @@
                             if (taskStatus >= 0 && taskStatus <= 100) {
                                 this.restoreProgress = taskStatus;
                             } else if (taskStatus === -1) {
-                                this.restoreProgress = 100; // Task is done
                                 if (this.statusIntervalId) {
                                     clearInterval(this.statusIntervalId); // Stop polling
                                     this.statusIntervalId = null;
                                 }
+                                this.executingBackup = null;
+                                this.importInProgress = false;
+                                this.restoreProgress = 0; // Reset progress for the next operation
+                                await this.fetchBackupFiles(); // Refresh list regardless of outcome
                             }
                         }
                     } catch (err) {
