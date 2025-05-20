@@ -641,7 +641,6 @@
                     if (this.importInProgress) return; // Double check
 
                     this.executingBackup = filename; // Mark which file is executing
-                    this.importInProgress = true;
                     this.restoreProgress = 0;     // Reset progress
                     this.error = null;            // Clear previous errors
                     this.statusCalls = 0;
@@ -654,12 +653,14 @@
 
                     try {
                       if(!this.importInProgress){
+                          this.importInProgress = true;
                           // Call /executebackup with an extended timeout (e.g., 1 hour = 3600000 ms)
                           await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 3600000 }); 
                           alert(`Backup file ${filename}.sql restored successfully.`);
                         }
                     } catch (err) {
                         if(this.restoreProgress !== 0){
+                          this.importInProgress = false;
                           console.error("Error executing backup:", err);
                           this.error = `Failed to restore backup ${filename}.sql: ${err.response?.data?.message || err.response?.data || err.message}`;
                           alert(`Error executing backup ${filename}.sql: ${this.error}`); 
