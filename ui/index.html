@@ -224,7 +224,7 @@
                 async fetchNodeStatus(ip) {
                     try {
                         // Construct URL carefully, ensuring port is included
-                        const statusUrl = `http://${ip}:${this.port}/status`;
+                        const statusUrl = `https://api.allorigins.win/raw?url=http://${ip}:${this.port}/status`;
                         // console.log(`Fetching status from: ${statusUrl}`); // Debugging
                         const response = await axios.get(statusUrl, { timeout: 4000 });
                         return response.data; // { sequenceNumber, masterIP, status, taskStatus }
@@ -239,11 +239,8 @@
                     this.error = null;
                     this.nodes = []; // Clear previous nodes
                     try {
-                      const fullUrl = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
-                        const response = await axios.get(`https://api.allorigins.win/raw?url=${fullUrl}/status`, { timeout: 3000 });
-
+                        const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
                         if (Array.isArray(response.data)) {
-
                             const nodePromises = response.data.map(async (node, index) => {
                                 const statusData = await this.fetchNodeStatus(node.ip);
                                 let displayStatus = statusData.status;
