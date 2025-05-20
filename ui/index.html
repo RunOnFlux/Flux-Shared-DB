@@ -680,8 +680,8 @@
                     }
                 },
                 async checkRestoreStatus() {
-                    statusCalls += 1;
-                    if (statusCalls < 2) return;
+                    this.statusCalls += 1;
+                    if (sthis.tatusCalls < 2) return;
                     if (!this.executingBackup) { // Stop if no backup is being executed
                         if (this.statusIntervalId) {
                             clearInterval(this.statusIntervalId);
