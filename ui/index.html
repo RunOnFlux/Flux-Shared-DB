@@ -653,12 +653,11 @@
                     this.statusIntervalId = setInterval(this.checkRestoreStatus, 3000); // Poll every 3 seconds
 
                     try {
-                        // Call /executebackup with an extended timeout (e.g., 1 hour = 3600000 ms)
-                        await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 3600000 }); 
-                        // If the call completes successfully, status polling should have already set progress to 100
-                        // or will be cleared in finally.
-                        this.restoreProgress = 100; // Ensure it shows 100% on success
-                        alert(`Backup file ${filename}.sql restored successfully.`);
+                      if(!this.importInProgress){
+                          // Call /executebackup with an extended timeout (e.g., 1 hour = 3600000 ms)
+                          await axios.post(`${this.apiUrl}/executebackup`, { filename }, { timeout: 3600000 }); 
+                          alert(`Backup file ${filename}.sql restored successfully.`);
+                        }
                     } catch (err) {
                         if(this.restoreProgress !== 0){
                           console.error("Error executing backup:", err);
