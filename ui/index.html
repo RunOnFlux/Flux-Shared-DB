@@ -239,8 +239,10 @@
                     this.error = null;
                     this.nodes = []; // Clear previous nodes
                     try {
-                        const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
+                        const response = await axios.get(`https://api.allorigins.win/raw?url=${this.apiUrl}/status`, { timeout: 3000 });
+
                         if (Array.isArray(response.data)) {
+
                             const nodePromises = response.data.map(async (node, index) => {
                                 const statusData = await this.fetchNodeStatus(node.ip);
                                 let displayStatus = statusData.status;
