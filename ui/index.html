@@ -681,7 +681,7 @@
                 },
                 async checkRestoreStatus() {
                     this.statusCalls += 1;
-                    if (this.statusCalls < 2) return;
+                    if (this.statusCalls < 3) return;
                     if (!this.executingBackup) { // Stop if no backup is being executed
                         if (this.statusIntervalId) {
                             clearInterval(this.statusIntervalId);
@@ -693,6 +693,7 @@
                         const response = await axios.get(`${this.apiUrl}/status`, { timeout: 2500 }); // Short timeout for status check
                         if (response.data && response.data.taskStatus !== undefined) {
                             const taskStatus = response.data.taskStatus;
+                            console.log(taskStatus);
                             if (taskStatus >= 0 && taskStatus <= 100) {
                                 this.restoreProgress = taskStatus;
                             } else if (taskStatus === -1) {
