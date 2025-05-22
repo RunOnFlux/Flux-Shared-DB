@@ -429,6 +429,7 @@ async function startUI() { // Make async to potentially await DB client init if 
 
         try {
           log.info(`Starting execution of backup file: ${safeFilename}.sql`);
+          Operator.status = 'IMPORTING';
           // removing old db + resetting sequence numbers:
           log.info('Rolling back DB to sequence 0 before executing backup...');
           await Operator.rollBack(0);
@@ -452,9 +453,11 @@ async function startUI() { // Make async to potentially await DB client init if 
 
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported successfully (${safeFilename}.sql).`);
+          Operator.status = 'OK';
           res.send('OK');
           BackLog.compressionTask = -1;
         } catch (err) {
+          Operator.status = 'OK';
           log.error(`Error during backup execution (${safeFilename}.sql): ${err.message || err}`);
           res.status(500).send({ error: `Failed to execute backup file: ${err.message || err}` });
         }
