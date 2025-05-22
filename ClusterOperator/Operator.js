@@ -358,6 +358,7 @@ class Operator {
   static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
+      if (this.status !== 'OK') return null;
       if (!this.IamMaster) {
         const { masterWSConn } = this;
         if (masterWSConn) {
