@@ -429,11 +429,11 @@ async function startUI() { // Make async to potentially await DB client init if 
 
         try {
           log.info(`Starting execution of backup file: ${safeFilename}.sql`);
-          Operator.status = 'IMPORTING';
           BackLog.compressionTask = 0;
           // removing old db + resetting sequence numbers:
           log.info('Rolling back DB to sequence 0 before executing backup...');
           await Operator.rollBack(0);
+          Operator.status = 'IMPORTING';
           await timer.setTimeout(2000); // Allow time for rollback operations
 
           const importer = new SqlImporter({
