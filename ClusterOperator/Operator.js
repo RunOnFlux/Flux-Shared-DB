@@ -430,9 +430,12 @@ class Operator {
     log.info(`lastCompression ${prevSeqNo}`, 'cyan');
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
+    const beaconContent = await BackLog.readBeaconFile();
     if (prevSeqNo) {
       if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) this.comperssBacklog();
     } else if (updates >= 50000) {
+      this.comperssBacklog();
+    } else if (BackLog.firstSequenceNumber > 1 && !beaconContent) {
       this.comperssBacklog();
     }
   }
