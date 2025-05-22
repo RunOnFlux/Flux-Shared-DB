@@ -431,6 +431,7 @@ class Operator {
     const updates = await BackLog.getNumberOfUpdates();
     log.info(`number of updates ${updates}`, 'cyan');
     const beaconContent = await BackLog.readBeaconFile();
+    log.info(`${beaconContent}, ${BackLog.firstSequenceNumber}`, 'cyan');
     if (prevSeqNo) {
       if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) this.comperssBacklog();
     } else if (updates >= 50000) {
