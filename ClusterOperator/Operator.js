@@ -358,7 +358,6 @@ class Operator {
   static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null) {
     if (this.masterNode !== null) {
       // log.info(`master node: ${this.masterNode}`);
-      if (this.status !== 'OK') return null;
       if (!this.IamMaster) {
         const { masterWSConn } = this;
         if (masterWSConn) {
@@ -696,6 +695,7 @@ class Operator {
       // command is a numeric ID, extra is a Buffer
       switch (command) {
         case mySQLConsts.COM_QUERY:
+          if (this.status !== 'OK') break;
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
           for (const queryItem of analyzedQueries) {
