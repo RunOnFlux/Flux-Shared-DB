@@ -433,13 +433,10 @@ class Operator {
     const beaconContent = await BackLog.readBeaconFile();
     log.info(`${beaconContent}, ${BackLog.firstSequenceNumber}`, 'cyan');
     if (prevSeqNo) {
-      log.info(`1`, 'cyan');
       if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) this.comperssBacklog();
     } else if (updates >= 50000) {
-      log.info(`2`, 'cyan');
       this.comperssBacklog();
     } else if (BackLog.firstSequenceNumber > 1 && !beaconContent) {
-      log.info(`3`, 'cyan');
       this.comperssBacklog();
     }
   }
