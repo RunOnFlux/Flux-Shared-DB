@@ -429,9 +429,11 @@ async function startUI() { // Make async to potentially await DB client init if 
 
         try {
           log.info(`Starting execution of backup file: ${safeFilename}.sql`);
+          BackLog.compressionTask = 0;
           // removing old db + resetting sequence numbers:
           log.info('Rolling back DB to sequence 0 before executing backup...');
           await Operator.rollBack(0);
+          Operator.status = 'IMPORTING';
           await timer.setTimeout(2000); // Allow time for rollback operations
 
           const importer = new SqlImporter({
@@ -442,6 +444,7 @@ async function startUI() { // Make async to potentially await DB client init if 
           importer.onProgress((progress) => {
             const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
             log.info(`Import progress for ${safeFilename}.sql: ${percent}% Completed`, 'cyan');
+            BackLog.compressionTask = percent;
             // Consider sending progress via WebSocket if needed for UI feedback
           });
 
@@ -451,8 +454,11 @@ async function startUI() { // Make async to potentially await DB client init if 
 
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported successfully (${safeFilename}.sql).`);
+          Operator.status = 'OK';
           res.send('OK');
+          BackLog.compressionTask = -1;
         } catch (err) {
+          Operator.status = 'OK';
           log.error(`Error during backup execution (${safeFilename}.sql): ${err.message || err}`);
           res.status(500).send({ error: `Failed to execute backup file: ${err.message || err}` });
         }
