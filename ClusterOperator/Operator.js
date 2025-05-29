@@ -780,8 +780,10 @@ class Operator {
             await timer.setTimeout(3000);
           }
           await BackLog.clearBacklog();
+          this.status = 'CLEARBUFFER';
           await BackLog.clearBuffer();
           await timer.setTimeout(200);
+          this.status = 'SYNC';
           log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
           BackLog.executeLogs = false;
           BackLog.exitOnError = true;
