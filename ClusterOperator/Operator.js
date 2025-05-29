@@ -598,6 +598,7 @@ class Operator {
         await BackLog.clearBacklog();
         await BackLog.clearBuffer();
         await timer.setTimeout(200);
+        this.pushToBacklog('SET FOREIGN_KEY_CHECKS=0');
         // restore backlog from snapshot
         const importer = new SqlImporter({
           callback: this.pushToBacklog,
@@ -610,6 +611,7 @@ class Operator {
         });
         importer.setEncoding('utf8');
         await importer.import(`./dumps/${backupFilename}.sql`).then(async () => {
+          this.pushToBacklog('SET FOREIGN_KEY_CHECKS=1');
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
           this.status = 'OK';
