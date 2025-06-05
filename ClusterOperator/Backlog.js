@@ -372,7 +372,7 @@ class BackLog {
     } else {
       try {
         if (config.dbType === 'mysql') {
-          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize}`);
+          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize} ORDER BY seq DESC`);
           this.sequenceNumber = await this.getLastSequenceNumber();
           log.info(`shifted backlog, current sequenceNumber: ${this.sequenceNumber}`);
         }
