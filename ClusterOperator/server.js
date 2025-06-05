@@ -1148,7 +1148,9 @@ async function initServer() {
             log.info(`getBackLog from Operator ${ip}, starting at ${start}`);
             try {
               const records = await BackLog.getLogs(start, 400); // Limit records fetched
-              callback({ status: Operator.status, sequenceNumber: BackLog.sequenceNumber, records });
+              callback({
+                status: Operator.status, sequenceNumber: BackLog.sequenceNumber, firstSequenceNumber: BackLog.firstSequenceNumber, records,
+              });
             } catch (e) {
               log.error(`Error fetching backlog for ${ip}:`, e);
               callback({ status: 'error', message: 'Failed to fetch backlog', records: [] });

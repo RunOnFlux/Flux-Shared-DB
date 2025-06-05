@@ -859,7 +859,18 @@ class Operator {
                 log.warn('Sync proccess halted.', 'red');
                 return;
               }
-              if (record.seq === BackLog.sequenceNumber + 1) await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+              if (record.seq === BackLog.sequenceNumber + 1) {
+                await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+              } else {
+                log.info(`wrong seq no from master ${record.seq}`, 'red');
+                status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+                log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
+                if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
+                  log.info('starting over...', 'red');
+                  this.syncLocalDB();
+                  return;
+                }
+              }
             }
             copyBuffer = true;
             let percent = 0;
