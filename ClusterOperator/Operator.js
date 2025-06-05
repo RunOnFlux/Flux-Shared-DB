@@ -861,7 +861,6 @@ class Operator {
               }
               if (record.seq === BackLog.sequenceNumber + 1) await BackLog.pushQuery(record.query, record.seq, record.timestamp);
             }
-            // if (BackLog.bufferStartSequenceNumber > 0 && BackLog.bufferStartSequenceNumber <= BackLog.sequenceNumber)
             copyBuffer = true;
             let percent = 0;
             if (masterSN !== 0 && masterSN !== startSeqNo) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
@@ -951,25 +950,7 @@ class Operator {
         if (appIPList[i].ip.includes(':')) appIPList[i].ip = appIPList[i].ip.split(':')[0];
         this.AppNodes.push(appIPList[i].ip);
       }
-      /*
-      let activeNodes = 1;
-      for (let i = 0; i < ipList.length; i += 1) {
-        if (myip !== ipList[i].ip) {
-          // extraxt ip from upnp nodes
-          log.info(`asking status from: ${ipList[i].ip}:${config.containerApiPort}`);
-          const status = await fluxAPI.getStatus(ipList[i].ip, config.containerApiPort);
-          log.info(`${ipList[i].ip}'s response was: ${JSON.stringify(status)}`);
-          if (status === null || status === 'null') {
-            this.OpNodes[i].active = false;
-          } else {
-            activeNodes += 1;
-            this.OpNodes[i].seqNo = status.sequenceNumber;
-            this.OpNodes[i].active = true;
-            this.myIP = status.remoteIP;
-          }
-        }
-      }
-      */
+
       let activeNodes = 1;
       const statusPromises = this.OpNodes
         .filter((ipObj) => myip !== ipObj.ip) // Skip own IP upfront
