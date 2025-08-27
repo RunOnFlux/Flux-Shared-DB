@@ -1195,12 +1195,58 @@ class Operator {
     }
   }
 
+  static async checkIfBeaconExists() {
+    const beaconContent = await BackLog.readBeaconFile();
+    if (BackLog.sequenceNumber === 0 && beaconContent) {
+      log.info(`beacon file exists, lets try to recover DB... ${JSON.stringify(beaconContent)}`, 'cyan');
+      if (beaconContent.seqNo > BackLog.sequenceNumber) {
+        while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
+          log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
+          await timer.setTimeout(3000);
+        }
+        log.info(`file size: ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}`);
+        while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
+          log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
+          await timer.setTimeout(3000);
+        }
+        this.status = 'SYNC';
+        log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
+        BackLog.executeLogs = false;
+        BackLog.exitOnError = true;
+        // restore backlog from snapshot
+        const importer = new SqlImporter({
+          callback: this.pushToBacklog,
+          serverSocket: false,
+        });
+        importer.onProgress((progress) => {
+          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 1000);
+          BackLog.compressionTask = percent;
+          log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+        });
+        importer.setEncoding('utf8');
+        await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
+          const filesImported = importer.getImported();
+          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          BackLog.executeLogs = true;
+          BackLog.exitOnError = false;
+        }).catch(async (err) => {
+          log.info(`Error importing backup: ${err}`);
+          BackLog.executeLogs = true;
+          BackLog.exitOnError = false;
+        });
+      }
+    }
+  }
+
   /**
   * [findMaster]
   */
   static async findMaster(resetMasterCandidates = true) {
     try {
       if (this.status === 'UNINSTALL') return null;
+
+      await this.checkIfBeaconExists();
+
       this.status = 'INIT';
       this.masterNode = null;
       this.IamMaster = false;
