@@ -1227,6 +1227,9 @@ class Operator {
         await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          const latestSequenceNumber = await BackLog.getLastSequenceNumber();
+          log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
+          await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
           BackLog.executeLogs = true;
           BackLog.exitOnError = false;
         }).catch(async (err) => {
