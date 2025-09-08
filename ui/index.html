@@ -74,7 +74,7 @@
     </main>
 
     <footer class="mt-3 pb-3 text-center text-light small thin">
-        <span>© InFlux Technologies</span> <span id="build_version">v1.7.3</span>
+        <span>© InFlux Technologies</span> <span id="build_version">v1.7.4</span>
     </footer>
 
     <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
@@ -224,7 +224,7 @@
                 async fetchNodeStatus(ip) {
                     try {
                         // Construct URL carefully, ensuring port is included
-                        const statusUrl = `https://api.allorigins.win/raw?url=http://${ip}:${this.port}/status`;
+                        const statusUrl = `https://api.cors.lol/?url=http://${ip}:${this.port}/status`;
                         // console.log(`Fetching status from: ${statusUrl}`); // Debugging
                         const response = await axios.get(statusUrl, { timeout: 4000 });
                         return response.data; // { sequenceNumber, masterIP, status, taskStatus }
