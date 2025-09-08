@@ -224,7 +224,7 @@
                 async fetchNodeStatus(ip) {
                     try {
                         // Construct URL carefully, ensuring port is included
-                        const statusUrl = `https://api.allorigins.win/raw?url=http://${ip}:${this.port}/status`;
+                        const statusUrl = `https://api.cors.lol/?url=http://${ip}:${this.port}/status`;
                         // console.log(`Fetching status from: ${statusUrl}`); // Debugging
                         const response = await axios.get(statusUrl, { timeout: 4000 });
                         return response.data; // { sequenceNumber, masterIP, status, taskStatus }
