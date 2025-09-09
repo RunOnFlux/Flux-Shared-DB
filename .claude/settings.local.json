@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node_modules/.bin/mocha:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
