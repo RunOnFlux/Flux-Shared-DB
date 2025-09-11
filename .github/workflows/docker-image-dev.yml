@@ -2,10 +2,10 @@ name: Docker Image Dev CI
 
 on:
   push:
-    branches: [ "development" ]
+    branches: [ "development", "pg" ]
   pull_request:
     types: [closed]
-    branches: [ "development" ]
+    branches: [ "development", "pg" ]
 
 jobs:
 
@@ -16,6 +16,17 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
+
+      - name: Set Docker tag based on branch
+        id: set-tag
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/pg" ]]; then
+            echo "tag=pg" >> $GITHUB_OUTPUT
+          else
+            echo "tag=unknown" >> $GITHUB_OUTPUT
+          fi
       
       - name: Log in to Docker Hub
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
@@ -28,5 +39,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: runonflux/shared-db:dev
+          tags: runonflux/shared-db:${{ steps.set-tag.outputs.tag }}
 

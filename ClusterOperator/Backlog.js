@@ -86,6 +86,56 @@ class BackLog {
           log.info('Backlog options table already exists, moving on...');
         }
         log.info(`Last Seq No: ${this.sequenceNumber}`);
+      } else if (config.dbType === 'postgresql') {
+        // PostgreSQL-specific backlog setup
+        const dbList = await this.BLClient.query(`SELECT 1 FROM pg_database WHERE datname = '${config.dbBacklog}'`);
+        if (dbList.length === 0) {
+          log.info('Backlog DB not defined yet, creating backlog DB...');
+          await this.BLClient.createDB(config.dbBacklog);
+        } else {
+          log.info('Backlog DB already exists, moving on...');
+        }
+        await this.BLClient.setDB(config.dbBacklog);
+
+        let tableList = await this.BLClient.query(`SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = '${config.dbBacklogCollection}'`);
+        if (tableList.length === 0) {
+          log.info('Backlog table not defined yet, creating backlog table...');
+          await this.BLClient.query(`CREATE TABLE "${config.dbBacklogCollection}" (
+            seq BIGSERIAL PRIMARY KEY,
+            query TEXT,
+            timestamp BIGINT
+          )`);
+        } else {
+          log.info('Backlog table already exists, moving on...');
+          this.sequenceNumber = await this.getLastSequenceNumber();
+        }
+
+        tableList = await this.BLClient.query(`SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = '${config.dbBacklogBuffer}'`);
+        if (tableList.length === 0) {
+          log.info('Backlog buffer table not defined yet, creating buffer table...');
+          await this.BLClient.query(`CREATE TABLE "${config.dbBacklogBuffer}" (
+            seq BIGSERIAL PRIMARY KEY,
+            query TEXT,
+            timestamp BIGINT
+          )`);
+        } else {
+          log.info('Backlog buffer table already exists, moving on...');
+        }
+
+        tableList = await this.BLClient.query(`SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = '${config.dbOptions}'`);
+        if (tableList.length === 0) {
+          log.info('Backlog options table not defined yet, creating options table...');
+          await this.BLClient.query(`CREATE TABLE "${config.dbOptions}" (
+            k VARCHAR(64) PRIMARY KEY,
+            value TEXT
+          )`);
+        } else {
+          log.info('Backlog options table already exists, moving on...');
+        }
+        log.info(`Last Seq No: ${this.sequenceNumber}`);
       }
     } catch (e) {
       log.error(`Error creating backlog: ${e}`);

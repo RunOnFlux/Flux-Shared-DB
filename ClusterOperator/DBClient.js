@@ -1,9 +1,11 @@
 /* eslint-disable no-unused-vars */
 const mySql = require('mysql2/promise');
+const { Pool } = require('pg');
 const net = require('net');
 const config = require('./config');
 const Security = require('./Security');
 const log = require('../lib/log');
+const PgStreamClient = require('../lib/pgStreamClient');
 
 class DBClient {
   constructor() {
@@ -166,20 +168,99 @@ class DBClient {
         });
 
         this.connected = true;
-        log.info('DB connection established successfully.');
+        log.info('MySQL connection established successfully.');
         // If an initial DB was set, re-apply it
         if (this.InitDB) {
           await this.setDB(this.InitDB);
         }
       } catch (err) {
         this.connected = false;
-        log.error(`Initial DB connection error: ${err.message}`);
+        log.error(`Initial MySQL connection error: ${err.message}`);
         if (this.stream) { // Clean up stream on init failure
           this.stream.destroy();
           this.stream = null;
         }
-        // Don't automatically retry here, let caller handle initial failure
         throw err; // Re-throw error to signal failure
+      }
+    } else if (config.dbType === 'postgresql') {
+      try {
+        // Close existing connections if necessary
+        if (this.pgStreamClient) {
+          await this.pgStreamClient.close();
+          this.pgStreamClient = null;
+        }
+        if (this.pool) {
+          try { await this.pool.end(); } catch (e) { log.warn('Error closing PostgreSQL pool:', e.message); }
+          this.pool = null;
+        }
+        this.connected = false;
+
+        // Create stream-based client for raw protocol access (like MySQL2)
+        this.pgStreamClient = new PgStreamClient({
+          host: config.dbHost,
+          port: config.dbPort || 5432,
+          user: config.dbUser,
+          password: Security.getKey(),
+          database: this.InitDB || config.dbInitDB || 'postgres',
+          onData: (data) => {
+            // This is equivalent to MySQL's rawCallback for stream injection
+            this.rawCallback(data);
+          },
+          onError: (err) => {
+            log.error(`PostgreSQL stream error: ${err.message}`);
+            this.connected = false;
+          },
+        });
+
+        // Connect the stream client
+        await this.pgStreamClient.connect();
+
+        // Also maintain a Pool for non-stream operations (queries that don't need injection)
+        this.pool = new Pool({
+          user: config.dbUser,
+          host: config.dbHost,
+          database: this.InitDB || config.dbInitDB || 'postgres',
+          password: Security.getKey(),
+          port: config.dbPort || 5432,
+          connectionTimeoutMillis: 15000,
+          idleTimeoutMillis: 30000,
+          max: 10, // Smaller pool since we also have stream client
+          types: {
+            // Parse timestamps as strings to maintain consistency with MySQL behavior
+            setTypeParser(oid, format, parseFn) {
+              // Override date/time parsing to return strings
+              if (oid === 1114 || oid === 1184 || oid === 1082) { // timestamp, timestamptz, date
+                return (val) => val;
+              }
+              return parseFn(val);
+            },
+          },
+        });
+
+        // Test the pool connection
+        const testClient = await this.pool.connect();
+        testClient.release();
+
+        this.connection = this.pgStreamClient; // Primary connection for stream operations
+        this.connected = true;
+        log.info('PostgreSQL stream client and pool established successfully.');
+
+        // Set up error handling
+        this.pool.on('error', (err) => {
+          log.error(`PostgreSQL pool error: ${err.code} - ${err.message}`);
+        });
+      } catch (err) {
+        this.connected = false;
+        log.error(`Initial PostgreSQL connection error: ${err.message}`);
+        if (this.pgStreamClient) {
+          try { await this.pgStreamClient.close(); } catch (e) { /* ignore */ }
+          this.pgStreamClient = null;
+        }
+        if (this.pool) {
+          try { await this.pool.end(); } catch (e) { /* ignore */ }
+          this.pool = null;
+        }
+        throw err;
       }
     } else {
       throw new Error(`Unsupported dbType: ${config.dbType}`);
@@ -241,7 +322,7 @@ class DBClient {
       // log.info(`running Query: ${query}`);
       try {
         if (!this.connected) {
-          log.info(`Connecten to ${this.InitDB} DB was lost, reconnecting...`);
+          log.info(`Connection to ${this.InitDB} DB was lost, reconnecting...`);
           await this.init();
           this.setDB(this.InitDB);
         }
@@ -258,6 +339,57 @@ class DBClient {
       } catch (err) {
         if (err && err.toString().includes('Error')) log.error(`Error running query: ${err.toString()}, ${fullQuery}`, 'red');
         return [null, null, err];
+      }
+    } else if (config.dbType === 'postgresql') {
+      try {
+        if (!this.connected) {
+          log.info('Connection to PostgreSQL DB was lost, reconnecting...');
+          await this.init();
+        }
+
+        // If socket write is enabled, use stream client for raw response injection
+        if (this.enableSocketWrite && this.pgStreamClient) {
+          try {
+            // Use stream client to get raw PostgreSQL protocol response
+            const rawResponse = await this.pgStreamClient.query(query);
+
+            if (rawResult) {
+              // For stream injection, we return the raw protocol data
+              return [null, null, null, rawResponse]; // Raw data as 4th element
+            }
+            // Parse response for application use (fallback to pool)
+            const client = await this.pool.connect();
+            try {
+              const result = await client.query(query);
+              return result.rows;
+            } finally {
+              client.release();
+            }
+          } catch (streamErr) {
+            log.warn(`Stream query failed, falling back to pool: ${streamErr.message}`);
+            // Fall back to pool-based query
+          }
+        }
+
+        // Use pool for non-stream queries or fallback
+        const client = await this.pool.connect();
+        try {
+          const result = await client.query(query);
+
+          if (rawResult) {
+            const fields = result.fields || [];
+            return [result.rows, fields, null];
+          }
+          return result.rows;
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        log.error(`Error running PostgreSQL query: ${err.message}, ${fullQuery || query}`, 'red');
+        if (rawResult) {
+          return [null, null, err];
+        }
+        return { error: err.message, code: err.code };
       }
     }
     return null;
@@ -282,6 +414,31 @@ class DBClient {
         if (err && err.toString().includes('Error')) log.error(`Error executing query: ${err.toString()}, ${fullQuery}`, 'red');
         return [null, null, err];
       }
+    } else if (config.dbType === 'postgresql') {
+      try {
+        if (!this.connected) {
+          await this.init();
+        }
+
+        const client = await this.pool.connect();
+        try {
+          const result = await client.query(query, params);
+
+          if (rawResult) {
+            const fields = result.fields || [];
+            return [result.rows, fields, null];
+          }
+          return result.rows;
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        log.error(`Error executing PostgreSQL query: ${err.message}, ${fullQuery || query}`, 'red');
+        if (rawResult) {
+          return [null, null, err];
+        }
+        return { error: err.message, code: err.code };
+      }
     }
     return null;
   }
@@ -293,9 +450,23 @@ class DBClient {
   async createDB(dbName) {
     if (config.dbType === 'mysql') {
       try {
-        await this.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+        await this.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
       } catch (err) {
-        log.info(`DB ${dbName} exists`);
+        log.info(`DB ${dbName} exists or creation failed: ${err.message}`);
+      }
+    } else if (config.dbType === 'postgresql') {
+      try {
+        // PostgreSQL doesn't support IF NOT EXISTS in CREATE DATABASE
+        // Check if database exists first
+        const checkResult = await this.query(`SELECT 1 FROM pg_database WHERE datname='${dbName}'`);
+        if (checkResult.length === 0) {
+          await this.query(`CREATE DATABASE "${dbName}"`);
+          log.info(`PostgreSQL database ${dbName} created successfully`);
+        } else {
+          log.info(`PostgreSQL database ${dbName} already exists`);
+        }
+      } catch (err) {
+        log.info(`PostgreSQL DB ${dbName} creation failed or exists: ${err.message}`);
       }
     }
     return null;
@@ -309,7 +480,7 @@ class DBClient {
     try {
       if (config.dbType === 'mysql') {
         this.InitDB = dbName;
-        // log.info(`seting db to ${dbName}`);
+        // log.info(`setting db to ${dbName}`);
         if (this.connection) {
           this.connection.changeUser({
             database: dbName,
@@ -320,9 +491,46 @@ class DBClient {
             }
           });
         }
+      } else if (config.dbType === 'postgresql') {
+        // For PostgreSQL, we need to create a new pool with the different database
+        this.InitDB = dbName;
+        log.info(`Switching to PostgreSQL database: ${dbName}`);
+
+        // Close existing pool
+        if (this.pool) {
+          await this.pool.end();
+        }
+
+        // Create new pool with target database
+        this.pool = new Pool({
+          user: config.dbUser,
+          host: config.dbHost,
+          database: dbName,
+          password: Security.getKey(),
+          port: config.dbPort || 5432,
+          connectionTimeoutMillis: 15000,
+          idleTimeoutMillis: 30000,
+          max: 20,
+        });
+
+        // Test the connection
+        const testClient = await this.pool.connect();
+        testClient.release();
+
+        this.connection = this.pool;
+        this.connected = true;
+
+        // Set up error handling for the new pool
+        this.pool.on('error', (err) => {
+          log.error(`PostgreSQL pool error after database switch: ${err.code} - ${err.message}`);
+          this.connected = false;
+        });
       }
     } catch (err) {
-      log.info(err);
+      log.error(`Error setting database to ${dbName}: ${err.message}`);
+      if (config.dbType === 'postgresql') {
+        this.connected = false;
+      }
     }
   }
 
@@ -333,6 +541,44 @@ class DBClient {
   async setPassword(key) {
     if (config.dbType === 'mysql') {
       await this.query(`SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${key}');SET PASSWORD FOR 'root'@'%' = PASSWORD('${key}');FLUSH PRIVILEGES;`);
+    } else if (config.dbType === 'postgresql') {
+      // PostgreSQL password change
+      try {
+        await this.query(`ALTER USER ${config.dbUser} PASSWORD '${key}'`);
+        log.info(`PostgreSQL password updated for user: ${config.dbUser}`);
+      } catch (err) {
+        log.error(`Error updating PostgreSQL password: ${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * [close] - Close database connections
+   */
+  async close() {
+    try {
+      this.connected = false;
+      if (config.dbType === 'mysql') {
+        if (this.stream) {
+          this.stream.destroy();
+          this.stream = null;
+        }
+        if (this.connection && typeof this.connection.end === 'function') {
+          await this.connection.end();
+        }
+      } else if (config.dbType === 'postgresql') {
+        if (this.pgStreamClient) {
+          await this.pgStreamClient.close();
+          this.pgStreamClient = null;
+        }
+        if (this.pool) {
+          await this.pool.end();
+          this.pool = null;
+        }
+      }
+      log.info(`${config.dbType} database connection closed`);
+    } catch (err) {
+      log.error(`Error closing ${config.dbType} connection: ${err.message}`);
     }
   }
 }
@@ -346,18 +592,35 @@ exports.createClient = async function () {
       log.error('DBClient failed to connect during factory creation.');
       throw new Error('DBClient connection failed.');
     }
-    log.info('DBClient created and connected successfully.');
+    log.info(`${config.dbType} DBClient created and connected successfully.`);
     return cl;
   } catch (err) {
-    log.error(`Error creating DBClient: ${err.message}`);
+    log.error(`Error creating ${config.dbType} DBClient: ${err.message}`);
     if (config.dbType === 'mysql') {
       if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-        log.error('Database access denied. Check credentials (DB_USER/DB_PASSWORD).');
+        log.error('MySQL access denied. Check credentials (DB_USER/DB_PASSWORD).');
         throw new Error('WRONG_KEY');
       }
       if (err.code === 'ECONNREFUSED') {
-        log.error('Database connection refused. Is the DB server running and accessible?');
+        log.error('MySQL connection refused. Is the DB server running and accessible?');
         throw new Error('CONN_REFUSED');
+      }
+    } else if (config.dbType === 'postgresql') {
+      if (err.code === '28P01') { // PostgreSQL authentication failed
+        log.error('PostgreSQL authentication failed. Check credentials (DB_USER/DB_PASSWORD).');
+        throw new Error('WRONG_KEY');
+      }
+      if (err.code === 'ECONNREFUSED') {
+        log.error('PostgreSQL connection refused. Is the PostgreSQL server running and accessible?');
+        throw new Error('CONN_REFUSED');
+      }
+      if (err.code === '3D000') { // Invalid database name
+        log.error('PostgreSQL database does not exist.');
+        throw new Error('INVALID_DB');
+      }
+      if (err.code === 'ENOTFOUND') {
+        log.error('PostgreSQL host not found. Check DB_HOST configuration.');
+        throw new Error('HOST_NOT_FOUND');
       }
     }
     return null; // Return null on failure

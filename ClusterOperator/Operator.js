@@ -18,11 +18,14 @@ const fluxAPI = require('../lib/fluxAPI');
 const config = require('./config');
 const mySQLServer = require('../lib/mysqlServer');
 const mySQLConsts = require('../lib/mysqlConstants');
+const { PostgreSQLServer } = require('../lib/postgresServer');
+const postgresConsts = require('../lib/postgresConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
 const IdService = require('./IdService');
 const SqlImporter = require('../lib/mysqlimport');
+const PgImporter = require('../lib/pgimport');
 
 // const e = require('cors');
 
@@ -305,10 +308,34 @@ class Operator {
           });
         }).listen(config.externalDBPort);
 
-        log.info(`Started mysql server on port ${config.externalDBPort}`);
+        log.info(`Started MySQL server on port ${config.externalDBPort}`);
+      } else if (serverType === 'postgresql') {
+        // init postgresql port
+        net.createServer((so) => {
+          const pgServer = new PostgreSQLServer({
+            socket: so,
+            onQuery: this.handlePostgreSQLQuery.bind(this),
+            operator: this,
+            authorizedApp: this.authorizedApp,
+            localDB: this.localDB,
+            serverSocket: this.serverSocket,
+            masterWSConn: this.masterWSConn,
+            BACKLOG_DB: config.dbBacklog,
+            IamMaster: this.IamMaster,
+            masterNode: this.masterNode,
+            appIPList: this.appIPList,
+            status: this.status,
+            isNotBacklogQuery: this.isNotBacklogQuery,
+            sendWriteQuery: this.sendWriteQuery,
+          });
+        }).listen(config.externalDBPort);
+
+        log.info(`Started PostgreSQL server on port ${config.externalDBPort}`);
+      } else {
+        log.error(`Unknown server type: ${serverType}`);
       }
     } catch (err) {
-      log.error(err);
+      log.error(`Error starting ${serverType} server: ${err.message}`);
     }
   }
 
@@ -735,6 +762,64 @@ class Operator {
       }
     } catch (err) {
       log.error(err);
+    }
+  }
+
+  /**
+  * [handlePostgreSQLQuery] - Handle PostgreSQL query from client
+  * @param {string} query SQL query string
+  * @param {string} connId Connection ID
+  * @param {function} callback Callback function to send result
+  */
+  static async handlePostgreSQLQuery(query, connId, callback) {
+    try {
+      if (this.status !== 'OK') {
+        callback({ error: 'Server not ready' });
+        return;
+      }
+
+      log.info(`PostgreSQL Query from ${connId}: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`);
+
+      const analyzedQueries = sqlAnalyzer(query, 'postgresql');
+
+      for (const queryItem of analyzedQueries) {
+        const [cleanQuery, queryType] = queryItem;
+
+        if (queryType === 'w' && this.isNotBacklogQuery(cleanQuery, this.BACKLOG_DB)) {
+          // Write query - needs to go through replication system
+          if (this.operator.sessionQueries[connId] !== undefined) {
+            await this.sendWriteQuery(this.operator.sessionQueries[connId], -1);
+            this.operator.sessionQueries[connId] = undefined;
+          }
+
+          // Send to replication system and get result
+          const result = await this.sendWriteQuery(cleanQuery, connId, query);
+          callback(result);
+        } else if (queryType === 's') {
+          // Session query - store for later execution
+          this.operator.sessionQueries[connId] = cleanQuery;
+
+          // Execute locally and return result
+          try {
+            const result = await this.localDB.query(cleanQuery);
+            callback({ rows: result || [] });
+          } catch (error) {
+            callback({ error: error.message, code: error.code });
+          }
+        } else {
+          // Read query - forward to local database
+          try {
+            const result = await this.localDB.query(cleanQuery);
+            callback({ rows: result || [] });
+          } catch (error) {
+            log.error(`PostgreSQL read query error: ${error.message}`);
+            callback({ error: error.message, code: error.code });
+          }
+        }
+      }
+    } catch (err) {
+      log.error(`PostgreSQL query handler error: ${err.message}`);
+      callback({ error: 'Internal server error', code: 'XX000' });
     }
   }
 

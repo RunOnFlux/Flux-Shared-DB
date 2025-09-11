@@ -3,7 +3,7 @@ module.exports = {
   dbType: process.env.DB_TYPE || 'mysql',
   dbUser: process.env.DB_USER || 'root',
   dbPass: process.env.DB_INIT_PASS || 'secret',
-  dbPort: 3306,
+  dbPort: process.env.DB_TYPE === 'postgresql' ? 5432 : 3306,
   dbBacklog: 'flux_backlog',
   dbBacklogCollection: 'backlog',
   dbBacklogBuffer: 'backlog_buffer',
