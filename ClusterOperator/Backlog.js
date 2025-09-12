@@ -154,6 +154,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -210,6 +211,60 @@ class BackLog {
           }
           return [result, seqForThis, timestamp];
         }
+      } else if (config.dbType === 'postgresql') {
+        if (buffer) {
+          if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
+          this.bufferSequenceNumber = seq;
+          await this.BLClient.execute(
+            `INSERT INTO "${config.dbBacklogBuffer}" (seq, query, timestamp) VALUES ($1,$2,$3)`,
+            [seq, query, timestamp],
+          );
+          return [null, seq, timestamp];
+        } else {
+          this.writeLock = true;
+          const startTime = performance.now();
+          let result = null;
+          if (seq === 0) { this.sequenceNumber += 1; } else {
+            this.sequenceNumber = seq;
+          }
+          const seqForThis = this.sequenceNumber;
+          // PostgreSQL doesn't need sql_log_bin equivalent
+          const BLResult = await this.BLClient.execute(
+            `INSERT INTO "${config.dbBacklogCollection}" (seq, query, timestamp) VALUES ($1,$2,$3)`,
+            [seqForThis, query, timestamp],
+          );
+          const firstQ = performance.now() - startTime;
+          /*
+          this.BLqueryCache.put(seqForThis, {
+            query, seq: seqForThis, timestamp, connId, ip: false,
+          }, 20 * 60);
+          */
+          this.writeLock = false;
+          // Abort query execution if there is an error in backlog insert
+          if (false && Array.isArray(BLResult) && BLResult[2]) {
+            log.error(`Error in SQL: ${JSON.stringify(BLResult[2])}`);
+            if (this.exitOnError) {
+              log.info(`error executing query, ${query}, ${seq}`, 'red');
+              // process.exit(1);
+            }
+          } else {
+            if (connId === false) {
+              result = await this.UserDBClient.query(query, false, fullQuery);
+            } else if (connId >= 0) {
+              result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
+            }
+            const totalT = performance.now() - startTime;
+            if (this.executeLogs) log.info(`executed ${seqForThis}, (${firstQ}, ${totalT})`);
+            if (Array.isArray(result) && result[2]) {
+              log.error(`Error in SQL: ${JSON.stringify(result[2])}`);
+              if (this.exitOnError) {
+                log.info(`error executing query, ${query}, ${seq}`, 'red');
+                // process.exit(1);
+              }
+            }
+          }
+          return [result, seqForThis, timestamp];
+        }
       }
     } catch (e) {
       this.writeLock = false;
@@ -232,10 +287,16 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
+        const trimedRecords = utill.trimArrayToSize(totalRecords, 5 * 1024 * 1024);
+        log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
+        return trimedRecords;
+      } else if (config.dbType === 'postgresql') {
+        const totalRecords = await this.BLClient.query(`SELECT * FROM "${config.dbBacklogCollection}" WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
         const trimedRecords = utill.trimArrayToSize(totalRecords, 5 * 1024 * 1024);
         log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
         return trimedRecords;
@@ -256,10 +317,14 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const totalRecords = await this.BLClient.execute(`SELECT seq, LEFT(query,10) as query, timestamp FROM ${config.dbBacklogCollection} WHERE timestamp >= ? AND timestamp < ? ORDER BY seq`, [startFrom, Number(startFrom) + Number(length)]);
+        return totalRecords;
+      } else if (config.dbType === 'postgresql') {
+        const totalRecords = await this.BLClient.execute(`SELECT seq, LEFT(query,10) as query, timestamp FROM "${config.dbBacklogCollection}" WHERE timestamp >= $1 AND timestamp < $2 ORDER BY seq`, [startFrom, Number(startFrom) + Number(length)]);
         return totalRecords;
       }
     } catch (e) {
@@ -277,11 +342,15 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
+        return record;
+      } else if (config.dbType === 'postgresql') {
+        const record = await this.BLClient.query(`SELECT * FROM "${config.dbBacklogCollection}" WHERE seq=${index}`);
         return record;
       }
     } catch (e) {
@@ -298,10 +367,15 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const record = await this.BLClient.execute(`SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM ${config.dbBacklogCollection}`);
+        log.info(record);
+        return record[0];
+      } else if (config.dbType === 'postgresql') {
+        const record = await this.BLClient.execute(`SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM "${config.dbBacklogCollection}"`);
         log.info(record);
         return record[0];
       }
@@ -319,10 +393,15 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
           const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${config.dbBacklogCollection}`);
+          log.info(`Total Records: ${JSON.stringify(totalRecords)}`);
+          return totalRecords[0].total;
+        } else if (config.dbType === 'postgresql') {
+          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM "${config.dbBacklogCollection}"`);
           log.info(`Total Records: ${JSON.stringify(totalRecords)}`);
           return totalRecords[0].total;
         }
@@ -341,6 +420,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -349,6 +429,14 @@ class BackLog {
             records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq DESC LIMIT 1`);
           } else {
             records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq DESC LIMIT 1`);
+          }
+          if (records.length) return records[0].seqNo;
+        } else if (config.dbType === 'postgresql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT seq as "seqNo" FROM "${config.dbBacklogBuffer}" ORDER BY seq DESC LIMIT 1`);
+          } else {
+            records = await this.BLClient.query(`SELECT seq as "seqNo" FROM "${config.dbBacklogCollection}" ORDER BY seq DESC LIMIT 1`);
           }
           if (records.length) return records[0].seqNo;
         }
@@ -367,6 +455,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -375,6 +464,14 @@ class BackLog {
             records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq ASC LIMIT 1`);
           } else {
             records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq ASC LIMIT 1`);
+          }
+          if (records.length) return records[0].seqNo;
+        } else if (config.dbType === 'postgresql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT seq as "seqNo" FROM "${config.dbBacklogBuffer}" ORDER BY seq ASC LIMIT 1`);
+          } else {
+            records = await this.BLClient.query(`SELECT seq as "seqNo" FROM "${config.dbBacklogCollection}" ORDER BY seq ASC LIMIT 1`);
           }
           if (records.length) return records[0].seqNo;
         }
@@ -393,6 +490,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
@@ -401,6 +499,14 @@ class BackLog {
             records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           } else {
             records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
+          }
+          if (records.length) return records[0].count;
+        } else if (config.dbType === 'postgresql') {
+          let records = [];
+          if (buffer) {
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM "${config.dbBacklogBuffer}" WHERE query ILIKE 'update%' OR query ILIKE 'set%' LIMIT 50000) AS subquery`);
+          } else {
+            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM "${config.dbBacklogCollection}" WHERE query ILIKE 'update%' OR query ILIKE 'set%' LIMIT 50000) AS subquery`);
           }
           if (records.length) return records[0].count;
         }
@@ -419,10 +525,15 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
           if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize} ORDER BY seq DESC`);
+          this.sequenceNumber = await this.getLastSequenceNumber();
+          log.info(`shifted backlog, current sequenceNumber: ${this.sequenceNumber}`);
+        } else if (config.dbType === 'postgresql') {
+          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE "${config.dbBacklogCollection}" set seq = seq + ${shiftSize}`);
           this.sequenceNumber = await this.getLastSequenceNumber();
           log.info(`shifted backlog, current sequenceNumber: ${this.sequenceNumber}`);
         }
@@ -441,6 +552,9 @@ class BackLog {
     if (config.dbType === 'mysql' && this.BLClient) {
       await this.BLClient.setDB(config.dbBacklog);
       await this.UserDBClient.setDB(config.dbInitDB);
+    } else if (config.dbType === 'postgresql' && this.BLClient) {
+      await this.BLClient.setDB(config.dbBacklog);
+      await this.UserDBClient.setDB(config.dbInitDB);
     }
   }
 
@@ -451,6 +565,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -458,6 +573,13 @@ class BackLog {
           await this.BLClient.execute(`DELETE FROM ${config.dbBacklogCollection} where seq<=?`, [seqNo]);
         } else {
           await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+          this.sequenceNumber = 0;
+        }
+      } else if (config.dbType === 'postgresql') {
+        if (seqNo !== 0) {
+          await this.BLClient.execute(`DELETE FROM "${config.dbBacklogCollection}" where seq<=$1`, [seqNo]);
+        } else {
+          await this.BLClient.query(`DELETE FROM "${config.dbBacklogCollection}"`);
           this.sequenceNumber = 0;
         }
       }
@@ -474,6 +596,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -495,6 +618,25 @@ class BackLog {
         }
         await this.BLClient.execute('DELETE FROM backlog WHERE seq>?', [seqNo]);
         await this.clearBuffer();
+      } else if (config.dbType === 'postgresql') {
+        await this.BLClient.query(`DROP DATABASE "${config.dbInitDB}"`);
+        await this.BLClient.createDB(config.dbInitDB);
+        this.UserDBClient.setDB(config.dbInitDB);
+        await this.BLClient.setDB(config.dbBacklog);
+        const records = await this.BLClient.execute(`SELECT * FROM "${config.dbBacklogCollection}" WHERE seq<=$1 ORDER BY seq`, [seqNo]);
+        // console.log(records);
+        for (const record of records) {
+          log.info(`executing seq(${record.seq})`);
+          try {
+            // eslint-disable-next-line no-await-in-loop, no-unused-vars
+            const result = await this.UserDBClient.query(record.query);
+          } catch (e) {
+            log.error(e);
+          }
+          // eslint-disable-next-line no-await-in-loop
+        }
+        await this.BLClient.execute(`DELETE FROM "${config.dbBacklogCollection}" WHERE seq>$1`, [seqNo]);
+        await this.clearBuffer();
       }
     } catch (e) {
       log.error(e);
@@ -512,6 +654,9 @@ class BackLog {
       if (config.dbType === 'mysql') {
         await this.BLClient.query(`DROP DATABASE ${config.dbBacklog}`);
         this.sequenceNumber = 0;
+      } else if (config.dbType === 'postgresql') {
+        await this.BLClient.query(`DROP DATABASE "${config.dbBacklog}"`);
+        this.sequenceNumber = 0;
       }
     } catch (e) {
       log.error(e);
@@ -526,6 +671,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -537,6 +683,15 @@ class BackLog {
           MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
           ADD PRIMARY KEY (\`seq\`),
           ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
+        this.sequenceNumber = 0;
+      } else if (config.dbType === 'postgresql') {
+        await this.BLClient.query(`DROP TABLE "${config.dbBacklogCollection}"`);
+        await timer.setTimeout(100);
+        await this.BLClient.query(`CREATE TABLE "${config.dbBacklogCollection}" (
+          seq BIGSERIAL PRIMARY KEY,
+          query TEXT,
+          timestamp BIGINT
+        )`);
         this.sequenceNumber = 0;
       }
     } catch (e) {
@@ -553,10 +708,15 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         await this.BLClient.query(`DELETE FROM ${config.dbBacklogBuffer}`);
+        this.bufferSequenceNumber = 0;
+        this.bufferStartSequenceNumber = 0;
+      } else if (config.dbType === 'postgresql') {
+        await this.BLClient.query(`DELETE FROM "${config.dbBacklogBuffer}"`);
         this.bufferSequenceNumber = 0;
         this.bufferStartSequenceNumber = 0;
       }
@@ -573,6 +733,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -582,6 +743,15 @@ class BackLog {
         const seqForThis = this.sequenceNumber;
         const BLResult = await this.BLClient.execute(
           `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+          [seqForThis, query, timestamp],
+        );
+        return [BLResult, seqForThis, timestamp];
+      } else if (config.dbType === 'postgresql') {
+        if (this.sequenceNumber === undefined) this.sequenceNumber = 0;
+        this.sequenceNumber += 1;
+        const seqForThis = this.sequenceNumber;
+        const BLResult = await this.BLClient.execute(
+          `INSERT INTO "${config.dbBacklogCollection}" (seq, query, timestamp) VALUES ($1,$2,$3)`,
           [seqForThis, query, timestamp],
         );
         return [BLResult, seqForThis, timestamp];
@@ -599,6 +769,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
 
     if (config.dbType === 'mysql') {
@@ -623,6 +794,28 @@ class BackLog {
       } else {
         this.bufferStartSequenceNumber = 0;
       }
+    } else if (config.dbType === 'postgresql') {
+      const records = await this.BLClient.query(`SELECT * FROM "${config.dbBacklogBuffer}" ORDER BY seq`);
+      for (const record of records) {
+        try {
+          if (record.seq === this.sequenceNumber + 1) {
+            log.info(`copying seq(${record.seq}) from buffer`);
+            // eslint-disable-next-line no-await-in-loop
+            await this.pushQuery(record.query, record.seq, record.timestamp);
+          }
+        } catch (e) {
+          log.error(e);
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await this.BLClient.execute(`DELETE FROM "${config.dbBacklogBuffer}" WHERE seq=$1`, [record.seq]);
+      }
+      const records2 = await this.BLClient.query(`SELECT * FROM "${config.dbBacklogBuffer}" ORDER BY seq`);
+      if (records2.length > 0) {
+        this.bufferStartSequenceNumber = records2[0].seq;
+        if (records2.length > 20) await this.moveBufferToBacklog();
+      } else {
+        this.bufferStartSequenceNumber = 0;
+      }
     }
     // this.clearBuffer();
     log.info('All buffer data moved to backlog successfully.');
@@ -636,6 +829,7 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
@@ -644,6 +838,13 @@ class BackLog {
           await this.BLClient.execute(`UPDATE ${config.dbOptions} SET value=? WHERE k=?`, [encryptedValue, key]);
         } else {
           await this.BLClient.execute(`INSERT INTO ${config.dbOptions} (k, value) VALUES (?,?)`, [key, encryptedValue]);
+        }
+      } else if (config.dbType === 'postgresql') {
+        const record = await this.BLClient.execute(`SELECT * FROM "${config.dbOptions}" WHERE k=$1`, [key]);
+        if (record.length) {
+          await this.BLClient.execute(`UPDATE "${config.dbOptions}" SET value=$1 WHERE k=$2`, [encryptedValue, key]);
+        } else {
+          await this.BLClient.execute(`INSERT INTO "${config.dbOptions}" (k, value) VALUES ($1,$2)`, [key, encryptedValue]);
         }
       }
     } catch (e) {
@@ -660,10 +861,16 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (records.length) {
+          return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
+        }
+      } else if (config.dbType === 'postgresql') {
+        const records = await this.BLClient.execute(`SELECT * FROM "${config.dbOptions}" WHERE k=$1`, [key]);
         if (records.length) {
           return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
         }
@@ -681,11 +888,17 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`DELETE FROM ${config.dbOptions} WHERE k=?`, [key]);
         if (records.length) {
+          return true;
+        }
+      } else if (config.dbType === 'postgresql') {
+        const records = await this.BLClient.execute(`DELETE FROM "${config.dbOptions}" WHERE k=$1`, [key]);
+        if (records.rowCount > 0) {
           return true;
         }
       }
@@ -703,10 +916,16 @@ class BackLog {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
+      if (this.BLClient && config.dbType === 'postgresql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions}`);
+        for (const record of records) {
+          keys[record.k] = Security.encryptComm(Security.decrypt(record.value));
+        }
+      } else if (config.dbType === 'postgresql') {
+        const records = await this.BLClient.execute(`SELECT * FROM "${config.dbOptions}"`);
         for (const record of records) {
           keys[record.k] = Security.encryptComm(Security.decrypt(record.value));
         }
@@ -810,13 +1029,24 @@ class BackLog {
 
   static async testDB() {
     try {
-      const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
-      if (dbList.length === 0) {
-        log.error('DB test failed', 'red');
-        return false;
-      } else {
-        log.info('DB test passes', 'green');
-        return true;
+      if (config.dbType === 'mysql') {
+        const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
+        if (dbList.length === 0) {
+          log.error('DB test failed', 'red');
+          return false;
+        } else {
+          log.info('DB test passes', 'green');
+          return true;
+        }
+      } else if (config.dbType === 'postgresql') {
+        const dbList = await this.BLClient.query(`SELECT 1 FROM pg_database WHERE datname = '${config.dbBacklog}'`);
+        if (dbList.length === 0) {
+          log.error('DB test failed', 'red');
+          return false;
+        } else {
+          log.info('DB test passes', 'green');
+          return true;
+        }
       }
     } catch (error) {
       log.error('DB test failed', 'red');
@@ -855,6 +1085,11 @@ class BackLog {
         // log.info('PURGING BINLOGS', 'cyan');
         await this.UserDBClient.query('FLUSH LOGS');
         await this.UserDBClient.query("PURGE BINARY LOGS BEFORE '2036-04-03'");
+      } else if (config.dbType === 'postgresql') {
+        // PostgreSQL doesn't have binary logs like MySQL
+        // WAL (Write-Ahead Logging) is handled differently
+        // This is a no-op for PostgreSQL as WAL management is typically automatic
+        log.info('PostgreSQL WAL management is handled automatically');
       }
     } catch (e) {
       log.error(e);
