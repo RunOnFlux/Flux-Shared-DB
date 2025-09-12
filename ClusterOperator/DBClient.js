@@ -225,17 +225,14 @@ class DBClient {
           connectionTimeoutMillis: 15000,
           idleTimeoutMillis: 30000,
           max: 10, // Smaller pool since we also have stream client
-          types: {
-            // Parse timestamps as strings to maintain consistency with MySQL behavior
-            setTypeParser(oid, format, parseFn) {
-              // Override date/time parsing to return strings
-              if (oid === 1114 || oid === 1184 || oid === 1082) { // timestamp, timestamptz, date
-                return (val) => val;
-              }
-              return parseFn(val);
-            },
-          },
         });
+
+        // Configure custom type parsers after pool creation
+        const { types } = require('pg');
+        // Parse timestamps as strings to maintain consistency with MySQL behavior
+        types.setTypeParser(1114, (val) => val); // timestamp without time zone
+        types.setTypeParser(1184, (val) => val); // timestamp with time zone  
+        types.setTypeParser(1082, (val) => val); // date
 
         // Test the pool connection
         const testClient = await this.pool.connect();
