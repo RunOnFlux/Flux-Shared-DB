@@ -910,7 +910,7 @@ class Operator {
       }
       // fetch cluster ip's
       if (this.appLocations.length === 0) {
-        log.info('fetching cluster list...');
+        log.info(`fetching cluster list for ${config.DBAppName}...`);
         this.appLocations = await fluxAPI.getApplicationIP(config.DBAppName);
         setTimeout(() => {
           this.appLocations = [];
