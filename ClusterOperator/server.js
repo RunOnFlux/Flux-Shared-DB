@@ -42,7 +42,7 @@ function auth(ip) {
   // only operator nodes can connect
   const idx = Operator.OpNodes.findIndex((item) => item.ip === ip);
   if (idx === -1) {
-    log.info(`opnodes: ${JSON.stringify(Operator.OpNodes)}`);
+    // log.info(`opnodes: ${JSON.stringify(Operator.OpNodes)}`);
     return false;
   }
   return true;
