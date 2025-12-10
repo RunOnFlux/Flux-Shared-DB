@@ -335,6 +335,25 @@ class DBClient {
       await this.query(`SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${key}');SET PASSWORD FOR 'root'@'%' = PASSWORD('${key}');FLUSH PRIVILEGES;`);
     }
   }
+
+  /**
+  * [close] - Properly closes the database connection and cleans up resources
+  */
+  async close() {
+    if (this.connection && typeof this.connection.end === 'function') {
+      try {
+        await this.connection.end();
+        log.info('DB connection closed successfully.');
+      } catch (err) {
+        log.warn(`Error closing DB connection: ${err.message}`);
+      }
+    }
+    if (this.stream) {
+      this.stream.destroy();
+      this.stream = null;
+    }
+    this.connected = false;
+  }
 }
 
 // eslint-disable-next-line func-names
