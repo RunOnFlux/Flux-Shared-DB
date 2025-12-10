@@ -127,7 +127,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   fs.writeFileSync('query.txt', `version: ${config.version}<br>`);
   fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
-  app.options('*', (req, res, next) => {
+  app.options('/:path*', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*'); // Adjust for production
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, loginphrase'); // Add loginphrase if used in headers
