@@ -127,11 +127,15 @@ async function startUI() { // Make async to potentially await DB client init if 
   fs.writeFileSync('query.txt', `version: ${config.version}<br>`);
   fs.appendFileSync('debug.txt', `------------------------------------------------------<br>version: ${config.version}<br>`);
 
-  app.options('/:path*', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*'); // Adjust for production
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, loginphrase'); // Add loginphrase if used in headers
-    res.sendStatus(200);
+  // Handle CORS preflight requests for all routes
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      res.header('Access-Control-Allow-Origin', '*'); // Adjust for production
+      res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, loginphrase');
+      return res.sendStatus(200);
+    }
+    next();
   });
 
   // --- Static Files and Root Route ---
@@ -160,7 +164,8 @@ async function startUI() { // Make async to potentially await DB client init if 
 
   app.use(limiter); // Apply rate limiter to all API routes below
 
-  app.get('/logs/:file?', (req, res) => {
+  // Handler function for logs route
+  const logsHandler = (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
     let { file } = req.params;
     file = file || req.query.file;
@@ -208,7 +213,11 @@ async function startUI() { // Make async to potentially await DB client init if 
     } else {
       res.status(403).send('Access Denied'); // Deny access if whitelist is empty
     }
-  });
+  };
+
+  // Register routes for both /logs and /logs/:file
+  app.get('/logs', logsHandler);
+  app.get('/logs/:file', logsHandler);
 
   app.post('/rollback', async (req, res) => {
     if (authUser(req)) {
@@ -1088,7 +1097,7 @@ async function validate(ip) {
 async function initServer() {
   try {
     Security.init(); // Initialize security components
-
+    /*
     // --- Initialize DB Client Instance ---
     // Do this early so it's available for startUI and socket handlers
     log.info('Initializing Database Client...');
@@ -1099,7 +1108,7 @@ async function initServer() {
       process.exit(1); // Exit if DB connection is essential
     }
     log.info('Database Client Initialized Successfully.');
-
+*/
     // --- Start UI and API Server ---
     await startUI(); // Now start the Express app
 
