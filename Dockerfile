@@ -1,11 +1,11 @@
-FROM node:16 AS build-env
+FROM node:20 AS build-env
 
 WORKDIR /app
 COPY . /app
 
 RUN npm ci --omit=dev
 
-FROM gcr.io/distroless/nodejs:16
+FROM gcr.io/distroless/nodejs20-debian12
 COPY --from=build-env /app /app
 WORKDIR /app
 EXPOSE 3307
