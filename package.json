@@ -15,7 +15,7 @@
     "express-fileupload": "^1.4.1",
     "express-rate-limit": "^7.1.1",
     "express-ws": "^5.0.2",
-    "googleapis": "^128.0.0",
+    "googleapis": "^169.0.0",
     "https": "^1.0.0",
     "md5": "^2.3.0",
     "memory-cache": "^0.2.0",
