@@ -1434,9 +1434,39 @@ class Operator {
   }
 
   /**
+  * [resolveAppName] - Fetches appName from local hostinfo API if env vars are not set
+  */
+  static async resolveAppName() {
+    if (config.DBAppName) return; // already set via env
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const req = http.get('http://fluxnode.service:16101/hostinfo', { timeout: 3000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('hostinfo timeout')); });
+      });
+      const parsed = JSON.parse(response);
+      const appName = parsed?.data?.appName;
+      if (appName) {
+        config.DBAppName = appName;
+        if (!config.AppName) config.AppName = appName;
+        log.info(`Resolved appName from hostinfo: ${appName}`);
+      } else {
+        log.warn('hostinfo response did not contain appName.');
+      }
+    } catch (err) {
+      log.warn(`Could not resolve appName from hostinfo: ${err.message}`);
+    }
+  }
+
+  /**
   * [init]
   */
   static async init() {
+    await this.resolveAppName();
     await this.initDB();
   }
 }
