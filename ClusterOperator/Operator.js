@@ -203,7 +203,7 @@ class Operator {
                   // log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  this.buffer[nextQuery.sequenceNumber] = undefined;
+                  delete this.buffer[nextQuery.sequenceNumber];
                 }
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
