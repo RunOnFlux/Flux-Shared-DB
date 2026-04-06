@@ -229,7 +229,7 @@
                         let port = this.port;
                         if (!port) {
                             const fluxPortMatch = window.location.hostname.match(/_(\d+)\./);
-                            if (fluxPortMatch) port = fluxPortMatch[1].substring(1);
+                            if (fluxPortMatch) port = fluxPortMatch[1];
                         }
                         const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status`;
                         // console.log(`Fetching status from: ${statusUrl}`); // Debugging
