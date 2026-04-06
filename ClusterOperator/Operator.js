@@ -83,6 +83,8 @@ class Operator {
 
   static sessionQueries = {};
 
+  static syncing = false;
+
   static buffer = {};
 
   static dbConnectionFails = 0;
@@ -742,7 +744,13 @@ class Operator {
   * [syncLocalDB]
   */
   static async syncLocalDB() {
+    if (this.syncing) {
+      log.info('syncLocalDB already in progress, skipping.', 'yellow');
+      return;
+    }
     if (this.masterWSConn && this.masterWSConn.connected) {
+      this.syncing = true;
+      const syncConn = this.masterWSConn;
       this.status = 'SYNC';
       log.info('Status SYNC', 'yellow');
       // check for beacon file presence
@@ -754,6 +762,7 @@ class Operator {
       }
       if (!status) {
         log.warn('Master node not reachable, Sync proccess halted.', 'red');
+        this.syncing = false;
         await this.findMaster();
         this.initMasterConnection();
         return;
@@ -806,6 +815,7 @@ class Operator {
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
+            this.syncing = false;
             const { masterWSConn } = this;
             if (!masterWSConn) {
               log.warn('Sync proccess halted.', 'red');
@@ -818,6 +828,7 @@ class Operator {
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
             log.error(err);
+            this.syncing = false;
             const { masterWSConn } = this;
             if (!masterWSConn) {
               log.warn('Sync proccess halted.', 'red');
@@ -849,14 +860,21 @@ class Operator {
       const startSeqNo = BackLog.sequenceNumber;
       BackLog.executeLogs = false;
       while (BackLog.sequenceNumber < masterSN) {
+        if (this.masterWSConn !== syncConn) {
+          log.warn('masterWSConn was replaced during sync, aborting.', 'red');
+          BackLog.executeLogs = true;
+          this.syncing = false;
+          return;
+        }
         try {
           const index = BackLog.sequenceNumber;
-          const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
+          const response = await fluxAPI.getBackLog(index + 1, syncConn);
           if (response && response.status === 'OK') {
             masterSN = response.sequenceNumber;
             for (const record of response.records) {
               if (this.status !== 'SYNC') {
                 log.warn('Sync proccess halted.', 'red');
+                this.syncing = false;
                 return;
               }
               if (record.seq === BackLog.sequenceNumber + 1) {
@@ -867,6 +885,7 @@ class Operator {
                 log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
                 if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
                   log.info('starting over...', 'red');
+                  this.syncing = false;
                   this.syncLocalDB();
                   return;
                 }
@@ -884,6 +903,7 @@ class Operator {
         }
       }
       BackLog.executeLogs = true;
+      this.syncing = false;
       log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
       log.info('Status OK', 'green');
