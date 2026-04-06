@@ -156,8 +156,8 @@
              },
             initialize() {
                 let baseUrl = new URL(window.location.href);
-                this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
                 this.port = baseUrl.port;
+                this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + (baseUrl.port ? ':' + baseUrl.port : '');
                 let fragment = baseUrl.hash;
                 if (fragment && fragment.length > 1) {
                     const pageFromHash = fragment.substring(1);
@@ -224,7 +224,14 @@
                 async fetchNodeStatus(ip) {
                     try {
                         // Construct URL carefully, ensuring port is included
-                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${this.port}/status`;
+                        // If port is empty (Flux subdomain format: appname_XXXXX.app.runonflux.io),
+                        // extract internal port by stripping the leading digit from XXXXX
+                        let port = this.port;
+                        if (!port) {
+                            const fluxPortMatch = window.location.hostname.match(/_(\d+)\./);
+                            if (fluxPortMatch) port = fluxPortMatch[1].substring(1);
+                        }
+                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status`;
                         // console.log(`Fetching status from: ${statusUrl}`); // Debugging
                         const response = await axios.get(statusUrl, { timeout: 4000 });
                         return response.data; // { sequenceNumber, masterIP, status, taskStatus }
