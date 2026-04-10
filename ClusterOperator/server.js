@@ -277,18 +277,27 @@ async function startUI() { // Make async to potentially await DB client init if 
     res.status(501).send('Not Implemented'); // Use 501 for not implemented
   });
 
-  app.get('/status', (req, res) => {
+  app.get('/status', async (req, res) => {
     // This endpoint seems intended for internal node communication, no authUser check needed?
     // Add CORS headers if accessed directly by browser/external tools
     // res.header('Access-Control-Allow-Origin', '*');
     // res.header('Access-Control-Allow-Headers', 'X-Requested-With');
-    res.send({
+    const response = {
       status: Operator.status,
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
       clusterStatus: Operator.ClusterStatus,
-    });
+    };
+    if (req.query.details === '1') {
+      const [backlogCount, bufferCount] = await Promise.all([
+        BackLog.getTotalLogsCount(false),
+        BackLog.getTotalLogsCount(true),
+      ]);
+      response.backlogCount = backlogCount;
+      response.bufferCount = bufferCount;
+    }
+    res.send(response);
     // res.end(); // Not needed
   });
 

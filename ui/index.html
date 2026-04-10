@@ -231,7 +231,9 @@
                     nodes: [],
                     isLoading: false,
                     error: null,
-                    dbEngine: 'MYSQL 8' // Or fetch dynamically if needed
+                    dbEngine: 'MYSQL 8',
+                    autoRefresh: false,
+                    autoRefreshIntervalId: null,
                 }
             },
             methods: {
@@ -245,20 +247,18 @@
                             const fluxPortMatch = window.location.hostname.match(/_(\d+)\./);
                             if (fluxPortMatch) port = fluxPortMatch[1];
                         }
-                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status`;
-                        // console.log(`Fetching status from: ${statusUrl}`); // Debugging
-                        const response = await axios.get(statusUrl, { timeout: 4000 });
-                        return response.data; // { sequenceNumber, masterIP, status, taskStatus }
+                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status?details=1`;
+                        const response = await axios.get(statusUrl, { timeout: 6000 });
+                        return response.data;
                     } catch (err) {
                         console.error(`Error fetching status for node ${ip}:`, err.message);
-                        // Provide a clearer error status
-                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A' };
+                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A', backlogCount: 'N/A', bufferCount: 'N/A' };
                     }
                 },
                 async fetchClusterStats() {
                     this.isLoading = true;
                     this.error = null;
-                    this.nodes = []; // Clear previous nodes
+                    this.nodes = [];
                     try {
                         const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
                         if (Array.isArray(response.data)) {
@@ -273,7 +273,9 @@
                                     ip: node.ip,
                                     sequenceNumber: statusData.sequenceNumber,
                                     masterIP: statusData.masterIP,
-                                    status: displayStatus
+                                    status: displayStatus,
+                                    backlogCount: statusData.backlogCount ?? 'N/A',
+                                    bufferCount: statusData.bufferCount ?? 'N/A',
                                 };
                             });
                             this.nodes = await Promise.all(nodePromises);
@@ -286,24 +288,36 @@
                     } finally {
                         this.isLoading = false;
                     }
+                },
+                toggleAutoRefresh() {
+                    this.autoRefresh = !this.autoRefresh;
+                    if (this.autoRefresh) {
+                        this.autoRefreshIntervalId = setInterval(() => this.fetchClusterStats(), 15000);
+                    } else {
+                        clearInterval(this.autoRefreshIntervalId);
+                        this.autoRefreshIntervalId = null;
+                    }
                 }
             },
             mounted() {
                 this.fetchClusterStats();
-                // Optional: Set up an interval to refresh stats
-                // this.intervalId = setInterval(this.fetchClusterStats, 15000); // Refresh every 15 seconds
             },
-            // beforeUnmount() {
-            //     // Clear interval when component is destroyed
-            //     if (this.intervalId) {
-            //         clearInterval(this.intervalId);
-            //     }
-            // },
+            beforeUnmount() {
+                if (this.autoRefreshIntervalId) clearInterval(this.autoRefreshIntervalId);
+            },
             template: `
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
-                        <span class="fs-5">DB Engine: {{ dbEngine }}</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-5">DB Engine: {{ dbEngine }}</span>
+                            <button class="btn btn-sm btn-outline-secondary" @click="fetchClusterStats" :disabled="isLoading">
+                                <i class="fas fa-sync-alt" :class="{'fa-spin': isLoading}"></i> Refresh
+                            </button>
+                            <button class="btn btn-sm" :class="autoRefresh ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleAutoRefresh">
+                                <i class="fas fa-clock me-1"></i>{{ autoRefresh ? 'Auto: ON (15s)' : 'Auto: OFF' }}
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div v-if="isLoading" class="d-flex justify-content-center">
@@ -318,21 +332,25 @@
                                 <thead>
                                     <tr>
                                         <th scope="col" width="10">#</th>
-                                        <th scope="col" width="200">IP</th>
-                                        <th scope="col" width="200">Sequence Number</th>
-                                        <th scope="col" width="200">Master IP</th>
+                                        <th scope="col" width="180">IP</th>
+                                        <th scope="col" width="160">Sequence Number</th>
+                                        <th scope="col" width="160">Master IP</th>
+                                        <th scope="col" width="130">Backlog Rows</th>
+                                        <th scope="col" width="120">Buffer Rows</th>
                                         <th scope="col">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-if="nodes.length === 0">
-                                        <td colspan="5" class="text-center">No active nodes found.</td>
+                                        <td colspan="7" class="text-center">No active nodes found.</td>
                                     </tr>
                                     <tr v-for="node in nodes" :key="node.ip">
                                         <th scope="row">{{ node.id }}</th>
                                         <td>{{ node.ip }}</td>
                                         <td>{{ node.sequenceNumber }}</td>
                                         <td>{{ node.masterIP }}</td>
+                                        <td>{{ node.backlogCount }}</td>
+                                        <td>{{ node.bufferCount }}</td>
                                         <td>{{ node.status }}</td>
                                     </tr>
                                 </tbody>

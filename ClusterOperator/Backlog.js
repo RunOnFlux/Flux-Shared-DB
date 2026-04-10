@@ -265,16 +265,16 @@ class BackLog {
   * [getTotalLogsCount]
   * @return {int}
   */
-  static async getTotalLogsCount() {
+  static async getTotalLogsCount(buffer = false) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
-          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${config.dbBacklogCollection}`);
-          log.info(`Total Records: ${JSON.stringify(totalRecords)}`);
-          return totalRecords[0].total;
+          const table = buffer ? config.dbBacklogBuffer : config.dbBacklogCollection;
+          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${table}`);
+          return totalRecords[0].total ?? 0;
         }
       } catch (e) {
         log.error(e);
