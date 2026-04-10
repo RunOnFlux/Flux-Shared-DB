@@ -235,6 +235,11 @@
                     dbEngine: 'MYSQL 8',
                     autoRefresh: false,
                     autoRefreshIntervalId: null,
+                    statsData: [],
+                    statsSpan: 7,
+                    statsSpans: [1, 3, 7, 14, 30],
+                    statsLoading: false,
+                    chartInstance: null,
                 }
             },
             methods: {
@@ -293,18 +298,73 @@
                 toggleAutoRefresh() {
                     this.autoRefresh = !this.autoRefresh;
                     if (this.autoRefresh) {
-                        this.autoRefreshIntervalId = setInterval(() => this.fetchClusterStats(), 15000);
+                        this.autoRefreshIntervalId = setInterval(() => this.fetchClusterStats(), 60000);
                     } else {
                         clearInterval(this.autoRefreshIntervalId);
                         this.autoRefreshIntervalId = null;
                     }
+                },
+                async fetchStats() {
+                    this.statsLoading = true;
+                    try {
+                        const since = Date.now() - this.statsSpan * 24 * 60 * 60 * 1000;
+                        const res = await axios.get(`${this.apiUrl}/stats?since=${since}`, { timeout: 5000 });
+                        this.statsData = Array.isArray(res.data) ? res.data.sort((a, b) => a.ts - b.ts) : [];
+                    } catch (err) {
+                        console.error('fetchStats error:', err.message);
+                        this.statsData = [];
+                    } finally {
+                        this.statsLoading = false;
+                        this.$nextTick(() => this.renderChart());
+                    }
+                },
+                renderChart() {
+                    if (this.chartInstance) { this.chartInstance.destroy(); this.chartInstance = null; }
+                    if (!this.$refs.statsCanvas || this.statsData.length === 0) return;
+                    const labels = this.statsData.map(e => new Date(e.ts).toLocaleString());
+                    const seqNos = this.statsData.map(e => e.seqNo);
+                    const backlogs = this.statsData.map(e => e.backlogCount);
+                    const buffers = this.statsData.map(e => e.bufferCount);
+                    const deltas = this.statsData.map((e, i) => {
+                        if (i === 0) return 0;
+                        const d = e.seqNo - this.statsData[i - 1].seqNo;
+                        return d >= 0 ? d : 0;
+                    });
+                    this.chartInstance = new Chart(this.$refs.statsCanvas, {
+                        type: 'line',
+                        data: {
+                            labels,
+                            datasets: [
+                                { label: 'Sequence No', data: seqNos, borderColor: '#0dcaf0', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y' },
+                                { label: 'Backlog Rows', data: backlogs, borderColor: '#ffc107', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Buffer Rows', data: buffers, borderColor: '#6f42c1', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Queries/interval', data: deltas, borderColor: '#20c997', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 10, color: '#adb5bd' }, grid: { color: '#2a2d30' } },
+                                y: { type: 'linear', position: 'left', title: { display: true, text: 'Seq No', color: '#0dcaf0' }, ticks: { color: '#adb5bd' }, grid: { color: '#2a2d30' } },
+                                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Rows / Queries', color: '#adb5bd' }, ticks: { color: '#adb5bd' }, grid: { drawOnChartArea: false } },
+                            },
+                            plugins: { legend: { labels: { color: '#dee2e6' } } }
+                        }
+                    });
+                },
+                changeSpan(days) {
+                    this.statsSpan = days;
+                    this.fetchStats();
                 }
             },
             mounted() {
                 this.fetchClusterStats();
+                this.fetchStats();
             },
             beforeUnmount() {
                 if (this.autoRefreshIntervalId) clearInterval(this.autoRefreshIntervalId);
+                if (this.chartInstance) this.chartInstance.destroy();
             },
             template: `
                 <div class="card">
@@ -316,7 +376,7 @@
                                 <i class="fas fa-sync-alt" :class="{'fa-spin': isLoading}"></i> Refresh
                             </button>
                             <button class="btn btn-sm" :class="autoRefresh ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleAutoRefresh">
-                                <i class="fas fa-clock me-1"></i>{{ autoRefresh ? 'Auto: ON (15s)' : 'Auto: OFF' }}
+                                <i class="fas fa-clock me-1"></i>{{ autoRefresh ? 'Auto: ON (60s)' : 'Auto: OFF' }}
                             </button>
                         </div>
                     </div>
@@ -356,6 +416,22 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="m-0">Node Stats History</h5>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="btn-group btn-group-sm">
+                                        <button v-for="s in statsSpans" :key="s" class="btn" :class="statsSpan === s ? 'btn-dark' : 'btn-outline-secondary'" @click="changeSpan(s)">{{ s }}d</button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" @click="fetchStats" :disabled="statsLoading">
+                                        <i class="fas fa-sync-alt" :class="{'fa-spin': statsLoading}"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="statsLoading" class="text-center py-3"><div class="spinner-border text-info"></div></div>
+                            <div v-else-if="statsData.length === 0" class="text-muted text-center py-3">No stats data yet. Data is collected every 2 minutes during health checks.</div>
+                            <canvas v-show="statsData.length > 0" ref="statsCanvas" style="max-height:320px;"></canvas>
                         </div>
                     </div>
                 </div>

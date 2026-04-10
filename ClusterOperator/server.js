@@ -116,7 +116,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   app.use(fileUpload());
   const limiter = RateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // max 100 requests per windowMs (adjust as needed)
+    max: 500, // max 500 requests per windowMs
   });
   // Apply limiter globally or selectively
   // app.use(limiter); // Apply to all routes below this line
