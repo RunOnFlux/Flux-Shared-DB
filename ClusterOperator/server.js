@@ -222,7 +222,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   // Paginated log file reader for admin UI
   app.get('/getlogfile', (req, res) => {
     if (!authUser(req)) return res.status(401).send('Unauthorized');
-    const allowedFiles = ['debug', 'info', 'warnings', 'errors', 'query'];
+    const allowedFiles = ['debug', 'info', 'warnings', 'errors', 'query', 'compress'];
     const fileParam = (typeof req.query.file === 'string' ? req.query.file : 'debug').toLowerCase();
     if (!allowedFiles.includes(fileParam)) {
       return res.status(400).send({ error: 'Invalid file name.' });

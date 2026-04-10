@@ -429,18 +429,21 @@ class Operator {
         prevSeqNo = beaconContent.seqNo;
       }
     }
-    log.info(`lastCompression ${prevSeqNo}`, 'cyan');
+    log.compress(`lastCompression ${prevSeqNo}`, 'cyan');
     const updates = await BackLog.getNumberOfUpdates();
-    log.info(`number of updates ${updates}`, 'cyan');
+    log.compress(`number of updates ${updates}`, 'cyan');
     const beaconContent = await BackLog.readBeaconFile();
-    log.info(`${beaconContent}, ${BackLog.firstSequenceNumber}`, 'cyan');
+    log.compress(`beacon: ${JSON.stringify(beaconContent)}, firstSeqNo: ${BackLog.firstSequenceNumber}`, 'cyan');
     if (prevSeqNo) {
       if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) {
+        log.compress(`triggering compression: seqNo=${BackLog.sequenceNumber}, prevSeqNo=${prevSeqNo}, updates=${updates}`, 'yellow');
         this.comperssBacklog();
       } else if (!beaconContent) {
+        log.compress('triggering compression: no beacon file found', 'yellow');
         this.comperssBacklog();
       }
     } else if (updates >= 50000) {
+      log.compress(`triggering compression: no lastCompression key, updates=${updates}`, 'yellow');
       this.comperssBacklog();
     }
   }
@@ -497,13 +500,16 @@ class Operator {
     const backupFilename = `B_${timestamp}`;
     try {
       this.status = 'COMPRESSING';
-      log.info('Status COMPRESSING', 'cyan');
+      log.compress(`compression started: file=${backupFilename}`, 'yellow');
       // check for recent bad backup file
       const beaconContent = await BackLog.readBeaconFile();
       if (beaconContent && 'newFileName' in beaconContent) {
-        log.info(`${beaconContent.newFileName},${beaconContent.backupFilename}`);
+        log.compress(`previous beacon: newFileName=${beaconContent.newFileName}, backupFilename=${beaconContent.backupFilename}`, 'cyan');
         // check if recent backup has failed
-        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, false);
+        if (beaconContent.newFileName !== beaconContent.backupFilename) {
+          log.compress(`incomplete backup detected, removing ${beaconContent.newFileName}`, 'red');
+          BackLog.deleteBackupFile(beaconContent.newFileName, false);
+        }
       }
       // set new backup file name
       if (beaconContent) {
@@ -511,7 +517,7 @@ class Operator {
         await BackLog.adjustBeaconFile(beaconContent);
       }
       const seqNo = BackLog.sequenceNumber;
-      log.info(seqNo, 'cyan');
+      log.compress(`creating snapshot at seqNo=${seqNo}`, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
       // log.info('key set', 'cyan');
       this.emitCompressionStart(seqNo);
@@ -521,6 +527,7 @@ class Operator {
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
       // eslint-disable-next-line no-param-reassign
       const BackupFilesize = fileStats.size;
+      log.compress(`snapshot created: file=${backupFilename}.sql, size=${BackupFilesize} bytes`, 'cyan');
       if (BackupFilesize > 1024) {
         // update beacon file
         await BackLog.adjustBeaconFile({
@@ -528,13 +535,14 @@ class Operator {
         });
         // clear old backlogs
         // await BackLog.clearLogs(seqNo);
-        log.info('Compression finished, moving buffer records to backlog', 'cyan');
+        log.compress('compression finished, moving buffer records to backlog', 'green');
         await BackLog.moveBufferToBacklog();
         // delete old snapshots, keep last 2
         const files = await BackLog.listSqlFiles();
         for (let i = 0; i < files.length - 2; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       } else {
         // remove the bad file
+        log.compress(`snapshot too small (${BackupFilesize} bytes), removing bad file`, 'red');
         BackLog.deleteBackupFile(backupFilename, false);
       }
       // find a new master if old connection is lost
@@ -543,12 +551,13 @@ class Operator {
         await this.findMaster();
         this.initMasterConnection();
       } else {
-        log.info('Status OK', 'green');
+        log.compress('compression completed successfully', 'green');
         this.status = 'OK';
       }
     } catch (e) {
       // remove the bad file
       BackLog.deleteBackupFile(backupFilename, true);
+      log.compress(`compression FAILED: ${e.message || JSON.stringify(e)}`, 'red');
       log.error(`error happened while compressing backlog, moving buffer records to backlog ${JSON.stringify(e)}`, 'red');
       await BackLog.moveBufferToBacklog();
       this.status = 'OK';
