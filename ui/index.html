@@ -335,21 +335,21 @@
                         data: {
                             labels,
                             datasets: [
-                                { label: 'Sequence No', data: seqNos, borderColor: '#0dcaf0', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y' },
-                                { label: 'Backlog Rows', data: backlogs, borderColor: '#ffc107', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Sequence No', data: seqNos, borderColor: '#0a9ab5', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y' },
+                                { label: 'Backlog Rows', data: backlogs, borderColor: '#d97706', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
                                 { label: 'Buffer Rows', data: buffers, borderColor: '#6f42c1', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
-                                { label: 'Queries/interval', data: deltas, borderColor: '#20c997', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Queries/interval', data: deltas, borderColor: '#0d8a6a', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
                             ]
                         },
                         options: {
                             responsive: true,
                             interaction: { mode: 'index', intersect: false },
                             scales: {
-                                x: { ticks: { maxTicksLimit: 10, color: '#adb5bd' }, grid: { color: '#2a2d30' } },
-                                y: { type: 'linear', position: 'left', title: { display: true, text: 'Seq No', color: '#0dcaf0' }, ticks: { color: '#adb5bd' }, grid: { color: '#2a2d30' } },
-                                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Rows / Queries', color: '#adb5bd' }, ticks: { color: '#adb5bd' }, grid: { drawOnChartArea: false } },
+                                x: { ticks: { maxTicksLimit: 10, color: '#212529' }, grid: { color: '#dee2e6' } },
+                                y: { type: 'linear', position: 'left', title: { display: true, text: 'Seq No', color: '#0a9ab5' }, ticks: { color: '#212529' }, grid: { color: '#dee2e6' } },
+                                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Rows / Queries', color: '#212529' }, ticks: { color: '#212529' }, grid: { drawOnChartArea: false } },
                             },
-                            plugins: { legend: { labels: { color: '#dee2e6' } } }
+                            plugins: { legend: { labels: { color: '#212529' } } }
                         }
                     });
                 },
