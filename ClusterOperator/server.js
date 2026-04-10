@@ -247,6 +247,28 @@ async function startUI() { // Make async to potentially await DB client init if 
     }
   });
 
+  // Node stats history for dashboard charts (NDJSON: one JSON object per line)
+  app.get('/stats', (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    const statsFile = 'stats.json';
+    try {
+      if (!fs.existsSync(statsFile)) return res.send([]);
+      const since = parseInt(req.query.since, 10);
+      const lines = fs.readFileSync(statsFile, 'utf8').split('\n').filter(Boolean);
+      let entries = [];
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (!since || entry.ts >= since) entries.push(entry);
+        } catch (_) { /* skip malformed lines */ }
+      }
+      res.send(entries);
+    } catch (err) {
+      log.error(`Error reading stats.json: ${err.message}`);
+      res.status(500).send({ error: 'Failed to read stats.' });
+    }
+  });
+
   app.post('/rollback', async (req, res) => {
     if (authUser(req)) {
       let { seqNo } = req.body;

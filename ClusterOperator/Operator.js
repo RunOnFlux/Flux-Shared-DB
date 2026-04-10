@@ -1219,8 +1219,46 @@ class Operator {
         this.ghosted = false;
       }
       this.connectionDrops = 0;
+
+      // record stats snapshot for dashboard charts
+      this.recordStats();
     } catch (err) {
       log.error(err);
+    }
+  }
+
+  /**
+  * [recordStats] - Appends a stats snapshot to stats.json, pruning entries older than 30 days
+  */
+  static async recordStats() {
+    try {
+      const [backlogCount, bufferCount] = await Promise.all([
+        BackLog.getTotalLogsCount(false),
+        BackLog.getTotalLogsCount(true),
+      ]);
+      const entry = {
+        ts: Date.now(),
+        seqNo: BackLog.sequenceNumber,
+        backlogCount,
+        bufferCount,
+        status: this.status,
+        isMaster: this.IamMaster,
+      };
+      const statsFile = 'stats.json';
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 days
+      // Append one JSON line (NDJSON format)
+      fs.appendFileSync(statsFile, `${JSON.stringify(entry)}\n`);
+      // Prune entries older than 30 days: rewrite only if file is getting big
+      const size = fs.existsSync(statsFile) ? fs.statSync(statsFile).size : 0;
+      if (size > 2 * 1024 * 1024) { // 2MB — prune old entries
+        const lines = fs.readFileSync(statsFile, 'utf8').split('\n').filter(Boolean);
+        const kept = lines.filter((l) => {
+          try { return JSON.parse(l).ts >= cutoff; } catch (_) { return false; }
+        });
+        fs.writeFileSync(statsFile, `${kept.join('\n')}\n`);
+      }
+    } catch (err) {
+      log.error(`recordStats failed: ${err.message}`);
     }
   }
 
