@@ -91,6 +91,8 @@ class Operator {
 
   static containerDataPath = '';
 
+  static initStatusSince = null;
+
   /**
   * [initLocalDB]
   */
@@ -1039,6 +1041,19 @@ class Operator {
   */
   static async doHealthCheck() {
     try {
+      // Restart container if node is stuck in INIT for too long.
+      if ((this.status || '').toUpperCase() === 'INIT') {
+        if (!this.initStatusSince) this.initStatusSince = Date.now();
+        const initDurationMs = Date.now() - this.initStatusSince;
+        if (initDurationMs > 15 * 60 * 1000) {
+          const initDurationSec = Math.floor(initDurationMs / 1000);
+          log.error(`Node stuck in INIT for ${initDurationSec}s. Restarting container...`, 'red');
+          process.exit(1);
+        }
+      } else {
+        this.initStatusSince = null;
+      }
+
       // check db connection
       /*
       log.info('health check');
