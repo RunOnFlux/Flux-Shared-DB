@@ -164,6 +164,10 @@ async function startUI() { // Make async to potentially await DB client init if 
 
   app.use(limiter); // Apply rate limiter to all API routes below
 
+  // Cache for /status?details=1 counts — refreshed at most once per 2 minutes.
+  const detailsCache = { backlogCount: null, bufferCount: null, expiresAt: 0 };
+  const DETAILS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
   // Handler function for logs route
   const logsHandler = (req, res) => {
     const remoteIp = utill.convertIP(req.ip);
@@ -310,13 +314,17 @@ async function startUI() { // Make async to potentially await DB client init if 
       clusterStatus: Operator.ClusterStatus,
     };
     if (req.query.details === '1') {
-      if (!authUser(req)) return res.status(401).send('Unauthorized');
-      const [backlogCount, bufferCount] = await Promise.all([
-        BackLog.getTotalLogsCount(false),
-        BackLog.getTotalLogsCount(true),
-      ]);
-      response.backlogCount = backlogCount;
-      response.bufferCount = bufferCount;
+      if (Date.now() > detailsCache.expiresAt) {
+        const [backlogCount, bufferCount] = await Promise.all([
+          BackLog.getTotalLogsCount(false),
+          BackLog.getTotalLogsCount(true),
+        ]);
+        detailsCache.backlogCount = backlogCount;
+        detailsCache.bufferCount = bufferCount;
+        detailsCache.expiresAt = Date.now() + DETAILS_CACHE_TTL;
+      }
+      response.backlogCount = detailsCache.backlogCount;
+      response.bufferCount = detailsCache.bufferCount;
     }
     res.send(response);
     // res.end(); // Not needed
