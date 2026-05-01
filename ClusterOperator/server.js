@@ -230,21 +230,19 @@ async function startUI() { // Make async to potentially await DB client init if 
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 200, 1), 500);
     const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
     const logFilePath = `${fileParam}.txt`;
-    try {
-      if (!fs.existsSync(logFilePath)) {
-        return res.send({ lines: [], totalLines: 0, page, pageSize });
+    fs.readFile(logFilePath, 'utf8', (err, content) => {
+      if (err) {
+        if (err.code === 'ENOENT') return res.send({ lines: [], totalLines: 0, page, pageSize });
+        log.error(`Error reading log file: ${err.message}`);
+        return res.status(500).send({ error: 'Failed to read log file.' });
       }
-      const content = fs.readFileSync(logFilePath, 'utf8');
       const allLines = content.split('<br>').filter((l) => l.trim().length > 0);
       const totalLines = allLines.length;
       const endIdx = Math.max(0, totalLines - page * pageSize);
       const startIdx = Math.max(0, endIdx - pageSize);
       const lines = allLines.slice(startIdx, endIdx);
       res.send({ lines, totalLines, page, pageSize });
-    } catch (err) {
-      log.error(`Error reading log file: ${err.message}`);
-      res.status(500).send({ error: 'Failed to read log file.' });
-    }
+    });
   });
 
   // Node stats history for dashboard charts (NDJSON: one JSON object per line)
@@ -312,6 +310,7 @@ async function startUI() { // Make async to potentially await DB client init if 
       clusterStatus: Operator.ClusterStatus,
     };
     if (req.query.details === '1') {
+      if (!authUser(req)) return res.status(401).send('Unauthorized');
       const [backlogCount, bufferCount] = await Promise.all([
         BackLog.getTotalLogsCount(false),
         BackLog.getTotalLogsCount(true),

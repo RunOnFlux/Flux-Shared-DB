@@ -761,6 +761,12 @@ class Operator {
     }
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.syncing = true;
+      // selfManagedSync is set true when the importer path takes over cleanup.
+      // The finally block must not reset syncing in that case because the importer's
+      // .then()/.catch() already resets it and fires a recursive syncLocalDB() call
+      // that sets syncing=true again before finally runs.
+      let selfManagedSync = false;
+      try {
       const syncConn = this.masterWSConn;
       this.status = 'SYNC';
       log.info('Status SYNC', 'yellow');
@@ -818,6 +824,7 @@ class Operator {
             log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           });
           importer.setEncoding('utf8');
+          selfManagedSync = true; // importer handles this.syncing and recursion from here
           await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
             const filesImported = importer.getImported();
             log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
@@ -919,6 +926,14 @@ class Operator {
       if (copyBuffer) await BackLog.moveBufferToBacklog();
       log.info('Status OK', 'green');
       this.status = 'OK';
+      } catch (err) {
+        log.error('Unexpected error in syncLocalDB:', err);
+      } finally {
+        if (!selfManagedSync) {
+          this.syncing = false;
+          BackLog.executeLogs = true;
+        }
+      }
     }
   }
 
