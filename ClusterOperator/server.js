@@ -116,7 +116,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   app.use(fileUpload());
   const limiter = RateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // max 100 requests per windowMs (adjust as needed)
+    max: 500, // max 500 requests per windowMs
   });
   // Apply limiter globally or selectively
   // app.use(limiter); // Apply to all routes below this line
@@ -163,6 +163,10 @@ async function startUI() { // Make async to potentially await DB client init if 
   });
 
   app.use(limiter); // Apply rate limiter to all API routes below
+
+  // Cache for /status?details=1 counts — refreshed at most once per 2 minutes.
+  const detailsCache = { backlogCount: null, bufferCount: null, expiresAt: 0 };
+  const DETAILS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 
   // Handler function for logs route
   const logsHandler = (req, res) => {
@@ -219,6 +223,54 @@ async function startUI() { // Make async to potentially await DB client init if 
   app.get('/logs', logsHandler);
   app.get('/logs/:file', logsHandler);
 
+  // Paginated log file reader for admin UI
+  app.get('/getlogfile', (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    const allowedFiles = ['debug', 'info', 'warnings', 'errors', 'query', 'compress'];
+    const fileParam = (typeof req.query.file === 'string' ? req.query.file : 'debug').toLowerCase();
+    if (!allowedFiles.includes(fileParam)) {
+      return res.status(400).send({ error: 'Invalid file name.' });
+    }
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 200, 1), 500);
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
+    const logFilePath = `${fileParam}.txt`;
+    fs.readFile(logFilePath, 'utf8', (err, content) => {
+      if (err) {
+        if (err.code === 'ENOENT') return res.send({ lines: [], totalLines: 0, page, pageSize });
+        log.error(`Error reading log file: ${err.message}`);
+        return res.status(500).send({ error: 'Failed to read log file.' });
+      }
+      const allLines = content.split('<br>').filter((l) => l.trim().length > 0);
+      const totalLines = allLines.length;
+      const endIdx = Math.max(0, totalLines - page * pageSize);
+      const startIdx = Math.max(0, endIdx - pageSize);
+      const lines = allLines.slice(startIdx, endIdx);
+      res.send({ lines, totalLines, page, pageSize });
+    });
+  });
+
+  // Node stats history for dashboard charts (NDJSON: one JSON object per line)
+  app.get('/stats', (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    const statsFile = 'stats.json';
+    try {
+      if (!fs.existsSync(statsFile)) return res.send([]);
+      const since = parseInt(req.query.since, 10);
+      const lines = fs.readFileSync(statsFile, 'utf8').split('\n').filter(Boolean);
+      let entries = [];
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (!since || entry.ts >= since) entries.push(entry);
+        } catch (_) { /* skip malformed lines */ }
+      }
+      res.send(entries);
+    } catch (err) {
+      log.error(`Error reading stats.json: ${err.message}`);
+      res.status(500).send({ error: 'Failed to read stats.' });
+    }
+  });
+
   app.post('/rollback', async (req, res) => {
     if (authUser(req)) {
       let { seqNo } = req.body;
@@ -249,18 +301,32 @@ async function startUI() { // Make async to potentially await DB client init if 
     res.status(501).send('Not Implemented'); // Use 501 for not implemented
   });
 
-  app.get('/status', (req, res) => {
+  app.get('/status', async (req, res) => {
     // This endpoint seems intended for internal node communication, no authUser check needed?
     // Add CORS headers if accessed directly by browser/external tools
     // res.header('Access-Control-Allow-Origin', '*');
     // res.header('Access-Control-Allow-Headers', 'X-Requested-With');
-    res.send({
+    const response = {
       status: Operator.status,
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
       clusterStatus: Operator.ClusterStatus,
-    });
+    };
+    if (req.query.details === '1') {
+      if (Date.now() > detailsCache.expiresAt) {
+        const [backlogCount, bufferCount] = await Promise.all([
+          BackLog.getTotalLogsCount(false),
+          BackLog.getTotalLogsCount(true),
+        ]);
+        detailsCache.backlogCount = backlogCount;
+        detailsCache.bufferCount = bufferCount;
+        detailsCache.expiresAt = Date.now() + DETAILS_CACHE_TTL;
+      }
+      response.backlogCount = detailsCache.backlogCount;
+      response.bufferCount = detailsCache.bufferCount;
+    }
+    res.send(response);
     // res.end(); // Not needed
   });
 

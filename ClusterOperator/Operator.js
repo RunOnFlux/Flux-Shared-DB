@@ -83,11 +83,15 @@ class Operator {
 
   static sessionQueries = {};
 
+  static syncing = false;
+
   static buffer = {};
 
   static dbConnectionFails = 0;
 
   static containerDataPath = '';
+
+  static initStatusSince = null;
 
   /**
   * [initLocalDB]
@@ -203,7 +207,7 @@ class Operator {
                   // log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
                   await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
-                  this.buffer[nextQuery.sequenceNumber] = undefined;
+                  delete this.buffer[nextQuery.sequenceNumber];
                 }
               }
               if (this.lastBufferSeqNo > BackLog.sequenceNumber + 1) {
@@ -427,18 +431,21 @@ class Operator {
         prevSeqNo = beaconContent.seqNo;
       }
     }
-    log.info(`lastCompression ${prevSeqNo}`, 'cyan');
+    log.compress(`lastCompression ${prevSeqNo}`, 'cyan');
     const updates = await BackLog.getNumberOfUpdates();
-    log.info(`number of updates ${updates}`, 'cyan');
+    log.compress(`number of updates ${updates}`, 'cyan');
     const beaconContent = await BackLog.readBeaconFile();
-    log.info(`${beaconContent}, ${BackLog.firstSequenceNumber}`, 'cyan');
+    log.compress(`beacon: ${JSON.stringify(beaconContent)}, firstSeqNo: ${BackLog.firstSequenceNumber}`, 'cyan');
     if (prevSeqNo) {
       if (BackLog.sequenceNumber > Number(prevSeqNo) + 50000 && updates >= 50000) {
+        log.compress(`triggering compression: seqNo=${BackLog.sequenceNumber}, prevSeqNo=${prevSeqNo}, updates=${updates}`, 'yellow');
         this.comperssBacklog();
       } else if (!beaconContent) {
+        log.compress('triggering compression: no beacon file found', 'yellow');
         this.comperssBacklog();
       }
     } else if (updates >= 50000) {
+      log.compress(`triggering compression: no lastCompression key, updates=${updates}`, 'yellow');
       this.comperssBacklog();
     }
   }
@@ -495,13 +502,16 @@ class Operator {
     const backupFilename = `B_${timestamp}`;
     try {
       this.status = 'COMPRESSING';
-      log.info('Status COMPRESSING', 'cyan');
+      log.compress(`compression started: file=${backupFilename}`, 'yellow');
       // check for recent bad backup file
       const beaconContent = await BackLog.readBeaconFile();
       if (beaconContent && 'newFileName' in beaconContent) {
-        log.info(`${beaconContent.newFileName},${beaconContent.backupFilename}`);
+        log.compress(`previous beacon: newFileName=${beaconContent.newFileName}, backupFilename=${beaconContent.backupFilename}`, 'cyan');
         // check if recent backup has failed
-        if (beaconContent.newFileName !== beaconContent.backupFilename) BackLog.deleteBackupFile(beaconContent.newFileName, false);
+        if (beaconContent.newFileName !== beaconContent.backupFilename) {
+          log.compress(`incomplete backup detected, removing ${beaconContent.newFileName}`, 'red');
+          BackLog.deleteBackupFile(beaconContent.newFileName, false);
+        }
       }
       // set new backup file name
       if (beaconContent) {
@@ -509,7 +519,7 @@ class Operator {
         await BackLog.adjustBeaconFile(beaconContent);
       }
       const seqNo = BackLog.sequenceNumber;
-      log.info(seqNo, 'cyan');
+      log.compress(`creating snapshot at seqNo=${seqNo}`, 'cyan');
       await BackLog.pushKey('lastCompression', seqNo, false);
       // log.info('key set', 'cyan');
       this.emitCompressionStart(seqNo);
@@ -519,6 +529,7 @@ class Operator {
       const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
       // eslint-disable-next-line no-param-reassign
       const BackupFilesize = fileStats.size;
+      log.compress(`snapshot created: file=${backupFilename}.sql, size=${BackupFilesize} bytes`, 'cyan');
       if (BackupFilesize > 1024) {
         // update beacon file
         await BackLog.adjustBeaconFile({
@@ -526,13 +537,14 @@ class Operator {
         });
         // clear old backlogs
         // await BackLog.clearLogs(seqNo);
-        log.info('Compression finished, moving buffer records to backlog', 'cyan');
+        log.compress('compression finished, moving buffer records to backlog', 'green');
         await BackLog.moveBufferToBacklog();
         // delete old snapshots, keep last 2
         const files = await BackLog.listSqlFiles();
         for (let i = 0; i < files.length - 2; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
       } else {
         // remove the bad file
+        log.compress(`snapshot too small (${BackupFilesize} bytes), removing bad file`, 'red');
         BackLog.deleteBackupFile(backupFilename, false);
       }
       // find a new master if old connection is lost
@@ -541,12 +553,13 @@ class Operator {
         await this.findMaster();
         this.initMasterConnection();
       } else {
-        log.info('Status OK', 'green');
+        log.compress('compression completed successfully', 'green');
         this.status = 'OK';
       }
     } catch (e) {
       // remove the bad file
       BackLog.deleteBackupFile(backupFilename, true);
+      log.compress(`compression FAILED: ${e.message || JSON.stringify(e)}`, 'red');
       log.error(`error happened while compressing backlog, moving buffer records to backlog ${JSON.stringify(e)}`, 'red');
       await BackLog.moveBufferToBacklog();
       this.status = 'OK';
@@ -742,7 +755,19 @@ class Operator {
   * [syncLocalDB]
   */
   static async syncLocalDB() {
+    if (this.syncing) {
+      log.info('syncLocalDB already in progress, skipping.', 'yellow');
+      return;
+    }
     if (this.masterWSConn && this.masterWSConn.connected) {
+      this.syncing = true;
+      // selfManagedSync is set true when the importer path takes over cleanup.
+      // The finally block must not reset syncing in that case because the importer's
+      // .then()/.catch() already resets it and fires a recursive syncLocalDB() call
+      // that sets syncing=true again before finally runs.
+      let selfManagedSync = false;
+      try {
+      const syncConn = this.masterWSConn;
       this.status = 'SYNC';
       log.info('Status SYNC', 'yellow');
       // check for beacon file presence
@@ -754,6 +779,7 @@ class Operator {
       }
       if (!status) {
         log.warn('Master node not reachable, Sync proccess halted.', 'red');
+        this.syncing = false;
         await this.findMaster();
         this.initMasterConnection();
         return;
@@ -798,6 +824,7 @@ class Operator {
             log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
           });
           importer.setEncoding('utf8');
+          selfManagedSync = true; // importer handles this.syncing and recursion from here
           await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
             const filesImported = importer.getImported();
             log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
@@ -806,6 +833,7 @@ class Operator {
             await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
+            this.syncing = false;
             const { masterWSConn } = this;
             if (!masterWSConn) {
               log.warn('Sync proccess halted.', 'red');
@@ -818,6 +846,7 @@ class Operator {
             BackLog.executeLogs = true;
             BackLog.exitOnError = false;
             log.error(err);
+            this.syncing = false;
             const { masterWSConn } = this;
             if (!masterWSConn) {
               log.warn('Sync proccess halted.', 'red');
@@ -849,14 +878,21 @@ class Operator {
       const startSeqNo = BackLog.sequenceNumber;
       BackLog.executeLogs = false;
       while (BackLog.sequenceNumber < masterSN) {
+        if (this.masterWSConn !== syncConn) {
+          log.warn('masterWSConn was replaced during sync, aborting.', 'red');
+          BackLog.executeLogs = true;
+          this.syncing = false;
+          return;
+        }
         try {
           const index = BackLog.sequenceNumber;
-          const response = await fluxAPI.getBackLog(index + 1, this.masterWSConn);
+          const response = await fluxAPI.getBackLog(index + 1, syncConn);
           if (response && response.status === 'OK') {
             masterSN = response.sequenceNumber;
             for (const record of response.records) {
               if (this.status !== 'SYNC') {
                 log.warn('Sync proccess halted.', 'red');
+                this.syncing = false;
                 return;
               }
               if (record.seq === BackLog.sequenceNumber + 1) {
@@ -867,6 +903,7 @@ class Operator {
                 log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
                 if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
                   log.info('starting over...', 'red');
+                  this.syncing = false;
                   this.syncLocalDB();
                   return;
                 }
@@ -884,10 +921,19 @@ class Operator {
         }
       }
       BackLog.executeLogs = true;
+      this.syncing = false;
       log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
       if (copyBuffer) await BackLog.moveBufferToBacklog();
       log.info('Status OK', 'green');
       this.status = 'OK';
+      } catch (err) {
+        log.error('Unexpected error in syncLocalDB:', err);
+      } finally {
+        if (!selfManagedSync) {
+          this.syncing = false;
+          BackLog.executeLogs = true;
+        }
+      }
     }
   }
 
@@ -1010,6 +1056,19 @@ class Operator {
   */
   static async doHealthCheck() {
     try {
+      // Restart container if node is stuck in INIT for too long.
+      if ((this.status || '').toUpperCase() === 'INIT') {
+        if (!this.initStatusSince) this.initStatusSince = Date.now();
+        const initDurationMs = Date.now() - this.initStatusSince;
+        if (initDurationMs > 15 * 60 * 1000) {
+          const initDurationSec = Math.floor(initDurationMs / 1000);
+          log.error(`Node stuck in INIT for ${initDurationSec}s. Restarting container...`, 'red');
+          process.exit(1);
+        }
+      } else {
+        this.initStatusSince = null;
+      }
+
       // check db connection
       /*
       log.info('health check');
@@ -1190,8 +1249,46 @@ class Operator {
         this.ghosted = false;
       }
       this.connectionDrops = 0;
+
+      // record stats snapshot for dashboard charts
+      this.recordStats();
     } catch (err) {
       log.error(err);
+    }
+  }
+
+  /**
+  * [recordStats] - Appends a stats snapshot to stats.json, pruning entries older than 30 days
+  */
+  static async recordStats() {
+    try {
+      const [backlogCount, bufferCount] = await Promise.all([
+        BackLog.getTotalLogsCount(false),
+        BackLog.getTotalLogsCount(true),
+      ]);
+      const entry = {
+        ts: Date.now(),
+        seqNo: BackLog.sequenceNumber,
+        backlogCount,
+        bufferCount,
+        status: this.status,
+        isMaster: this.IamMaster,
+      };
+      const statsFile = 'stats.json';
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 days
+      // Append one JSON line (NDJSON format)
+      fs.appendFileSync(statsFile, `${JSON.stringify(entry)}\n`);
+      // Prune entries older than 30 days: rewrite only if file is getting big
+      const size = fs.existsSync(statsFile) ? fs.statSync(statsFile).size : 0;
+      if (size > 2 * 1024 * 1024) { // 2MB — prune old entries
+        const lines = fs.readFileSync(statsFile, 'utf8').split('\n').filter(Boolean);
+        const kept = lines.filter((l) => {
+          try { return JSON.parse(l).ts >= cutoff; } catch (_) { return false; }
+        });
+        fs.writeFileSync(statsFile, `${kept.join('\n')}\n`);
+      }
+    } catch (err) {
+      log.error(`recordStats failed: ${err.message}`);
     }
   }
 
@@ -1414,9 +1511,39 @@ class Operator {
   }
 
   /**
+  * [resolveAppName] - Fetches appName from local hostinfo API if env vars are not set
+  */
+  static async resolveAppName() {
+    if (config.DBAppName) return; // already set via env
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const req = http.get('http://fluxnode.service:16101/hostinfo', { timeout: 3000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('hostinfo timeout')); });
+      });
+      const parsed = JSON.parse(response);
+      const appName = parsed?.data?.appName;
+      if (appName) {
+        config.DBAppName = appName;
+        if (!config.AppName) config.AppName = appName;
+        log.info(`Resolved appName from hostinfo: ${appName}`);
+      } else {
+        log.warn('hostinfo response did not contain appName.');
+      }
+    } catch (err) {
+      log.warn(`Could not resolve appName from hostinfo: ${err.message}`);
+    }
+  }
+
+  /**
   * [init]
   */
   static async init() {
+    await this.resolveAppName();
     await this.initDB();
   }
 }

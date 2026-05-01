@@ -50,6 +50,18 @@
       .query-results-table { max-height: 400px; overflow: auto; } /* Limit height of query results */
       .db-content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
       .pagination-controls { flex-shrink: 0; /* Prevent pagination from shrinking */ margin-top: 1rem; }
+
+      /* Log viewer styles */
+      .log-viewer { background: #1a1a2e; color: #e0e0e0; font-family: monospace; font-size: 12px; height: 65vh; overflow-y: auto; padding: 12px; }
+      .log-line { line-height: 1.6; padding: 1px 0; border-bottom: 1px solid #ffffff08; word-break: break-all; }
+      .log-viewer .t { color: #2cb92c; }
+      .log-viewer .m { margin-left: 10px; }
+      .log-viewer .yellow { color: yellow; }
+      .log-viewer .red { color: #ff8100; }
+      .log-viewer .green { color: #00c853; }
+      .log-viewer .magenta { color: magenta; }
+      .log-viewer .cyan { color: cyan; }
+      .log-viewer .lb { color: #00d0ff; }
   </style>
 </head>
 <body>
@@ -67,6 +79,7 @@
             @show-confirm="showConfirmModal"
             ref="manageDatabasePageRef"
         ></manage-database-page>
+        <logs-page v-if="currentPage === 'logs'" :api-url="apiUrl"></logs-page>
 
         <div v-if="!validPages.includes(currentPage)" class="card container-fluid mt-3">
              <div class="card-body"> <h5 class="card-title">Page Not Implemented</h5> <p class="card-text">The '{{ currentPage }}' page is not yet available.</p> </div>
@@ -74,7 +87,7 @@
     </main>
 
     <footer class="mt-3 pb-3 text-center text-light small thin">
-        <span>© InFlux Technologies</span> <span id="build_version">v1.7.5</span>
+        <span>© InFlux Technologies</span> <span id="build_version">v1.7.6</span>
     </footer>
 
     <confirm-modal ref="confirmModal" @confirmed="handleConfirmation"></confirm-modal>
@@ -86,6 +99,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
 <script>
@@ -156,8 +170,8 @@
              },
             initialize() {
                 let baseUrl = new URL(window.location.href);
-                this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + ':' + baseUrl.port;
                 this.port = baseUrl.port;
+                this.apiUrl = baseUrl.protocol + '//' + baseUrl.hostname + (baseUrl.port ? ':' + baseUrl.port : '');
                 let fragment = baseUrl.hash;
                 if (fragment && fragment.length > 1) {
                     const pageFromHash = fragment.substring(1);
@@ -203,6 +217,7 @@
                                     <li><a class="dropdown-item" :class="{ active: activePage === 'manage-database' }" href="#manage-database" @click.prevent="$emit('navigate', 'manage-database')"><i class="fas fa-edit"></i>Manage Database</a></li>
                                 </ul>
                             </li>
+                            <li class="nav-item"> <a class="nav-link" :class="{ active: activePage === 'logs' }" href="#logs" @click.prevent="$emit('navigate', 'logs')"><i class="fas fa-file-alt"></i>Logs</a> </li>
                         </ul>
                         <button class="btn btn-outline-light" @click="$emit('logout')">Log Out</button>
                     </div>
@@ -217,27 +232,39 @@
                     nodes: [],
                     isLoading: false,
                     error: null,
-                    dbEngine: 'MYSQL 8' // Or fetch dynamically if needed
+                    dbEngine: 'MYSQL 8',
+                    autoRefresh: false,
+                    autoRefreshIntervalId: null,
+                    statsData: [],
+                    statsSpan: 7,
+                    statsSpans: [1, 3, 7, 14, 30],
+                    statsLoading: false,
+                    chartInstance: null,
                 }
             },
             methods: {
                 async fetchNodeStatus(ip) {
                     try {
                         // Construct URL carefully, ensuring port is included
-                        const statusUrl = `https://api.cors.lol/?url=http://${ip}:${this.port}/status`;
-                        // console.log(`Fetching status from: ${statusUrl}`); // Debugging
-                        const response = await axios.get(statusUrl, { timeout: 4000 });
-                        return response.data; // { sequenceNumber, masterIP, status, taskStatus }
+                        // If port is empty (Flux subdomain format: appname_XXXXX.app.runonflux.io),
+                        // extract internal port by stripping the leading digit from XXXXX
+                        let port = this.port;
+                        if (!port) {
+                            const fluxPortMatch = window.location.hostname.match(/_(\d+)\./);
+                            if (fluxPortMatch) port = fluxPortMatch[1];
+                        }
+                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status?details=1`;
+                        const response = await axios.get(statusUrl, { timeout: 6000 });
+                        return response.data;
                     } catch (err) {
                         console.error(`Error fetching status for node ${ip}:`, err.message);
-                        // Provide a clearer error status
-                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A' };
+                        return { status: `Error (${err.code || 'Timeout'})`, sequenceNumber: 'N/A', masterIP: 'N/A', backlogCount: 'N/A', bufferCount: 'N/A' };
                     }
                 },
                 async fetchClusterStats() {
                     this.isLoading = true;
                     this.error = null;
-                    this.nodes = []; // Clear previous nodes
+                    this.nodes = [];
                     try {
                         const response = await axios.get(`${this.apiUrl}/nodelist`, { timeout: 3000 });
                         if (Array.isArray(response.data)) {
@@ -252,7 +279,9 @@
                                     ip: node.ip,
                                     sequenceNumber: statusData.sequenceNumber,
                                     masterIP: statusData.masterIP,
-                                    status: displayStatus
+                                    status: displayStatus,
+                                    backlogCount: statusData.backlogCount ?? 'N/A',
+                                    bufferCount: statusData.bufferCount ?? 'N/A',
                                 };
                             });
                             this.nodes = await Promise.all(nodePromises);
@@ -265,24 +294,91 @@
                     } finally {
                         this.isLoading = false;
                     }
+                },
+                toggleAutoRefresh() {
+                    this.autoRefresh = !this.autoRefresh;
+                    if (this.autoRefresh) {
+                        this.autoRefreshIntervalId = setInterval(() => this.fetchClusterStats(), 60000);
+                    } else {
+                        clearInterval(this.autoRefreshIntervalId);
+                        this.autoRefreshIntervalId = null;
+                    }
+                },
+                async fetchStats() {
+                    this.statsLoading = true;
+                    try {
+                        const since = Date.now() - this.statsSpan * 24 * 60 * 60 * 1000;
+                        const res = await axios.get(`${this.apiUrl}/stats?since=${since}`, { timeout: 5000 });
+                        this.statsData = Array.isArray(res.data) ? res.data.sort((a, b) => a.ts - b.ts) : [];
+                    } catch (err) {
+                        console.error('fetchStats error:', err.message);
+                        this.statsData = [];
+                    } finally {
+                        this.statsLoading = false;
+                        this.$nextTick(() => this.renderChart());
+                    }
+                },
+                renderChart() {
+                    if (this.chartInstance) { this.chartInstance.destroy(); this.chartInstance = null; }
+                    if (!this.$refs.statsCanvas || this.statsData.length === 0) return;
+                    const labels = this.statsData.map(e => new Date(e.ts).toLocaleString());
+                    const seqNos = this.statsData.map(e => e.seqNo);
+                    const backlogs = this.statsData.map(e => e.backlogCount);
+                    const buffers = this.statsData.map(e => e.bufferCount);
+                    const deltas = this.statsData.map((e, i) => {
+                        if (i === 0) return 0;
+                        const d = e.seqNo - this.statsData[i - 1].seqNo;
+                        return d >= 0 ? d : 0;
+                    });
+                    this.chartInstance = new Chart(this.$refs.statsCanvas, {
+                        type: 'line',
+                        data: {
+                            labels,
+                            datasets: [
+                                { label: 'Sequence No', data: seqNos, borderColor: '#0a9ab5', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y' },
+                                { label: 'Backlog Rows', data: backlogs, borderColor: '#d97706', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Buffer Rows', data: buffers, borderColor: '#6f42c1', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                                { label: 'Queries/interval', data: deltas, borderColor: '#0d8a6a', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, yAxisID: 'y1' },
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 10, color: '#212529' }, grid: { color: '#dee2e6' } },
+                                y: { type: 'linear', position: 'left', title: { display: true, text: 'Seq No', color: '#0a9ab5' }, ticks: { color: '#212529' }, grid: { color: '#dee2e6' } },
+                                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Rows / Queries', color: '#212529' }, ticks: { color: '#212529' }, grid: { drawOnChartArea: false } },
+                            },
+                            plugins: { legend: { labels: { color: '#212529' } } }
+                        }
+                    });
+                },
+                changeSpan(days) {
+                    this.statsSpan = days;
+                    this.fetchStats();
                 }
             },
             mounted() {
                 this.fetchClusterStats();
-                // Optional: Set up an interval to refresh stats
-                // this.intervalId = setInterval(this.fetchClusterStats, 15000); // Refresh every 15 seconds
+                this.fetchStats();
             },
-            // beforeUnmount() {
-            //     // Clear interval when component is destroyed
-            //     if (this.intervalId) {
-            //         clearInterval(this.intervalId);
-            //     }
-            // },
+            beforeUnmount() {
+                if (this.autoRefreshIntervalId) clearInterval(this.autoRefreshIntervalId);
+                if (this.chartInstance) this.chartInstance.destroy();
+            },
             template: `
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h3 class="m-0"><i class="fas fa-tachometer-alt"></i> Cluster Stats</h3>
-                        <span class="fs-5">DB Engine: {{ dbEngine }}</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-5">DB Engine: {{ dbEngine }}</span>
+                            <button class="btn btn-sm btn-outline-secondary" @click="fetchClusterStats" :disabled="isLoading">
+                                <i class="fas fa-sync-alt" :class="{'fa-spin': isLoading}"></i> Refresh
+                            </button>
+                            <button class="btn btn-sm" :class="autoRefresh ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleAutoRefresh">
+                                <i class="fas fa-clock me-1"></i>{{ autoRefresh ? 'Auto: ON (60s)' : 'Auto: OFF' }}
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div v-if="isLoading" class="d-flex justify-content-center">
@@ -297,25 +393,45 @@
                                 <thead>
                                     <tr>
                                         <th scope="col" width="10">#</th>
-                                        <th scope="col" width="200">IP</th>
-                                        <th scope="col" width="200">Sequence Number</th>
-                                        <th scope="col" width="200">Master IP</th>
+                                        <th scope="col" width="180">IP</th>
+                                        <th scope="col" width="160">Sequence Number</th>
+                                        <th scope="col" width="160">Master IP</th>
+                                        <th scope="col" width="130">Backlog Rows</th>
+                                        <th scope="col" width="120">Buffer Rows</th>
                                         <th scope="col">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-if="nodes.length === 0">
-                                        <td colspan="5" class="text-center">No active nodes found.</td>
+                                        <td colspan="7" class="text-center">No active nodes found.</td>
                                     </tr>
                                     <tr v-for="node in nodes" :key="node.ip">
                                         <th scope="row">{{ node.id }}</th>
                                         <td>{{ node.ip }}</td>
                                         <td>{{ node.sequenceNumber }}</td>
                                         <td>{{ node.masterIP }}</td>
+                                        <td>{{ node.backlogCount }}</td>
+                                        <td>{{ node.bufferCount }}</td>
                                         <td>{{ node.status }}</td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="m-0">Node Stats History</h5>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="btn-group btn-group-sm">
+                                        <button v-for="s in statsSpans" :key="s" class="btn" :class="statsSpan === s ? 'btn-dark' : 'btn-outline-secondary'" @click="changeSpan(s)">{{ s }}d</button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" @click="fetchStats" :disabled="statsLoading">
+                                        <i class="fas fa-sync-alt" :class="{'fa-spin': statsLoading}"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="statsLoading" class="text-center py-3"><div class="spinner-border text-info"></div></div>
+                            <div v-else-if="statsData.length === 0" class="text-muted text-center py-3">No stats data yet. Data is collected every 2 minutes during health checks.</div>
+                            <canvas v-show="statsData.length > 0" ref="statsCanvas" style="max-height:320px;"></canvas>
                         </div>
                     </div>
                 </div>
@@ -1479,6 +1595,155 @@
 
 
                 </div> `
+        });
+
+        // --- Logs Page Component ---
+        app.component('logs-page', {
+            props: ['apiUrl'],
+            data() {
+                return {
+                    selectedFile: 'debug',
+                    files: [
+                        { key: 'debug',    label: 'Debug',       icon: 'fa-bug' },
+                        { key: 'info',     label: 'Info',        icon: 'fa-info-circle' },
+                        { key: 'warnings', label: 'Warnings',    icon: 'fa-exclamation-triangle' },
+                        { key: 'errors',   label: 'Errors',      icon: 'fa-times-circle' },
+                        { key: 'query',    label: 'Query',       icon: 'fa-terminal' },
+                        { key: 'compress', label: 'Compression', icon: 'fa-compress-alt' },
+                    ],
+                    lines: [],
+                    totalLines: 0,
+                    oldestPageLoaded: 0,
+                    pageSize: 200,
+                    isLoading: false,
+                    isLoadingOlder: false,
+                    error: null,
+                    autoRefresh: false,
+                    autoRefreshIntervalId: null,
+                }
+            },
+            computed: {
+                hasOlder() {
+                    return this.totalLines > (this.oldestPageLoaded + 1) * this.pageSize;
+                }
+            },
+            methods: {
+                async fetchLatest() {
+                    if (this.isLoading) return;
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        const response = await axios.get(`${this.apiUrl}/getlogfile`, {
+                            params: { file: this.selectedFile, page: 0, pageSize: this.pageSize },
+                            timeout: 8000
+                        });
+                        this.lines = response.data.lines;
+                        this.totalLines = response.data.totalLines;
+                        this.oldestPageLoaded = 0;
+                        await nextTick();
+                        this.scrollToBottom();
+                    } catch (err) {
+                        this.error = `Failed to load logs: ${err.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                async loadOlder() {
+                    if (this.isLoadingOlder) return;
+                    this.isLoadingOlder = true;
+                    try {
+                        const nextPage = this.oldestPageLoaded + 1;
+                        const response = await axios.get(`${this.apiUrl}/getlogfile`, {
+                            params: { file: this.selectedFile, page: nextPage, pageSize: this.pageSize },
+                            timeout: 8000
+                        });
+                        if (response.data.lines.length > 0) {
+                            const viewer = this.$refs.logViewer;
+                            const prevHeight = viewer ? viewer.scrollHeight : 0;
+                            this.lines = response.data.lines.concat(this.lines);
+                            this.totalLines = response.data.totalLines;
+                            this.oldestPageLoaded = nextPage;
+                            // Restore scroll position so the view doesn't jump to top
+                            await nextTick();
+                            if (viewer) viewer.scrollTop = viewer.scrollHeight - prevHeight;
+                        }
+                    } catch (err) {
+                        this.error = `Failed to load older logs: ${err.message}`;
+                    } finally {
+                        this.isLoadingOlder = false;
+                    }
+                },
+                selectFile(file) {
+                    if (this.selectedFile === file) return;
+                    this.selectedFile = file;
+                    this.lines = [];
+                    this.oldestPageLoaded = 0;
+                    this.totalLines = 0;
+                    this.fetchLatest();
+                },
+                scrollToBottom() {
+                    const viewer = this.$refs.logViewer;
+                    if (viewer) viewer.scrollTop = viewer.scrollHeight;
+                },
+                toggleAutoRefresh() {
+                    this.autoRefresh = !this.autoRefresh;
+                    if (this.autoRefresh) {
+                        this.autoRefreshIntervalId = setInterval(() => this.fetchLatest(), 5000);
+                    } else {
+                        clearInterval(this.autoRefreshIntervalId);
+                        this.autoRefreshIntervalId = null;
+                    }
+                }
+            },
+            mounted() {
+                this.fetchLatest();
+            },
+            beforeUnmount() {
+                if (this.autoRefreshIntervalId) clearInterval(this.autoRefreshIntervalId);
+            },
+            template: `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h3 class="m-0"><i class="fas fa-file-alt me-2"></i>System Logs</h3>
+                        <div class="d-flex align-items-center gap-2">
+                            <span v-if="totalLines > 0" class="text-muted small">{{ totalLines }} total entries</span>
+                            <button class="btn btn-sm btn-outline-secondary" @click="fetchLatest" :disabled="isLoading">
+                                <i class="fas fa-sync-alt" :class="{'fa-spin': isLoading}"></i> Refresh
+                            </button>
+                            <button class="btn btn-sm" :class="autoRefresh ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleAutoRefresh">
+                                <i class="fas fa-clock me-1"></i>{{ autoRefresh ? 'Auto: ON' : 'Auto: OFF' }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="nav nav-tabs px-3 pt-2" style="background:#f8f9fa;">
+                            <li class="nav-item" v-for="f in files" :key="f.key">
+                                <a class="nav-link" :class="{ active: selectedFile === f.key }" href="#" @click.prevent="selectFile(f.key)">
+                                    <i :class="'fas ' + f.icon + ' me-1'"></i>{{ f.label }}
+                                </a>
+                            </li>
+                        </ul>
+                        <div v-if="error" class="alert alert-danger m-3 mb-0">{{ error }}</div>
+                        <div class="log-viewer" ref="logViewer">
+                            <div v-if="isLoading && lines.length === 0" class="text-center pt-4">
+                                <div class="spinner-border text-info" role="status"><span class="visually-hidden">Loading...</span></div>
+                            </div>
+                            <div v-else-if="lines.length === 0" class="text-muted text-center pt-4">No log entries found.</div>
+                            <template v-else>
+                                <div class="text-center mb-3">
+                                    <button v-if="hasOlder" class="btn btn-sm btn-outline-secondary" @click="loadOlder" :disabled="isLoadingOlder">
+                                        <span v-if="isLoadingOlder" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        <i v-else class="fas fa-arrow-up me-1"></i>
+                                        Load older ({{ totalLines - lines.length }} more)
+                                    </button>
+                                    <span v-else class="text-muted small" style="opacity:0.5;">— Beginning of log —</span>
+                                </div>
+                                <div v-for="(line, idx) in lines" :key="idx" v-html="line" class="log-line"></div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            `
         });
 
         // Mount the app to the DOM

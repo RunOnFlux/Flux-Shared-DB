@@ -265,16 +265,16 @@ class BackLog {
   * [getTotalLogsCount]
   * @return {int}
   */
-  static async getTotalLogsCount() {
+  static async getTotalLogsCount(buffer = false) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     } else {
       try {
         if (config.dbType === 'mysql') {
-          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${config.dbBacklogCollection}`);
-          log.info(`Total Records: ${JSON.stringify(totalRecords)}`);
-          return totalRecords[0].total;
+          const table = buffer ? config.dbBacklogBuffer : config.dbBacklogCollection;
+          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${table}`);
+          return totalRecords[0].total ?? 0;
         }
       } catch (e) {
         log.error(e);
@@ -348,11 +348,11 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           } else {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
+            records = await this.BLClient.query(`SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
           }
-          if (records.length) return records[0].count;
+          if (records.length) return records[0].update_count ?? 0;
         }
       } catch (e) {
         log.error(e);
