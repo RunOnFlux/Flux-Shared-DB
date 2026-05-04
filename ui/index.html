@@ -682,6 +682,7 @@
                      restoreProgress: 0, // Current restore progress percentage (0-100)
                      statusCalls: 0,
                      statusIntervalId: null,
+                     urlImport: { show: false, url: '', loading: false, error: null },
                  }
              },
              methods: {
@@ -834,7 +835,24 @@
                  },
                  triggerUploadModal() {
                      this.$emit('show-upload');
-                 }
+                 },
+                 async importFromUrl() {
+                     const url = this.urlImport.url.trim();
+                     if (!url) return;
+                     this.urlImport.loading = true;
+                     this.urlImport.error = null;
+                     try {
+                         const response = await axios.post(`${this.apiUrl}/import-from-url`, { url }, { timeout: 120000 });
+                         this.urlImport.show = false;
+                         this.urlImport.url = '';
+                         await this.fetchBackupFiles();
+                         alert(`Downloaded successfully as: ${response.data.filename}`);
+                     } catch (err) {
+                         this.urlImport.error = err.response?.data?.error || err.message;
+                     } finally {
+                         this.urlImport.loading = false;
+                     }
+                 },
              },
              mounted() {
                  this.fetchBackupFiles();
@@ -863,6 +881,9 @@
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" @click="triggerUploadModal" :disabled="generatingBackup || importInProgress">
                             <i class="fas fa-upload me-1"></i> Upload Backup File
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @click="urlImport.show = true" :disabled="generatingBackup || importInProgress">
+                            <i class="fas fa-link me-1"></i> Import from URL
                         </button>
                     </div>
                 </div>
@@ -924,6 +945,31 @@
                 <p>
                     Notice: Deleting backup files may disrupt database replication. Refrain from deleting any files unless you are fully aware of the consequences.
                 </p>
+            </div>
+        </div>
+
+        <!-- Import from URL modal -->
+        <div v-if="urlImport.show" class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-link me-2"></i>Import Backup from URL</h5>
+                        <button type="button" class="btn-close" @click="urlImport.show = false; urlImport.url = ''; urlImport.error = null" :disabled="urlImport.loading"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="urlImport.error" class="alert alert-danger py-2">{{ urlImport.error }}</div>
+                        <label class="form-label">SQL file URL</label>
+                        <input type="url" class="form-control" v-model="urlImport.url" placeholder="https://example.com/backup.sql" :disabled="urlImport.loading" @keyup.enter="importFromUrl" />
+                        <div class="form-text">The file will be downloaded directly to the server's dumps folder. Only .sql files up to 2 GB are accepted.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" @click="urlImport.show = false; urlImport.url = ''; urlImport.error = null" :disabled="urlImport.loading">Cancel</button>
+                        <button type="button" class="btn btn-dark" @click="importFromUrl" :disabled="urlImport.loading || !urlImport.url.trim()">
+                            <span v-if="urlImport.loading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            {{ urlImport.loading ? 'Downloading...' : 'Download & Import' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     `
