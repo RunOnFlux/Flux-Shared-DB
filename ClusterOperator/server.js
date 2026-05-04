@@ -105,6 +105,37 @@ function quoteIdentifier(identifier) {
   return `\`${identifier.replace(/`/g, '')}\``; // Remove any backticks just in case and quote
 }
 /**
+ * Fetch /status?details=1 from a peer node server-side.
+ * Uses rejectUnauthorized:false so self-signed peer certs are accepted without
+ * the browser ever seeing them.
+ * @param {string} ip  Peer IPv4 address
+ * @param {number} port  Peer port
+ * @returns {Promise<object>}
+ */
+function fetchPeerStatus(ip, port) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: ip,
+      port,
+      path: '/status?details=1',
+      method: 'GET',
+      timeout: 6000,
+      rejectUnauthorized: false, // peer uses self-signed cert
+    };
+    const req = https.request(options, (httpRes) => {
+      let data = '';
+      httpRes.on('data', (chunk) => { data += chunk; });
+      httpRes.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Invalid JSON from peer')); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/**
 * Starts UI service
 */
 async function startUI() { // Make async to potentially await DB client init if needed later
@@ -113,7 +144,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   app.use(cookieParser());
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
-  app.use(fileUpload());
+  app.use(fileUpload({ limits: { fileSize: 2 * 1024 * 1024 * 1024 } })); // 2 GB cap, matches /import-from-url
   const limiter = RateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 500, // max 500 requests per windowMs
@@ -327,7 +358,35 @@ async function startUI() { // Make async to potentially await DB client init if 
       response.bufferCount = detailsCache.bufferCount;
     }
     res.send(response);
-    // res.end(); // Not needed
+    // res.end() // Not needed
+  });
+
+  // Proxy peer-node status requests server-side to avoid CORS-proxy dependency
+  // and browser rejection of self-signed peer certs.
+  app.get('/fetchnodestatus', async (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    const { ip, port } = req.query;
+    // Validate IPv4 to prevent SSRF
+    const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ip || !ipv4Re.test(ip) || ip.split('.').some((n) => parseInt(n, 10) > 255)) {
+      return res.status(400).json({ error: 'Invalid IP address.' });
+    }
+    // Block loopback / link-local to prevent internal SSRF
+    const first = parseInt(ip.split('.')[0], 10);
+    const second = parseInt(ip.split('.')[1], 10);
+    if (first === 127 || first === 169 || (first === 10) || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168)) {
+      return res.status(400).json({ error: 'Disallowed IP range.' });
+    }
+    const portNum = parseInt(port, 10);
+    if (!port || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return res.status(400).json({ error: 'Invalid port.' });
+    }
+    try {
+      const data = await fetchPeerStatus(ip, portNum);
+      res.json(data);
+    } catch (err) {
+      res.json({ status: `Error (${err.message})`, sequenceNumber: 'N/A', masterIP: 'N/A', backlogCount: 'N/A', bufferCount: 'N/A' });
+    }
   });
 
   app.get('/getLogDateRange', async (req, res) => {
@@ -443,6 +502,115 @@ async function startUI() { // Make async to potentially await DB client init if 
     } else {
       res.status(401).send('Unauthorized');
     }
+  });
+
+  app.post('/import-from-url', async (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+
+    const { url } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid url.' });
+    }
+
+    // Only allow http/https schemes to prevent file:// / ftp:// etc.
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL.' });
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return res.status(400).json({ error: 'Only http and https URLs are allowed.' });
+    }
+
+    // Derive filename from the URL path; fall back to a timestamp-based name.
+    const urlBasename = path.basename(parsed.pathname) || '';
+    const safeBasename = sanitize(urlBasename);
+    const filename = safeBasename.toLowerCase().endsWith('.sql') && safeBasename.length > 4
+      ? safeBasename
+      : `import_${Date.now()}.sql`;
+
+    const dumpsDir = path.join(__dirname, '../dumps/');
+    const destPath = path.join(dumpsDir, filename);
+
+    // Prevent path traversal
+    if (!destPath.startsWith(path.resolve(dumpsDir))) {
+      return res.status(400).json({ error: 'Invalid filename.' });
+    }
+
+    try {
+      await fs.promises.mkdir(dumpsDir, { recursive: true });
+    } catch (dirErr) {
+      log.error(`Failed to ensure dumps directory: ${dirErr.message}`);
+      return res.status(500).json({ error: 'Server error preparing download.' });
+    }
+
+    log.info(`Downloading backup from URL: ${url} -> ${filename}`);
+
+    const httpModule = parsed.protocol === 'https:' ? require('https') : require('http');
+    const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2 GB safety cap
+
+    const doDownload = (downloadUrl, redirects = 0) => {
+      if (redirects > 5) {
+        return res.status(400).json({ error: 'Too many redirects.' });
+      }
+      httpModule.get(downloadUrl, { timeout: 60000 }, (httpRes) => {
+        // Follow redirects
+        if (httpRes.statusCode >= 300 && httpRes.statusCode < 400 && httpRes.headers.location) {
+          httpRes.resume();
+          return doDownload(httpRes.headers.location, redirects + 1);
+        }
+        if (httpRes.statusCode !== 200) {
+          httpRes.resume();
+          return res.status(502).json({ error: `Remote server returned status ${httpRes.statusCode}.` });
+        }
+
+        const contentLength = parseInt(httpRes.headers['content-length'] || '0', 10);
+        if (contentLength > MAX_SIZE) {
+          httpRes.resume();
+          return res.status(400).json({ error: 'Remote file exceeds the 500 MB size limit.' });
+        }
+
+        const fileStream = fs.createWriteStream(destPath);
+        let bytesReceived = 0;
+        let aborted = false;
+
+        httpRes.on('data', (chunk) => {
+          bytesReceived += chunk.length;
+          if (bytesReceived > MAX_SIZE) {
+            aborted = true;
+            httpRes.destroy();
+            fileStream.destroy();
+            fs.unlink(destPath, () => {});
+            if (!res.headersSent) res.status(400).json({ error: 'Remote file exceeded the 500 MB size limit.' });
+          }
+        });
+
+        httpRes.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+          if (!aborted) {
+            log.info(`Backup downloaded from URL: ${filename} (${bytesReceived} bytes)`);
+            res.json({ success: true, filename });
+          }
+        });
+        fileStream.on('error', (err) => {
+          fs.unlink(destPath, () => {});
+          log.error(`Error writing downloaded file: ${err.message}`);
+          if (!res.headersSent) res.status(500).json({ error: 'Failed to save downloaded file.' });
+        });
+        httpRes.on('error', (err) => {
+          fs.unlink(destPath, () => {});
+          log.error(`Error downloading from URL: ${err.message}`);
+          if (!res.headersSent) res.status(502).json({ error: `Download failed: ${err.message}` });
+        });
+      }).on('error', (err) => {
+        log.error(`Request error for URL import: ${err.message}`);
+        if (!res.headersSent) res.status(502).json({ error: `Failed to reach URL: ${err.message}` });
+      });
+    };
+
+    doDownload(url);
   });
 
   app.post('/generatebackup', async (req, res) => {

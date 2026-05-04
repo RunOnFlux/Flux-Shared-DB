@@ -506,7 +506,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DELETE FROM ${config.dbBacklogBuffer}`);
+        await this.BLClient.query(`TRUNCATE TABLE ${config.dbBacklogBuffer}`);
         this.bufferSequenceNumber = 0;
         this.bufferStartSequenceNumber = 0;
       }
