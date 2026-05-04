@@ -105,6 +105,37 @@ function quoteIdentifier(identifier) {
   return `\`${identifier.replace(/`/g, '')}\``; // Remove any backticks just in case and quote
 }
 /**
+ * Fetch /status?details=1 from a peer node server-side.
+ * Uses rejectUnauthorized:false so self-signed peer certs are accepted without
+ * the browser ever seeing them.
+ * @param {string} ip  Peer IPv4 address
+ * @param {number} port  Peer port
+ * @returns {Promise<object>}
+ */
+function fetchPeerStatus(ip, port) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: ip,
+      port,
+      path: '/status?details=1',
+      method: 'GET',
+      timeout: 6000,
+      rejectUnauthorized: false, // peer uses self-signed cert
+    };
+    const req = https.request(options, (httpRes) => {
+      let data = '';
+      httpRes.on('data', (chunk) => { data += chunk; });
+      httpRes.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Invalid JSON from peer')); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/**
 * Starts UI service
 */
 async function startUI() { // Make async to potentially await DB client init if needed later
@@ -327,7 +358,35 @@ async function startUI() { // Make async to potentially await DB client init if 
       response.bufferCount = detailsCache.bufferCount;
     }
     res.send(response);
-    // res.end(); // Not needed
+    // res.end() // Not needed
+  });
+
+  // Proxy peer-node status requests server-side to avoid CORS-proxy dependency
+  // and browser rejection of self-signed peer certs.
+  app.get('/fetchnodestatus', async (req, res) => {
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    const { ip, port } = req.query;
+    // Validate IPv4 to prevent SSRF
+    const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ip || !ipv4Re.test(ip) || ip.split('.').some((n) => parseInt(n, 10) > 255)) {
+      return res.status(400).json({ error: 'Invalid IP address.' });
+    }
+    // Block loopback / link-local to prevent internal SSRF
+    const first = parseInt(ip.split('.')[0], 10);
+    const second = parseInt(ip.split('.')[1], 10);
+    if (first === 127 || first === 169 || (first === 10) || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168)) {
+      return res.status(400).json({ error: 'Disallowed IP range.' });
+    }
+    const portNum = parseInt(port, 10);
+    if (!port || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return res.status(400).json({ error: 'Invalid port.' });
+    }
+    try {
+      const data = await fetchPeerStatus(ip, portNum);
+      res.json(data);
+    } catch (err) {
+      res.json({ status: `Error (${err.message})`, sequenceNumber: 'N/A', masterIP: 'N/A', backlogCount: 'N/A', bufferCount: 'N/A' });
+    }
   });
 
   app.get('/getLogDateRange', async (req, res) => {

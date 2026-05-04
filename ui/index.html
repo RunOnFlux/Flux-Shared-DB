@@ -245,16 +245,17 @@
             methods: {
                 async fetchNodeStatus(ip) {
                     try {
-                        // Construct URL carefully, ensuring port is included
-                        // If port is empty (Flux subdomain format: appname_XXXXX.app.runonflux.io),
-                        // extract internal port by stripping the leading digit from XXXXX
                         let port = this.port;
                         if (!port) {
                             const fluxPortMatch = window.location.hostname.match(/_(\d+)\./);
                             if (fluxPortMatch) port = fluxPortMatch[1];
                         }
-                        const statusUrl = `https://cors.app.runonflux.io?url=http://${ip}:${port}/status?details=1`;
-                        const response = await axios.get(statusUrl, { timeout: 6000 });
+                        // Fetch peer status via our own node's proxy — avoids CORS proxy dependency
+                        // and browser rejection of self-signed peer certs.
+                        const response = await axios.get(`${this.apiUrl}/fetchnodestatus`, {
+                            params: { ip, port },
+                            timeout: 8000,
+                        });
                         return response.data;
                     } catch (err) {
                         console.error(`Error fetching status for node ${ip}:`, err.message);

@@ -21,5 +21,5 @@ module.exports = {
   debugMode: true,
   containerDataPath: '',
   authMasterOnly: process.env.AUTH_MASTER_ONLY || false,
-  ssl: false,
+  ssl: process.env.SSL !== 'false', // defaults to true; set SSL=false to disable
 };
