@@ -114,15 +114,16 @@ function quoteIdentifier(identifier) {
  */
 function fetchPeerStatus(ip, port) {
   return new Promise((resolve, reject) => {
+    const httpLib = config.ssl ? https : require('http');
     const options = {
       hostname: ip,
       port,
       path: '/status?details=1',
       method: 'GET',
       timeout: 6000,
-      rejectUnauthorized: false, // peer uses self-signed cert
+      ...(config.ssl ? { rejectUnauthorized: false } : {}), // only needed for HTTPS
     };
-    const req = https.request(options, (httpRes) => {
+    const req = httpLib.request(options, (httpRes) => {
       let data = '';
       httpRes.on('data', (chunk) => { data += chunk; });
       httpRes.on('end', () => {
@@ -726,7 +727,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   // --- Authentication Routes ---
   app.get('/isloggedin/', (req, res) => {
     if (authUser(req)) {
-      res.cookie('loginphrase', req.headers.loginphrase);
+      res.cookie('loginphrase', req.headers.loginphrase, { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
       res.send('OK');
     } else {
       res.status(401).send('Unauthorized');
@@ -747,7 +748,7 @@ async function startUI() { // Make async to potentially await DB client init if 
         if (!remoteIp) remoteIp = req.socket.address().address;
         IdService.addNewSession(msg, remoteIp);
         Operator.emitUserSession('add', msg, remoteIp);
-        res.cookie('loginphrase', msg, { httpOnly: true, secure: config.ssl, sameSite: 'strict' }); // Add cookie options
+        res.cookie('loginphrase', msg, { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
         res.send('OK');
       } else {
         res.status(401).send('SIGNATURE NOT VALID');
@@ -768,14 +769,14 @@ async function startUI() { // Make async to potentially await DB client init if 
       if (loginphrase) {
         IdService.removeSession(loginphrase);
         Operator.emitUserSession('remove', loginphrase, '');
-        res.clearCookie('loginphrase'); // Clear the cookie
+        res.clearCookie('loginphrase', { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
         res.send('OK');
       } else {
         res.status(400).send('Logout failed: Session not found.');
       }
     } else {
       // Already logged out or invalid session
-      res.clearCookie('loginphrase');
+      res.clearCookie('loginphrase', { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
       res.send('OK'); // Send OK even if not logged in, as the goal is to be logged out
     }
   });
