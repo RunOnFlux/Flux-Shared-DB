@@ -23,6 +23,13 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
 - Name it `mysql`.
 - Use the official Docker image: `mysql:latest`.
 - Add this command to the `Commands` field: `--disable-log-bin`.
+- Use the following sample to set the environment variables for the mysql component:
+   ```json
+   [
+      "MYSQL_ROOT_PASSWORD=PASSWORD",
+      "MYSQL_ROOT_HOST=172.0.0.0/255.0.0.0"
+   ]
+   ```
 - Add another component for Operator.
 - Name it `operator`.
 - Use shared-db latest Docker image: `runonflux/shared-db:latest`.
