@@ -20,24 +20,46 @@ The DB Interface listens on port `3307` by default and acts as a proxy. If you a
 
 To use Flux Shared DB in your project, link it to a DB engine and the Operator handles the rest. A common setup is to run it alongside a DB engine. You can also add your application to the same compose stack and connect directly to the Operator DB port.
 
-To deploy on Flux, go to [Register Flux App](https://cloud.runonflux.io/apps/registerapp), complete your app details, and include these components:
+- Log in to [home.runonflux.io](https://home.runonflux.io) and navigate to Applications > Register New App.
+- Add a component for MySQL.
+- Name it `mysql`.
+- Use the official Docker image: `mysql:latest`.
+- Add this command to the `Commands` field: `--disable-log-bin`.
+- Add another component for Operator.
+- Name it `operator`.
+- Use the latest Docker image as repo: `runonflux/shared-db:latest`.
+- Set the Container Data for the component to `s:/app/dumps`.
+- Add these ports to the `Cont. Ports` field: `[3307,7071,8008]`.
+- Using the `Ports` field, map those ports to new ones, for example: `[13307,17071,18008]`.
+- For the `Domains` field, add this: `["","","",""]`.
+- Use the following sample to set the environment variables for the Operator component:
+   ```json
+   [
+      "DB_COMPONENT_NAME=mysql",
+      "INIT_DB_NAME=my-db",
+      "DB_INIT_PASS=PASSWORD",
+      "DB_USER=root",
+      "DB_PORT=13307",
+      "API_PORT=17071"
+   ]
+   ```
+- Add your Application component (optional).
+- In your app you can use this connection string to connect to the DB:
+  ```bash
+   "server=operator:3307;uid=root;pwd=;database=my-db"
+   ```
 
-1. DB engine (example: [mysql:latest](https://hub.docker.com/_/mysql))
-2. Operator: [runonflux/shared-db](https://hub.docker.com/repository/docker/runonflux/shared-db)
-3. Your application (optional)
-
-## Operator Options (Environment Variables)
-
-- `DB_COMPONENT_NAME` (required): Hostname for the DB engine component. It should be provided in this format: `flux[db engine component name]_[application name]`
-- `INIT_DB_NAME`: Initial database name created immediately after initialization.
-- `DB_INIT_PASS`: Root password for the DB engine.
-- `DB_USER`: Username that can authenticate with the Operator. Default: `root`.
-- `DB_PORT`: External DB port for the DB Interface. This port can be used to connect to the cluster remotely and manage the database.
-- `API_PORT`: External API port for cluster communication.
-- `DB_APPNAME` (required): Name of the application on the Flux network.
-- `CLIENT_APPNAME` (required): Name of the application on the Flux network. If you want to give access to an application outside the local compose network, provide the name of the application running on Flux.
-- `WHITELIST`: Comma-separated list of IPs that can connect remotely to `DB_PORT`.
-- `authMasterOnly`: If set to `"true"`, only the master node authenticates DB access from the app. This is useful if you want to keep a single reachable master node and return an error page to FDM so only the master node is reachable to end users.
+### Environment Variables
+| Variable | Description | Default |
+|----------|-------------|---------|
+|`DB_COMPONENT_NAME` | Hostname for the DB engine component | Required |
+|`INIT_DB_NAME` | Initial database name created immediately after initialization | Required |
+|`DB_INIT_PASS` | Root password for the DB engine | `secret` |
+|`DB_USER` | Username that can authenticate with the Operator | `root` |
+|`DB_PORT` | External DB port for the DB Interface, first item in the Ports array | Required |
+|`API_PORT` | External API port for cluster communication, second item in the Ports array | Required |
+|`WHITELIST` | Comma-separated list of IPs that can connect remotely to `DB_PORT` | Optional |
+|`authMasterOnly` | If set to `"true"`, only the master node authenticates DB access from the app. This is useful if you want to keep a single reachable master node and return an error page to FDM so only the master node is reachable to end users. | `false` |
 
 ## Related Projects
 
