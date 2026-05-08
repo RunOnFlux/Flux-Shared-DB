@@ -14,8 +14,6 @@ The Operator exposes three interfaces:
 2. Internal API (used for internal communication)
 3. UI API (used for cluster management)
 
-The DB Interface listens on port `3307` by default and acts as a proxy. If you are using MySQL as the DB engine, it behaves like a MySQL server.
-
 ## Running on the Flux Network
 
 To use Flux Shared DB in your project, link it to a DB engine and the Operator handles the rest. A common setup is to run it alongside a DB engine. You can also add your application to the same compose stack and connect directly to the Operator DB port.
@@ -27,11 +25,11 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
 - Add this command to the `Commands` field: `--disable-log-bin`.
 - Add another component for Operator.
 - Name it `operator`.
-- Use the latest Docker image as repo: `runonflux/shared-db:latest`.
+- Use shared-db latest Docker image: `runonflux/shared-db:latest`.
 - Set the Container Data for the component to `s:/app/dumps`.
 - Add these ports to the `Cont. Ports` field: `[3307,7071,8008]`.
 - Using the `Ports` field, map those ports to new ones, for example: `[13307,17071,18008]`.
-- For the `Domains` field, add this: `["","","",""]`.
+- For the `Domains` field, add this: `["","",""]`.
 - Use the following sample to set the environment variables for the Operator component:
    ```json
    [
@@ -59,7 +57,7 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
 |`DB_PORT` | External DB port for the DB Interface, first item in the Ports array | Required |
 |`API_PORT` | External API port for cluster communication, second item in the Ports array | Required |
 |`WHITELIST` | Comma-separated list of IPs that can connect remotely to `DB_PORT` | Optional |
-|`authMasterOnly` | If set to `"true"`, only the master node authenticates DB access from the app. This is useful if you want to keep a single reachable master node and return an error page to FDM so only the master node is reachable to end users. | `false` |
+|`AUTH_MASTER_ONLY` | If set to `"true"`, only the master node authenticates DB access from the app. This is useful if you want to keep a single reachable master node and return an error page to FDM so only the master node is reachable to end users. | `false` |
 
 ## Related Projects
 
