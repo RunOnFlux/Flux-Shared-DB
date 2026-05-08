@@ -42,9 +42,9 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
    ]
    ```
 - Add your Application component (optional).
-- Then in your app you can use this connection string to connect to the DB:
+- In your app you can use this connection string to connect to the DB:
   ```bash
-   "server=operator:3307;uid=root;pwd=;database=my-db"
+   "server=operator:3307;uid=DB_USER;pwd=DB_INIT_PASS;database=INIT_DB_NAME"
    ```
 
 ### Environment Variables
