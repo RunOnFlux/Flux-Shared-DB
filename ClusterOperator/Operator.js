@@ -343,7 +343,10 @@ class Operator {
         return true;
       }
       // apps only can connect to the master node
-      if (!this.operator.IamMaster && (config.authMasterOnly)) return false;
+      if (!this.operator.IamMaster && (config.authMasterOnly)) {
+        log.info(`DB connection rejected from ${remoteIp}, authMasterOnly: ${config.authMasterOnly}`);
+        return false;
+      }
       if (remoteIp === this.authorizedApp) {
         return true;
       }
