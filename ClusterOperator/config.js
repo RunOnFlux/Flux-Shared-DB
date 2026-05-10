@@ -20,6 +20,6 @@ module.exports = {
   whiteListedIps: process.env.WHITELIST || '127.0.0.1',
   debugMode: true,
   containerDataPath: '',
-  authMasterOnly: process.env.AUTH_MASTER_ONLY || false,
+  authMasterOnly: process.env.AUTH_MASTER_ONLY === 'true',
   ssl: process.env.SSL === 'true', // defaults to false; set SSL=true to enable
 };
