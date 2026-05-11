@@ -780,17 +780,28 @@ class Operator {
       );
 
       if (hasWrite) {
-        // sendWriteQuery handles BackLog insertion (local execution) + replication.
-        // Returns [result, seqNo, timestamp] where result = [okPacket, fields, err].
-        const backlogResult = await this.sendWriteQuery(sql, id, sql);
-        const okPacket = backlogResult && backlogResult[0] && backlogResult[0][0];
-        return {
-          rows: {
-            affectedRows: (okPacket && okPacket.affectedRows) || 0,
-            insertId: (okPacket && okPacket.insertId) || 0,
-          },
-          fields: [],
-        };
+        // CRITICAL: disable raw byte forwarding before sendWriteQuery.
+        // BackLog.pushQuery calls conn.query() which causes MariaDB's raw
+        // text-protocol OK packet to flow through rawCallback → client socket
+        // while enableSocketWrite=true. mysql2 would then receive that raw packet
+        // AND the emulator's binary OK — causing "packets out of order".
+        conn.disableSocketWrite();
+        try {
+          // sendWriteQuery handles BackLog insertion (local execution) + replication.
+          // Returns [result, seqNo, timestamp] where result = [okPacket, fields, err].
+          const backlogResult = await this.sendWriteQuery(sql, id, sql);
+          const okPacket = backlogResult && backlogResult[0] && backlogResult[0][0];
+          return {
+            rows: {
+              affectedRows: (okPacket && okPacket.affectedRows) || 0,
+              insertId: (okPacket && okPacket.insertId) || 0,
+            },
+            fields: [],
+          };
+        } finally {
+          // Re-enable for subsequent COM_QUERY raw-proxy usage.
+          conn.setSocket(ConnectionPool.getSocketById(id), id);
+        }
       }
 
       // Read query — disable raw byte streaming so text-protocol bytes from the
