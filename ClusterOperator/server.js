@@ -1214,7 +1214,7 @@ async function startUI() { // Make async to potentially await DB client init if 
     // VERY IMPORTANT: Add checks to prevent dangerous queries.
     // This is a basic example, needs significant enhancement for production.
     const lowerQuery = query.toLowerCase().trim();
-    const disallowedKeywords = ['drop ', 'delete ', 'alter ', 'truncate ']; // Example blacklist
+    const disallowedKeywords = ['drop ', 'delete ', 'truncate ']; // Example blacklist
     let writeQuery = false;
     // Allow SELECT by default, explicitly block others for now
     if (!lowerQuery.startsWith('select ')) {
