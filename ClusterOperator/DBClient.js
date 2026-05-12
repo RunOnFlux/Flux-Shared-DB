@@ -52,8 +52,10 @@ class DBClient {
   */
   rawCallback(data) {
     if (this.socketCallBack && this.enableSocketWrite) {
+      log.debug(`[DBClient conn=${this.socketId}] rawCallback: streaming ${data.length} raw bytes to oxmysql socket`);
       this.socketCallBack.write(data);
-      // log.info(`writing to ${this.socketId}: ${data.length} bytes`);
+    } else if (this.socketCallBack && !this.enableSocketWrite) {
+      log.debug(`[DBClient conn=${this.socketId}] rawCallback: ${data.length} bytes suppressed (socketWrite disabled)`);
     }
   }
 
