@@ -765,9 +765,20 @@ class Operator {
   * @param {int}    id   Connection ID
   */
   static async handleStmtResult(sql, id) {
+    log.query(`handleStmtResult [conn=${id}] sql: ${sql}`);
     try {
+      // Mirror the status guard in handleCommand — skip processing during SYNC/ROLLBACK.
+      const opStatus = this.operator.status;
+      if (opStatus !== 'OK') {
+        log.info(`handleStmtResult [conn=${id}] skipped — operator status: ${opStatus}`);
+        return null;
+      }
+
       const conn = ConnectionPool.getConnectionById(id);
-      if (!conn) return null;
+      if (!conn) {
+        log.error(`handleStmtResult [conn=${id}] no connection in pool`);
+        return null;
+      }
 
       // Classify the query the same way handleCommand does for COM_QUERY.
       // Write queries (INSERT/UPDATE/DELETE/…) must go through sendWriteQuery so
@@ -778,6 +789,7 @@ class Operator {
       const hasWrite = analyzedQueries.some(
         ([q, type]) => type === 'w' && this.isNotBacklogQuery(q, this.BACKLOG_DB),
       );
+      log.query(`handleStmtResult [conn=${id}] classified as: ${hasWrite ? 'WRITE' : 'READ'}`);
 
       if (hasWrite) {
         // CRITICAL: disable raw byte forwarding before sendWriteQuery.
@@ -787,15 +799,27 @@ class Operator {
         // AND the emulator's binary OK — causing "packets out of order".
         conn.disableSocketWrite();
         try {
-          // sendWriteQuery handles BackLog insertion (local execution) + replication.
-          // Returns [result, seqNo, timestamp] where result = [okPacket, fields, err].
-          const backlogResult = await this.sendWriteQuery(sql, id, sql);
-          const okPacket = backlogResult && backlogResult[0] && backlogResult[0][0];
+          // Use this.operator.sendWriteQuery (live Operator reference) — NOT
+          // this.sendWriteQuery — so that the live masterNode / IamMaster /
+          // serverSocket / masterWSConn values are used rather than the
+          // stale snapshot that was captured when createServer() was called.
+          // Without this, a client that connected before findMaster() completed
+          // (e.g. during Docker restart) would have masterNode=null in the
+          // emulator snapshot and sendWriteQuery would silently return null,
+          // dropping every prepared-statement write without touching the backlog.
+          log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
+          const backlogResult = await this.operator.sendWriteQuery(sql, id, sql);
+          if (backlogResult === null || backlogResult === undefined) {
+            log.error(`handleStmtResult [conn=${id}] sendWriteQuery returned null — masterNode may be null. sql: ${sql}`);
+          }
+          // Master returns [ResultSetHeader, seq, ts]; slave returns ResultSetHeader
+          // directly (the master's result[0] forwarded back via callback).
+          const okPacket = Array.isArray(backlogResult) ? backlogResult[0] : backlogResult;
+          const affectedRows = (okPacket && okPacket.affectedRows) || 0;
+          const insertId = (okPacket && okPacket.insertId) || 0;
+          log.query(`handleStmtResult [conn=${id}] write done — affectedRows=${affectedRows}, insertId=${insertId}`);
           return {
-            rows: {
-              affectedRows: (okPacket && okPacket.affectedRows) || 0,
-              insertId: (okPacket && okPacket.insertId) || 0,
-            },
+            rows: { affectedRows, insertId },
             fields: [],
           };
         } finally {
@@ -807,16 +831,21 @@ class Operator {
       // Read query — disable raw byte streaming so text-protocol bytes from the
       // upstream DB don't leak to the mysql2 client (which expects binary protocol).
       conn.disableSocketWrite();
-      const [rows, fields, err] = await conn.query(sql, true);
-      // Re-enable for subsequent COM_QUERY raw-proxy usage.
-      conn.setSocket(ConnectionPool.getSocketById(id), id);
-      if (err) {
-        log.error(`handleStmtResult error: ${err}`);
-        return null;
+      try {
+        const [rows, fields, err] = await conn.query(sql, true);
+        if (err) {
+          log.error(`handleStmtResult [conn=${id}] read error: ${err}`);
+          return null;
+        }
+        const rowCount = Array.isArray(rows) ? rows.length : 0;
+        log.query(`handleStmtResult [conn=${id}] read done — ${rowCount} row(s)`);
+        return { rows, fields };
+      } finally {
+        // Re-enable for subsequent COM_QUERY raw-proxy usage.
+        conn.setSocket(ConnectionPool.getSocketById(id), id);
       }
-      return { rows, fields };
     } catch (err) {
-      log.error(`handleStmtResult exception: ${err}`);
+      log.error(`handleStmtResult [conn=${id}] exception: ${err.stack || err}`);
       return null;
     }
   }
