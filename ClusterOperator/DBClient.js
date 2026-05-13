@@ -52,10 +52,10 @@ class DBClient {
   */
   rawCallback(data) {
     if (this.socketCallBack && this.enableSocketWrite && !this._changingUser) {
-      log.debug(`[DBClient conn=${this.socketId}] rawCallback: streaming ${data.length} raw bytes to oxmysql socket`);
+      // log.debug(`[DBClient conn=${this.socketId}] rawCallback: streaming ${data.length} raw bytes to oxmysql socket`);
       this.socketCallBack.write(data);
     } else if (this.socketCallBack && (!this.enableSocketWrite || this._changingUser)) {
-      log.debug(`[DBClient conn=${this.socketId}] rawCallback: ${data.length} bytes suppressed (socketWrite disabled${this._changingUser ? ', changeUser in flight' : ''})`);
+      // log.debug(`[DBClient conn=${this.socketId}] rawCallback: ${data.length} bytes suppressed (socketWrite disabled${this._changingUser ? ', changeUser in flight' : ''})`);
     }
   }
 

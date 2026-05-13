@@ -765,18 +765,18 @@ class Operator {
   * @param {int}    id   Connection ID
   */
   static async handleStmtResult(sql, id) {
-    log.query(`handleStmtResult [conn=${id}] sql: ${sql}`);
+    // log.query(`handleStmtResult [conn=${id}] sql: ${sql}`);
     try {
       // Mirror the status guard in handleCommand — skip processing during SYNC/ROLLBACK.
       const opStatus = this.operator.status;
       if (opStatus !== 'OK') {
-        log.info(`handleStmtResult [conn=${id}] skipped — operator status: ${opStatus}`);
+        // log.info(`handleStmtResult [conn=${id}] skipped — operator status: ${opStatus}`);
         return null;
       }
 
       const conn = ConnectionPool.getConnectionById(id);
       if (!conn) {
-        log.error(`handleStmtResult [conn=${id}] no connection in pool`);
+        // log.error(`handleStmtResult [conn=${id}] no connection in pool`);
         return null;
       }
 
@@ -789,7 +789,7 @@ class Operator {
       const hasWrite = analyzedQueries.some(
         ([q, type]) => type === 'w' && this.isNotBacklogQuery(q, this.BACKLOG_DB),
       );
-      log.query(`handleStmtResult [conn=${id}] classified as: ${hasWrite ? 'WRITE' : 'READ'}`);
+      // log.query(`handleStmtResult [conn=${id}] classified as: ${hasWrite ? 'WRITE' : 'READ'}`);
 
       if (hasWrite) {
         // CRITICAL: disable raw byte forwarding before sendWriteQuery.
@@ -807,17 +807,17 @@ class Operator {
           // (e.g. during Docker restart) would have masterNode=null in the
           // emulator snapshot and sendWriteQuery would silently return null,
           // dropping every prepared-statement write without touching the backlog.
-          log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
+          // log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
           const backlogResult = await this.operator.sendWriteQuery(sql, id, sql);
           if (backlogResult === null || backlogResult === undefined) {
-            log.error(`handleStmtResult [conn=${id}] sendWriteQuery returned null — masterNode may be null. sql: ${sql}`);
+            // log.error(`handleStmtResult [conn=${id}] sendWriteQuery returned null — masterNode may be null. sql: ${sql}`);
           }
           // Master returns [ResultSetHeader, seq, ts]; slave returns ResultSetHeader
           // directly (the master's result[0] forwarded back via callback).
           const okPacket = Array.isArray(backlogResult) ? backlogResult[0] : backlogResult;
           const affectedRows = (okPacket && okPacket.affectedRows) || 0;
           const insertId = (okPacket && okPacket.insertId) || 0;
-          log.query(`handleStmtResult [conn=${id}] write done — affectedRows=${affectedRows}, insertId=${insertId}`);
+          // log.query(`handleStmtResult [conn=${id}] write done — affectedRows=${affectedRows}, insertId=${insertId}`);
           return {
             rows: { affectedRows, insertId },
             fields: [],
@@ -834,18 +834,18 @@ class Operator {
       try {
         const [rows, fields, err] = await conn.query(sql, true);
         if (err) {
-          log.error(`handleStmtResult [conn=${id}] read error: ${err}`);
+          // log.error(`handleStmtResult [conn=${id}] read error: ${err}`);
           throw err; // propagates to _sendBinaryResultSet catch → ERR packet
         }
         const rowCount = Array.isArray(rows) ? rows.length : 0;
-        log.query(`handleStmtResult [conn=${id}] read done — ${rowCount} row(s)`);
+        // log.query(`handleStmtResult [conn=${id}] read done — ${rowCount} row(s)`);
         return { rows, fields };
       } finally {
         // Re-enable for subsequent COM_QUERY raw-proxy usage.
         conn.setSocket(ConnectionPool.getSocketById(id), id);
       }
     } catch (err) {
-      log.error(`handleStmtResult [conn=${id}] exception: ${err.stack || err}`);
+      // log.error(`handleStmtResult [conn=${id}] exception: ${err.stack || err}`);
       return null;
     }
   }
