@@ -51,11 +51,11 @@ class DBClient {
   * [rawCallback]
   */
   rawCallback(data) {
-    if (this.socketCallBack && this.enableSocketWrite) {
+    if (this.socketCallBack && this.enableSocketWrite && !this._changingUser) {
       log.debug(`[DBClient conn=${this.socketId}] rawCallback: streaming ${data.length} raw bytes to oxmysql socket`);
       this.socketCallBack.write(data);
-    } else if (this.socketCallBack && !this.enableSocketWrite) {
-      log.debug(`[DBClient conn=${this.socketId}] rawCallback: ${data.length} bytes suppressed (socketWrite disabled)`);
+    } else if (this.socketCallBack && (!this.enableSocketWrite || this._changingUser)) {
+      log.debug(`[DBClient conn=${this.socketId}] rawCallback: ${data.length} bytes suppressed (socketWrite disabled${this._changingUser ? ', changeUser in flight' : ''})`);
     }
   }
 
@@ -313,9 +313,19 @@ class DBClient {
         this.InitDB = dbName;
         // log.info(`seting db to ${dbName}`);
         if (this.connection) {
+          // Suppress rawCallback while changeUser is in flight.
+          // changeUser triggers a full auth exchange with MariaDB
+          // (auth_switch_request + OK), and those bytes must NOT be
+          // forwarded to the oxmysql socket or they corrupt its stream.
+          // Use _changingUser flag (not enableSocketWrite) so that a
+          // concurrent setSocket() call cannot override the suppression.
+          this._changingUser = true;
           this.connection.changeUser({
             database: dbName,
+          }).then(() => {
+            this._changingUser = false;
           }).catch((err) => {
+            this._changingUser = false;
             if (err) {
               log.error(`Error changing database: ${err}`);
               this.reconnect();
