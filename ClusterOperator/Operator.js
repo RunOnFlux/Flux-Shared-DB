@@ -835,7 +835,7 @@ class Operator {
         const [rows, fields, err] = await conn.query(sql, true);
         if (err) {
           log.error(`handleStmtResult [conn=${id}] read error: ${err}`);
-          return null;
+          throw err; // propagates to _sendBinaryResultSet catch → ERR packet
         }
         const rowCount = Array.isArray(rows) ? rows.length : 0;
         log.query(`handleStmtResult [conn=${id}] read done — ${rowCount} row(s)`);
