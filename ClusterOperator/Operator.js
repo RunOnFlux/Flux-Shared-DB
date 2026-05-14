@@ -294,6 +294,7 @@ class Operator {
             socket: so,
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
+            onStmtResult: this.handleStmtResult,
             operator: this,
             authorizedApp: this.authorizedApp,
             localDB: this.localDB,
@@ -343,7 +344,10 @@ class Operator {
         return true;
       }
       // apps only can connect to the master node
-      if (!this.operator.IamMaster && (config.authMasterOnly)) return false;
+      if (!this.operator.IamMaster && (config.authMasterOnly)) {
+        log.info(`DB connection rejected from ${remoteIp}, authMasterOnly: ${config.authMasterOnly}`);
+        return false;
+      }
       if (remoteIp === this.authorizedApp) {
         return true;
       }
@@ -361,8 +365,8 @@ class Operator {
   */
   static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null) {
     if (this.masterNode !== null) {
-      // log.info(`master node: ${this.masterNode}`);
       if (!this.IamMaster) {
+        log.info(`forwarding query to master node: ${this.masterNode}`);
         const { masterWSConn } = this;
         if (masterWSConn) {
           return new Promise((resolve) => {
@@ -752,6 +756,101 @@ class Operator {
   }
 
   /**
+  * [handleStmtResult]
+  * Called by the mysqlServer emulator for COM_STMT_EXECUTE queries.
+  * Runs the interpolated SQL and returns structured { rows, fields } so the
+  * emulator can encode the response as binary-protocol rows instead of
+  * forwarding the raw text-protocol bytes (which would desync mysql2).
+  * @param {string} sql  Fully-interpolated SQL string
+  * @param {int}    id   Connection ID
+  */
+  static async handleStmtResult(sql, id) {
+    // log.query(`handleStmtResult [conn=${id}] sql: ${sql}`);
+    try {
+      // Mirror the status guard in handleCommand — skip processing during SYNC/ROLLBACK.
+      const opStatus = this.operator.status;
+      if (opStatus !== 'OK') {
+        // log.info(`handleStmtResult [conn=${id}] skipped — operator status: ${opStatus}`);
+        return null;
+      }
+
+      const conn = ConnectionPool.getConnectionById(id);
+      if (!conn) {
+        // log.error(`handleStmtResult [conn=${id}] no connection in pool`);
+        return null;
+      }
+
+      // Classify the query the same way handleCommand does for COM_QUERY.
+      // Write queries (INSERT/UPDATE/DELETE/…) must go through sendWriteQuery so
+      // they are pushed to the backlog and replicated to slave nodes — otherwise
+      // prepared-statement writes would only run on the local DB and slaves would
+      // never see the change.
+      const analyzedQueries = sqlAnalyzer(sql, 'mysql');
+      const hasWrite = analyzedQueries.some(
+        ([q, type]) => type === 'w' && this.isNotBacklogQuery(q, this.BACKLOG_DB),
+      );
+      // log.query(`handleStmtResult [conn=${id}] classified as: ${hasWrite ? 'WRITE' : 'READ'}`);
+
+      if (hasWrite) {
+        // CRITICAL: disable raw byte forwarding before sendWriteQuery.
+        // BackLog.pushQuery calls conn.query() which causes MariaDB's raw
+        // text-protocol OK packet to flow through rawCallback → client socket
+        // while enableSocketWrite=true. mysql2 would then receive that raw packet
+        // AND the emulator's binary OK — causing "packets out of order".
+        conn.disableSocketWrite();
+        try {
+          // Use this.operator.sendWriteQuery (live Operator reference) — NOT
+          // this.sendWriteQuery — so that the live masterNode / IamMaster /
+          // serverSocket / masterWSConn values are used rather than the
+          // stale snapshot that was captured when createServer() was called.
+          // Without this, a client that connected before findMaster() completed
+          // (e.g. during Docker restart) would have masterNode=null in the
+          // emulator snapshot and sendWriteQuery would silently return null,
+          // dropping every prepared-statement write without touching the backlog.
+          // log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
+          const backlogResult = await this.operator.sendWriteQuery(sql, id, sql);
+          if (backlogResult === null || backlogResult === undefined) {
+            // log.error(`handleStmtResult [conn=${id}] sendWriteQuery returned null — masterNode may be null. sql: ${sql}`);
+          }
+          // Master returns [ResultSetHeader, seq, ts]; slave returns ResultSetHeader
+          // directly (the master's result[0] forwarded back via callback).
+          const okPacket = Array.isArray(backlogResult) ? backlogResult[0] : backlogResult;
+          const affectedRows = (okPacket && okPacket.affectedRows) || 0;
+          const insertId = (okPacket && okPacket.insertId) || 0;
+          // log.query(`handleStmtResult [conn=${id}] write done — affectedRows=${affectedRows}, insertId=${insertId}`);
+          return {
+            rows: { affectedRows, insertId },
+            fields: [],
+          };
+        } finally {
+          // Re-enable for subsequent COM_QUERY raw-proxy usage.
+          conn.setSocket(ConnectionPool.getSocketById(id), id);
+        }
+      }
+
+      // Read query — disable raw byte streaming so text-protocol bytes from the
+      // upstream DB don't leak to the mysql2 client (which expects binary protocol).
+      conn.disableSocketWrite();
+      try {
+        const [rows, fields, err] = await conn.query(sql, true);
+        if (err) {
+          // log.error(`handleStmtResult [conn=${id}] read error: ${err}`);
+          throw err; // propagates to _sendBinaryResultSet catch → ERR packet
+        }
+        const rowCount = Array.isArray(rows) ? rows.length : 0;
+        // log.query(`handleStmtResult [conn=${id}] read done — ${rowCount} row(s)`);
+        return { rows, fields };
+      } finally {
+        // Re-enable for subsequent COM_QUERY raw-proxy usage.
+        conn.setSocket(ConnectionPool.getSocketById(id), id);
+      }
+    } catch (err) {
+      // log.error(`handleStmtResult [conn=${id}] exception: ${err.stack || err}`);
+      return null;
+    }
+  }
+
+  /**
   * [syncLocalDB]
   */
   static async syncLocalDB() {
@@ -767,99 +866,99 @@ class Operator {
       // that sets syncing=true again before finally runs.
       let selfManagedSync = false;
       try {
-      const syncConn = this.masterWSConn;
-      this.status = 'SYNC';
-      log.info('Status SYNC', 'yellow');
-      // check for beacon file presence
-      let tries = 1;
-      let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
-      while (!status && tries < 5) {
-        status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
-        tries += 1;
-      }
-      if (!status) {
-        log.warn('Master node not reachable, Sync proccess halted.', 'red');
-        this.syncing = false;
-        await this.findMaster();
-        this.initMasterConnection();
-        return;
-      }
-      log.info(JSON.stringify(status));
-      log.info(`current seq no: ${BackLog.sequenceNumber}`);
-      if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
-        log.info(`Master node's first SequenceNumber: ${status.firstSequenceNumber}`);
-        let beaconContent = await BackLog.readBeaconFile();
-        while (!beaconContent) {
-          log.info('Waiting for beacon file to be created...');
-          await timer.setTimeout(3000);
-          beaconContent = await BackLog.readBeaconFile();
+        const syncConn = this.masterWSConn;
+        this.status = 'SYNC';
+        log.info('Status SYNC', 'yellow');
+        // check for beacon file presence
+        let tries = 1;
+        let status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+        while (!status && tries < 5) {
+          status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+          tries += 1;
         }
-        log.info(`beacon file: ${JSON.stringify(beaconContent)}`);
-        if (beaconContent.seqNo > BackLog.sequenceNumber) {
-          while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
-            log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
-            await timer.setTimeout(3000);
-          }
-          log.info(`file size: ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}`);
-          while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
-            log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
-            await timer.setTimeout(3000);
-          }
-          await BackLog.clearBacklog();
-          this.status = 'CLEARBUFFER';
-          await BackLog.clearBuffer();
-          await timer.setTimeout(200);
-          this.status = 'SYNC';
-          log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
-          BackLog.executeLogs = false;
-          BackLog.exitOnError = true;
-          // restore backlog from snapshot
-          const importer = new SqlImporter({
-            callback: this.pushToBacklog,
-            serverSocket: false,
-          });
-          importer.onProgress((progress) => {
-            const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 1000);
-            BackLog.compressionTask = percent;
-            log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
-          });
-          importer.setEncoding('utf8');
-          selfManagedSync = true; // importer handles this.syncing and recursion from here
-          await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
-            const filesImported = importer.getImported();
-            log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-            const latestSequenceNumber = await BackLog.getLastSequenceNumber();
-            log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
-            await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
-            BackLog.executeLogs = true;
-            BackLog.exitOnError = false;
-            this.syncing = false;
-            const { masterWSConn } = this;
-            if (!masterWSConn) {
-              log.warn('Sync proccess halted.', 'red');
-              await this.findMaster();
-              this.initMasterConnection();
-              return;
-            }
-            this.syncLocalDB();
-          }).catch(async (err) => {
-            BackLog.executeLogs = true;
-            BackLog.exitOnError = false;
-            log.error(err);
-            this.syncing = false;
-            const { masterWSConn } = this;
-            if (!masterWSConn) {
-              log.warn('Sync proccess halted.', 'red');
-              await this.findMaster();
-              this.initMasterConnection();
-              return;
-            }
-            this.syncLocalDB();
-          });
+        if (!status) {
+          log.warn('Master node not reachable, Sync proccess halted.', 'red');
+          this.syncing = false;
+          await this.findMaster();
+          this.initMasterConnection();
           return;
         }
-      }
-      /*
+        log.info(JSON.stringify(status));
+        log.info(`current seq no: ${BackLog.sequenceNumber}`);
+        if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
+          log.info(`Master node's first SequenceNumber: ${status.firstSequenceNumber}`);
+          let beaconContent = await BackLog.readBeaconFile();
+          while (!beaconContent) {
+            log.info('Waiting for beacon file to be created...');
+            await timer.setTimeout(3000);
+            beaconContent = await BackLog.readBeaconFile();
+          }
+          log.info(`beacon file: ${JSON.stringify(beaconContent)}`);
+          if (beaconContent.seqNo > BackLog.sequenceNumber) {
+            while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
+              log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
+              await timer.setTimeout(3000);
+            }
+            log.info(`file size: ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}`);
+            while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
+              log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
+              await timer.setTimeout(3000);
+            }
+            await BackLog.clearBacklog();
+            this.status = 'CLEARBUFFER';
+            await BackLog.clearBuffer();
+            await timer.setTimeout(200);
+            this.status = 'SYNC';
+            log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
+            BackLog.executeLogs = false;
+            BackLog.exitOnError = true;
+            // restore backlog from snapshot
+            const importer = new SqlImporter({
+              callback: this.pushToBacklog,
+              serverSocket: false,
+            });
+            importer.onProgress((progress) => {
+              const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 1000);
+              BackLog.compressionTask = percent;
+              log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+            });
+            importer.setEncoding('utf8');
+            selfManagedSync = true; // importer handles this.syncing and recursion from here
+            await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
+              const filesImported = importer.getImported();
+              log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+              const latestSequenceNumber = await BackLog.getLastSequenceNumber();
+              log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
+              await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
+              BackLog.executeLogs = true;
+              BackLog.exitOnError = false;
+              this.syncing = false;
+              const { masterWSConn } = this;
+              if (!masterWSConn) {
+                log.warn('Sync proccess halted.', 'red');
+                await this.findMaster();
+                this.initMasterConnection();
+                return;
+              }
+              this.syncLocalDB();
+            }).catch(async (err) => {
+              BackLog.executeLogs = true;
+              BackLog.exitOnError = false;
+              log.error(err);
+              this.syncing = false;
+              const { masterWSConn } = this;
+              if (!masterWSConn) {
+                log.warn('Sync proccess halted.', 'red');
+                await this.findMaster();
+                this.initMasterConnection();
+                return;
+              }
+              this.syncLocalDB();
+            });
+            return;
+          }
+        }
+        /*
       try {
         const response = await fluxAPI.getKeys(this.masterWSConn);
         const keys = JSON.parse(Security.decryptComm(Buffer.from(response.keys, 'hex')));
@@ -872,60 +971,60 @@ class Operator {
         log.error(err);
       }
       */
-      let masterSN = BackLog.sequenceNumber + 1;
+        let masterSN = BackLog.sequenceNumber + 1;
 
-      let copyBuffer = false;
-      const startSeqNo = BackLog.sequenceNumber;
-      BackLog.executeLogs = false;
-      while (BackLog.sequenceNumber < masterSN) {
-        if (this.masterWSConn !== syncConn) {
-          log.warn('masterWSConn was replaced during sync, aborting.', 'red');
-          BackLog.executeLogs = true;
-          this.syncing = false;
-          return;
-        }
-        try {
-          const index = BackLog.sequenceNumber;
-          const response = await fluxAPI.getBackLog(index + 1, syncConn);
-          if (response && response.status === 'OK') {
-            masterSN = response.sequenceNumber;
-            for (const record of response.records) {
-              if (this.status !== 'SYNC') {
-                log.warn('Sync proccess halted.', 'red');
-                this.syncing = false;
-                return;
-              }
-              if (record.seq === BackLog.sequenceNumber + 1) {
-                await BackLog.pushQuery(record.query, record.seq, record.timestamp);
-              } else {
-                log.info(`wrong seq no from master ${record.seq}`, 'red');
-                status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
-                log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
-                if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
-                  log.info('starting over...', 'red');
+        let copyBuffer = false;
+        const startSeqNo = BackLog.sequenceNumber;
+        BackLog.executeLogs = false;
+        while (BackLog.sequenceNumber < masterSN) {
+          if (this.masterWSConn !== syncConn) {
+            log.warn('masterWSConn was replaced during sync, aborting.', 'red');
+            BackLog.executeLogs = true;
+            this.syncing = false;
+            return;
+          }
+          try {
+            const index = BackLog.sequenceNumber;
+            const response = await fluxAPI.getBackLog(index + 1, syncConn);
+            if (response && response.status === 'OK') {
+              masterSN = response.sequenceNumber;
+              for (const record of response.records) {
+                if (this.status !== 'SYNC') {
+                  log.warn('Sync proccess halted.', 'red');
                   this.syncing = false;
-                  this.syncLocalDB();
                   return;
                 }
+                if (record.seq === BackLog.sequenceNumber + 1) {
+                  await BackLog.pushQuery(record.query, record.seq, record.timestamp);
+                } else {
+                  log.info(`wrong seq no from master ${record.seq}`, 'red');
+                  status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
+                  log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
+                  if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
+                    log.info('starting over...', 'red');
+                    this.syncing = false;
+                    this.syncLocalDB();
+                    return;
+                  }
+                }
               }
+              copyBuffer = true;
+              let percent = 0;
+              if (masterSN !== 0 && masterSN !== startSeqNo) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
+              if (startSeqNo === masterSN) percent = 1000;
+              log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
             }
-            copyBuffer = true;
-            let percent = 0;
-            if (masterSN !== 0 && masterSN !== startSeqNo) percent = Math.round(((index + response.records.length - startSeqNo) / (masterSN - startSeqNo)) * 1000);
-            if (startSeqNo === masterSN) percent = 1000;
-            log.info(`sync backlog from ${index + 1} to ${index + response.records.length} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
+          } catch (err) {
+            BackLog.executeLogs = true;
+            log.error(err);
           }
-        } catch (err) {
-          BackLog.executeLogs = true;
-          log.error(err);
         }
-      }
-      BackLog.executeLogs = true;
-      this.syncing = false;
-      log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
-      if (copyBuffer) await BackLog.moveBufferToBacklog();
-      log.info('Status OK', 'green');
-      this.status = 'OK';
+        BackLog.executeLogs = true;
+        this.syncing = false;
+        log.info(`sync finished, moving remaining records from backlog, copyBuffer:${copyBuffer}`, 'cyan');
+        if (copyBuffer) await BackLog.moveBufferToBacklog();
+        log.info('Status OK', 'green');
+        this.status = 'OK';
       } catch (err) {
         log.error('Unexpected error in syncLocalDB:', err);
       } finally {

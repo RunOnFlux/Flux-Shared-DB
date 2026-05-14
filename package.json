@@ -29,6 +29,7 @@
     "socket.io": "^4.5.1",
     "socket.io-client": "^4.5.1",
     "sql-formatter": "^15.3.0",
+    "sql-query-identifier": "^2.11.0",
     "sqlstring": "^2.3.3",
     "timers": "^0.1.1",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.4.0",
@@ -39,6 +40,7 @@
     "eslint": "^8.14.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.25.4",
+    "mariadb": "^3.5.2",
     "power-assert": "^1.6.1"
   }
 }

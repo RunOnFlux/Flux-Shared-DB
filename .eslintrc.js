@@ -3,7 +3,6 @@ module.exports = {
   env: {
     commonjs: true,
     node: true,
-    mocha: true,
   },
   extends: [
     'airbnb-base',
@@ -36,14 +35,6 @@ module.exports = {
       experimentalObjectRestSpread: true,
     },
   },
-  overrides: [
-    {
-      files: [
-        '**/__tests__/*.{j,t}s?(x)',
-      ],
-      env: {
-        mocha: true,
-      },
-    },
-  ],
+  overrides: [],
+
 };
