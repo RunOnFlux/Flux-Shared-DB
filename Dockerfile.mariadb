@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+ARG MARIADB_IMAGE=mariadb:11.4
+
 # ---- build stage: production node_modules ----
 FROM node:20 AS build-env
 WORKDIR /app
@@ -7,7 +9,6 @@ COPY . /app
 RUN npm ci --omit=dev
 
 # ---- runtime: MariaDB + Node + operator ----
-ARG MARIADB_IMAGE=mariadb:11.4
 FROM ${MARIADB_IMAGE}
 USER root
 

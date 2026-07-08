@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+ARG MYSQL_IMAGE=mysql:8.3.0
+
 # ---- build stage: production node_modules ----
 FROM node:20 AS build-env
 WORKDIR /app
@@ -7,7 +9,6 @@ COPY . /app
 RUN npm ci --omit=dev
 
 # ---- runtime: MySQL 8 + Node + operator ----
-ARG MYSQL_IMAGE=mysql:8.3.0
 FROM ${MYSQL_IMAGE}
 USER root
 
