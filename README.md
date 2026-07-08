@@ -54,10 +54,53 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
    "server=operator:3307;uid=DB_USER;pwd=DB_INIT_PASS;database=INIT_DB_NAME"
    ```
 
+## Image Variants
+
+Three image variants are published to Docker Hub:
+
+| Image | Contents | Tags | DB component needed? |
+|-------|----------|------|----------------------|
+| `runonflux/shared-db:latest` / `:dev` | Distroless operator only (DB-less) | `latest` (master), `dev` (development) | Yes - a separate DB component |
+| `runonflux/shared-db:latest-mysql` / `:dev-mysql` | Operator + MySQL 8 bundled | `latest-mysql`, `dev-mysql` | No - DB runs inside the container |
+| `runonflux/shared-db:latest-mariadb` / `:dev-mariadb` | Operator + MariaDB bundled | `latest-mariadb`, `dev-mariadb` | No - DB runs inside the container |
+
+`dev*` tags are built from the `development` branch, `latest*` from `master`.
+
+Pick the DB-less image if you want to run and manage the DB engine as a separate component (setup above). Pick a bundled image for a single self-contained component (setup below). Do not use both approaches for the same deployment.
+
+## Running a Bundled Image (no separate DB component)
+
+The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same container as the Operator, so you only register a single component.
+
+- Log in to [home.runonflux.io](https://home.runonflux.io) and navigate to Applications > Register New App.
+- Add a single component for the Operator.
+- Name it `operator`.
+- Use a bundled image, for example: `runonflux/shared-db:latest-mysql` (or `runonflux/shared-db:latest-mariadb`).
+- Do NOT add a separate MySQL component, and do NOT set `DB_COMPONENT_NAME` (it defaults to `localhost`, connecting to the in-container DB).
+- Set the Container Data for the component to `s:/app/dumps|/app/db`.
+  - `s:/app/dumps` holds SQL backups and is synced across instances (the `s:` flag).
+  - `/app/db` is the DB engine data directory. It must be persistent but node-local (no `s:` flag) - each node keeps its own copy and replication is handled by the Operator.
+- Add these ports to the `Cont. Ports` field: `[3307,7071,8008]`.
+- Using the `Ports` field, map those ports to new ones, for example: `[13307,17071,18008]`.
+- For the `Domains` field, add this: `["","",""]`.
+- Use the following sample to set the environment variables:
+   ```json
+   [
+      "INIT_DB_NAME=my-db",
+      "DB_INIT_PASS=PASSWORD",
+      "DB_USER=root",
+      "DB_PORT=13307",
+      "API_PORT=17071"
+   ]
+   ```
+- Add your Application component (optional) and connect to the Operator DB port as with the DB-less setup.
+
+Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
+
 ### Environment Variables
 | Variable | Description | Default |
 |----------|-------------|---------|
-|`DB_COMPONENT_NAME` | Hostname for the DB engine component | Required |
+|`DB_COMPONENT_NAME` | Hostname for the DB engine component. Required for the DB-less image; leave unset for bundled images (defaults to `localhost`). | `localhost` |
 |`INIT_DB_NAME` | Initial database name created immediately after initialization | Required |
 |`DB_INIT_PASS` | Root password for the DB engine | `secret` |
 |`DB_USER` | Username that can authenticate with the Operator | `root` |

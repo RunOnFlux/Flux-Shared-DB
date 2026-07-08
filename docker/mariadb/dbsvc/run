@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+export MARIADB_ROOT_PASSWORD="${DB_INIT_PASS:-secret}"
+export MARIADB_ROOT_HOST=%
+exec /usr/local/bin/docker-entrypoint.sh mariadbd \
+  --datadir=/app/db --bind-address=127.0.0.1 --skip-log-bin

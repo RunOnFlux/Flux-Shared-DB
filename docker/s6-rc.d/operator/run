@@ -1,0 +1,3 @@
+#!/command/with-contenv sh
+cd /app || exit 1
+exec node ClusterOperator/server.js

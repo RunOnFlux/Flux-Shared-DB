@@ -1192,7 +1192,7 @@ class Operator {
         config.containerDataPath = '';
       } */
       // check if syncthing replication is enabled
-      if (config.containerDataPath === 's:/app/dumps') {
+      if (config.containerDataPath.includes('s:/app/dumps')) {
         // abort health check if doing compression, or if import is happening
         if (this.status === 'COMPRESSING' || BackLog.exitOnError) return;
         // check if beacon file has ben updated.

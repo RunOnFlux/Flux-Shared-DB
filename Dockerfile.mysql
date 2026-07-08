@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1
+
+# ---- build stage: production node_modules ----
+FROM node:20 AS build-env
+WORKDIR /app
+COPY . /app
+RUN npm ci --omit=dev
+
+# ---- runtime: MySQL 8 + Node + operator ----
+ARG MYSQL_IMAGE=mysql:8.3.0
+FROM ${MYSQL_IMAGE}
+USER root
+
+ARG NODE_VERSION=20.18.1
+ARG S6_OVERLAY_VERSION=3.2.0.2
+
+# Node runtime (official prebuilt tarball; glibc >= 2.28, OK on Oracle Linux base)
+RUN set -eux; \
+    microdnf install -y curl tar gzip xz ca-certificates; \
+    curl -fsSLo /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1; \
+    rm -f /tmp/node.tar.xz; \
+    node --version; \
+    microdnf clean all
+
+# s6-overlay to supervise mysqld + operator
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-noarch.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp/s6-x86_64.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-noarch.tar.xz && tar -C / -Jxpf /tmp/s6-x86_64.tar.xz && rm -f /tmp/s6-*.tar.xz
+
+# operator app
+COPY --from=build-env /app /app
+WORKDIR /app
+
+# persistent DB datadir (declared as Flux Container Data)
+RUN mkdir -p /app/db && chown -R mysql:mysql /app/db
+
+# s6 service definitions
+COPY docker/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+COPY docker/mysql/dbsvc/ /etc/s6-overlay/s6-rc.d/db/
+RUN chmod +x /etc/s6-overlay/s6-rc.d/db/run /etc/s6-overlay/s6-rc.d/operator/run
+
+ENV S6_KEEP_ENV=1 \
+    S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+
+EXPOSE 3307 7071 8008
+ENTRYPOINT ["/init"]
