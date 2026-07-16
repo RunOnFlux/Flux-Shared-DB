@@ -1,13 +1,16 @@
 {
   "scripts": {
     "lint": "eslint ./",
-    "lint:fix": "eslint ./ --fix"
+    "lint:fix": "eslint ./ --fix",
+    "test": "node --test"
   },
   "dependencies": {
+    "@noble/curves": "^1.9.7",
     "@babel/eslint-parser": "^7.5.4",
-    "axios": "^1.13.2",
-    "bitcoinjs-message": "^2.2.0",
+    "axios": "^1.16.0",
+    "bech32": "^2.0.0",
     "body-parser": "^1.20.2",
+    "bs58check": "^3.0.1",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "deepmerge": "^4.3.1",
@@ -15,7 +18,7 @@
     "express-fileupload": "^1.4.1",
     "express-rate-limit": "^7.1.1",
     "express-ws": "^5.0.2",
-    "googleapis": "^128.0.0",
+    "googleapis": "^173.0.0",
     "https": "^1.0.0",
     "md5": "^2.3.0",
     "memory-cache": "^0.2.0",
@@ -29,12 +32,11 @@
     "socket.io": "^4.5.1",
     "socket.io-client": "^4.5.1",
     "sql-formatter": "^15.3.0",
-    "sql-query-identifier": "^2.11.0",
+    "sql-query-identifier": "^3.0.0",
     "sqlstring": "^2.3.3",
     "timers": "^0.1.1",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.4.0",
-    "ws": "^8.18.3",
-    "zeltrezjs": "^2.12.0"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "eslint": "^8.14.0",

@@ -9,3 +9,5 @@ errors.txt
 warnings.txt
 query.txt
 dev/
+*.md
+!README.md

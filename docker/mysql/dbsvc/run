@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+export MYSQL_ROOT_PASSWORD="${DB_INIT_PASS:-secret}"
+export MYSQL_ROOT_HOST=%
+exec /usr/local/bin/docker-entrypoint.sh mysqld \
+  --datadir=/app/db --bind-address=127.0.0.1 --skip-log-bin
