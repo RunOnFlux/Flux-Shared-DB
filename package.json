@@ -7,7 +7,7 @@
   "dependencies": {
     "@noble/curves": "^1.9.7",
     "@babel/eslint-parser": "^7.5.4",
-    "axios": "^1.16.0",
+    "axios": "^1.18.0",
     "bech32": "^2.0.0",
     "body-parser": "^1.20.2",
     "bs58check": "^3.0.1",
