@@ -36,6 +36,18 @@ class BackLog {
   static BLqueryCache = queryCache;
 
   /**
+  * [assertValidIdentifier] Ensures a value used as a SQL identifier (table/schema name)
+  * only contains safe characters, preventing SQL injection even if config is tampered with.
+  * @param {string} name [description]
+  */
+  static assertValidIdentifier(name) {
+    if (typeof name !== 'string' || !/^[a-zA-Z0-9_]+$/.test(name)) {
+      throw new Error(`Invalid SQL identifier: ${name}`);
+    }
+    return name;
+  }
+
+  /**
   * [createBacklog]
   * @param {object} params [description]
   */
@@ -55,11 +67,8 @@ class BackLog {
         let tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbBacklogCollection]);
         if (tableList.length === 0) {
           log.info('Backlog table not defined yet, creating backlog table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
-          await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
-            MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
-            ADD PRIMARY KEY (\`seq\`),
-            ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
+          await this.BLClient.query('CREATE TABLE ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;');
+          await this.BLClient.query('ALTER TABLE `' + this.assertValidIdentifier(config.dbBacklog) + '`.`' + this.assertValidIdentifier(config.dbBacklogCollection) + '`\n            MODIFY COLUMN `seq` bigint(0) UNSIGNED NOT NULL FIRST,\n            ADD PRIMARY KEY (`seq`),\n            ADD UNIQUE INDEX `seq`(`seq`);');
         } else {
           log.info('Backlog table already exists, moving on...');
           this.sequenceNumber = await this.getLastSequenceNumber();
@@ -67,18 +76,15 @@ class BackLog {
         tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbBacklogBuffer]);
         if (tableList.length === 0) {
           log.info('Backlog buffer table not defined yet, creating buffer table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
-          await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogBuffer}\` 
-            MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
-            ADD PRIMARY KEY (\`seq\`),
-            ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
+          await this.BLClient.query('CREATE TABLE ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;');
+          await this.BLClient.query('ALTER TABLE `' + this.assertValidIdentifier(config.dbBacklog) + '`.`' + this.assertValidIdentifier(config.dbBacklogBuffer) + '`\n            MODIFY COLUMN `seq` bigint(0) UNSIGNED NOT NULL FIRST,\n            ADD PRIMARY KEY (`seq`),\n            ADD UNIQUE INDEX `seq`(`seq`);');
         } else {
           log.info('Backlog buffer table already exists, moving on...');
         }
         tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbOptions]);
         if (tableList.length === 0) {
           log.info('Backlog options table not defined yet, creating options table...');
-          await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=InnoDB;`);
+          await this.BLClient.query('CREATE TABLE ' + this.assertValidIdentifier(config.dbOptions) + ' (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=InnoDB;');
         } else {
           log.info('Backlog options table already exists, moving on...');
         }
@@ -108,7 +114,7 @@ class BackLog {
           if (this.bufferStartSequenceNumber === 0) this.bufferStartSequenceNumber = seq;
           this.bufferSequenceNumber = seq;
           await this.BLClient.execute(
-            `INSERT INTO ${config.dbBacklogBuffer} (seq, query, timestamp) VALUES (?,?,?)`,
+            'INSERT INTO ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' (seq, query, timestamp) VALUES (?,?,?)',
             [seq, query, timestamp],
           );
           return [null, seq, timestamp];
@@ -122,7 +128,7 @@ class BackLog {
           const seqForThis = this.sequenceNumber;
           this.BLClient.query('SET sql_log_bin = 0;');
           const BLResult = this.BLClient.execute(
-            `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+            'INSERT INTO ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' (seq, query, timestamp) VALUES (?,?,?)',
             [seqForThis, query, timestamp],
           );
           const firstQ = performance.now() - startTime;
@@ -182,7 +188,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const totalRecords = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq >= ${startFrom} ORDER BY seq LIMIT ${pageSize}`);
+        const totalRecords = await this.BLClient.execute('SELECT * FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' WHERE seq >= ? ORDER BY seq LIMIT ?', [Number(startFrom), Number(pageSize)]);
         const trimedRecords = utill.trimArrayToSize(totalRecords, 5 * 1024 * 1024);
         log.info(`sending backlog records ${startFrom},${pageSize}, records: ${trimedRecords.length}`);
         return trimedRecords;
@@ -206,7 +212,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const totalRecords = await this.BLClient.execute(`SELECT seq, LEFT(query,10) as query, timestamp FROM ${config.dbBacklogCollection} WHERE timestamp >= ? AND timestamp < ? ORDER BY seq`, [startFrom, Number(startFrom) + Number(length)]);
+        const totalRecords = await this.BLClient.execute('SELECT seq, LEFT(query,10) as query, timestamp FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' WHERE timestamp >= ? AND timestamp < ? ORDER BY seq', [startFrom, Number(startFrom) + Number(length)]);
         return totalRecords;
       }
     } catch (e) {
@@ -227,7 +233,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogCollection} WHERE seq=${index}`);
+        const record = await this.BLClient.execute('SELECT * FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' WHERE seq=?', [Number(index)]);
         // log.info(`backlog records ${startFrom},${pageSize}:${JSON.stringify(totalRecords)}`);
         return record;
       }
@@ -248,7 +254,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.execute(`SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM ${config.dbBacklogCollection}`);
+        const record = await this.BLClient.execute('SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp FROM ' + this.assertValidIdentifier(config.dbBacklogCollection));
         log.info(record);
         return record[0];
       }
@@ -270,7 +276,7 @@ class BackLog {
       try {
         if (config.dbType === 'mysql') {
           const table = buffer ? config.dbBacklogBuffer : config.dbBacklogCollection;
-          const totalRecords = await this.BLClient.query(`SELECT count(*) as total FROM ${table}`);
+          const totalRecords = await this.BLClient.query('SELECT count(*) as total FROM ' + this.assertValidIdentifier(table));
           return totalRecords[0].total ?? 0;
         }
       } catch (e) {
@@ -293,9 +299,9 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq DESC LIMIT 1`);
+            records = await this.BLClient.query('SELECT seq as seqNo FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' ORDER BY seq DESC LIMIT 1');
           } else {
-            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq DESC LIMIT 1`);
+            records = await this.BLClient.query('SELECT seq as seqNo FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' ORDER BY seq DESC LIMIT 1');
           }
           if (records.length) return records[0].seqNo;
         }
@@ -319,9 +325,9 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogBuffer} ORDER BY seq ASC LIMIT 1`);
+            records = await this.BLClient.query('SELECT seq as seqNo FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' ORDER BY seq ASC LIMIT 1');
           } else {
-            records = await this.BLClient.query(`SELECT seq as seqNo FROM ${config.dbBacklogCollection} ORDER BY seq ASC LIMIT 1`);
+            records = await this.BLClient.query('SELECT seq as seqNo FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' ORDER BY seq ASC LIMIT 1');
           }
           if (records.length) return records[0].seqNo;
         }
@@ -345,9 +351,9 @@ class BackLog {
         if (config.dbType === 'mysql') {
           let records = [];
           if (buffer) {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ${config.dbBacklogBuffer} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
+            records = await this.BLClient.query('SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' WHERE query LIKE \'update%\' OR query LIKE \'set%\' LIMIT 50000) AS subquery');
           } else {
-            records = await this.BLClient.query(`SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ${config.dbBacklogCollection} WHERE query LIKE 'update%' OR query LIKE 'set%' LIMIT 50000) AS subquery`);
+            records = await this.BLClient.query('SELECT COUNT(*) AS update_count FROM (SELECT 1 FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' WHERE query LIKE \'update%\' OR query LIKE \'set%\' LIMIT 50000) AS subquery');
           }
           if (records.length) return records[0].update_count ?? 0;
         }
@@ -369,7 +375,7 @@ class BackLog {
     } else {
       try {
         if (config.dbType === 'mysql') {
-          if (typeof shiftSize === 'number') await this.BLClient.query(`UPDATE ${config.dbBacklogCollection} set seq = seq + ${shiftSize} ORDER BY seq DESC`);
+          if (typeof shiftSize === 'number') await this.BLClient.query('UPDATE ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' set seq = seq + ? ORDER BY seq DESC', [shiftSize]);
           this.sequenceNumber = await this.getLastSequenceNumber();
           log.info(`shifted backlog, current sequenceNumber: ${this.sequenceNumber}`);
         }
@@ -402,9 +408,9 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         if (seqNo !== 0) {
-          await this.BLClient.execute(`DELETE FROM ${config.dbBacklogCollection} where seq<=?`, [seqNo]);
+          await this.BLClient.execute('DELETE FROM ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' where seq<=?', [seqNo]);
         } else {
-          await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
+          await this.BLClient.query('DELETE FROM ' + this.assertValidIdentifier(config.dbBacklogCollection));
           this.sequenceNumber = 0;
         }
       }
@@ -424,7 +430,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DROP DATABASE ${config.dbInitDB}`);
+        await this.BLClient.query('DROP DATABASE ' + this.assertValidIdentifier(config.dbInitDB));
         await this.BLClient.createDB(config.dbInitDB);
         this.UserDBClient.setDB(config.dbInitDB);
         await this.BLClient.setDB(config.dbBacklog);
@@ -457,7 +463,7 @@ class BackLog {
     if (!this.BLClient) this.BLClient = await dbClient.createClient();
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`DROP DATABASE ${config.dbBacklog}`);
+        await this.BLClient.query('DROP DATABASE ' + this.assertValidIdentifier(config.dbBacklog));
         this.sequenceNumber = 0;
       }
     } catch (e) {
@@ -477,13 +483,10 @@ class BackLog {
     try {
       if (config.dbType === 'mysql') {
         // await this.BLClient.query(`DELETE FROM ${config.dbBacklogCollection}`);
-        await this.BLClient.query(`DROP TABLE ${config.dbBacklogCollection}`);
+        await this.BLClient.query('DROP TABLE ' + this.assertValidIdentifier(config.dbBacklogCollection));
         await timer.setTimeout(100);
-        await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
-        await this.BLClient.query(`ALTER TABLE \`${config.dbBacklog}\`.\`${config.dbBacklogCollection}\`
-          MODIFY COLUMN \`seq\` bigint(0) UNSIGNED NOT NULL FIRST,
-          ADD PRIMARY KEY (\`seq\`),
-          ADD UNIQUE INDEX \`seq\`(\`seq\`);`);
+        await this.BLClient.query('CREATE TABLE ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;');
+        await this.BLClient.query('ALTER TABLE `' + this.assertValidIdentifier(config.dbBacklog) + '`.`' + this.assertValidIdentifier(config.dbBacklogCollection) + '`\n            MODIFY COLUMN `seq` bigint(0) UNSIGNED NOT NULL FIRST,\n            ADD PRIMARY KEY (`seq`),\n            ADD UNIQUE INDEX `seq`(`seq`);');
         this.sequenceNumber = 0;
       }
     } catch (e) {
@@ -503,7 +506,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        await this.BLClient.query(`TRUNCATE TABLE ${config.dbBacklogBuffer}`);
+        await this.BLClient.query('TRUNCATE TABLE ' + this.assertValidIdentifier(config.dbBacklogBuffer));
         this.bufferSequenceNumber = 0;
         this.bufferStartSequenceNumber = 0;
       }
@@ -528,7 +531,7 @@ class BackLog {
         this.sequenceNumber += 1;
         const seqForThis = this.sequenceNumber;
         const BLResult = await this.BLClient.execute(
-          `INSERT INTO ${config.dbBacklogCollection} (seq, query, timestamp) VALUES (?,?,?)`,
+          'INSERT INTO ' + this.assertValidIdentifier(config.dbBacklogCollection) + ' (seq, query, timestamp) VALUES (?,?,?)',
           [seqForThis, query, timestamp],
         );
         return [BLResult, seqForThis, timestamp];
@@ -549,7 +552,7 @@ class BackLog {
     }
 
     if (config.dbType === 'mysql') {
-      const records = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+      const records = await this.BLClient.query('SELECT * FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' ORDER BY seq');
       for (const record of records) {
         try {
           if (record.seq === this.sequenceNumber + 1) {
@@ -561,9 +564,9 @@ class BackLog {
           log.error(e);
         }
         // eslint-disable-next-line no-await-in-loop
-        await this.BLClient.execute(`DELETE FROM ${config.dbBacklogBuffer} WHERE seq=?`, [record.seq]);
+        await this.BLClient.execute('DELETE FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' WHERE seq=?', [record.seq]);
       }
-      const records2 = await this.BLClient.query(`SELECT * FROM ${config.dbBacklogBuffer} ORDER BY seq`);
+      const records2 = await this.BLClient.query('SELECT * FROM ' + this.assertValidIdentifier(config.dbBacklogBuffer) + ' ORDER BY seq');
       if (records2.length > 0) {
         this.bufferStartSequenceNumber = records2[0].seq;
         if (records2.length > 20) await this.moveBufferToBacklog();
@@ -586,11 +589,11 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const record = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        const record = await this.BLClient.execute('SELECT * FROM ' + this.assertValidIdentifier(config.dbOptions) + ' WHERE k=?', [key]);
         if (record.length) {
-          await this.BLClient.execute(`UPDATE ${config.dbOptions} SET value=? WHERE k=?`, [encryptedValue, key]);
+          await this.BLClient.execute('UPDATE ' + this.assertValidIdentifier(config.dbOptions) + ' SET value=? WHERE k=?', [encryptedValue, key]);
         } else {
-          await this.BLClient.execute(`INSERT INTO ${config.dbOptions} (k, value) VALUES (?,?)`, [key, encryptedValue]);
+          await this.BLClient.execute('INSERT INTO ' + this.assertValidIdentifier(config.dbOptions) + ' (k, value) VALUES (?,?)', [key, encryptedValue]);
         }
       }
     } catch (e) {
@@ -610,7 +613,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        const records = await this.BLClient.execute('SELECT * FROM ' + this.assertValidIdentifier(config.dbOptions) + ' WHERE k=?', [key]);
         if (records.length) {
           return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
         }
@@ -631,7 +634,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const records = await this.BLClient.execute(`DELETE FROM ${config.dbOptions} WHERE k=?`, [key]);
+        const records = await this.BLClient.execute('DELETE FROM ' + this.assertValidIdentifier(config.dbOptions) + ' WHERE k=?', [key]);
         if (records.length) {
           return true;
         }
@@ -653,7 +656,7 @@ class BackLog {
     }
     try {
       if (config.dbType === 'mysql') {
-        const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions}`);
+        const records = await this.BLClient.execute('SELECT * FROM ' + this.assertValidIdentifier(config.dbOptions));
         for (const record of records) {
           keys[record.k] = Security.encryptComm(Security.decrypt(record.value));
         }
@@ -716,7 +719,7 @@ class BackLog {
       const files = fs.readdirSync(folderPath);
 
       const sqlFilesInfo = files.map((file) => {
-        const filePath = path.join(folderPath, file);
+        const filePath = path.join(folderPath, path.basename(file));
         const fileStats = fs.statSync(filePath);
         const isSqlFile = path.extname(file) === '.sql';
 
