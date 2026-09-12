@@ -308,6 +308,8 @@ class Operator {
             isNotBacklogQuery: this.isNotBacklogQuery,
             sendWriteQuery: this.sendWriteQuery,
           });
+        }).on('error', (err) => {
+          log.error(`[mysqlServer listener port=${config.externalDBPort}] ${err.stack || err}`);
         }).listen(config.externalDBPort);
 
         log.info(`Started mysql server on port ${config.externalDBPort}`);
@@ -713,9 +715,16 @@ class Operator {
       // command is a numeric ID, extra is a Buffer
       switch (command) {
         case mySQLConsts.COM_QUERY:
-          if (this.status !== 'OK') break;
+          if (this.status !== 'OK') {
+            log.warn(`${this.logContext()} query skipped: operator status=${this.status}`);
+            break;
+          }
           const query = extra.toString();
           const analyzedQueries = sqlAnalyzer(query, 'mysql');
+          if (analyzedQueries.length > 1) {
+            await Operator.handleQueryBatch.call(this, analyzedQueries, query, id);
+            break;
+          }
           for (const queryItem of analyzedQueries) {
             if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
               if (this.operator.sessionQueries[id] !== undefined) {
@@ -746,12 +755,75 @@ class Operator {
           await ConnectionPool.getConnectionById(id).query(`use ${extra}`);
           break;
         default:
-          log.info(`Unknown Command: ${command}`);
-          this.sendError({ message: 'Unknown Command' });
+          this.sendError({ message: `Unknown Command: ${command}`, errno: 1047, sqlState: '08S01' });
           break;
       }
     } catch (err) {
-      log.error(err);
+      this.logFailure('command failed', err);
+    }
+  }
+
+  /**
+  * Execute split COM_QUERY statements as one protocol response chain.
+  */
+  static async handleQueryBatch(statements, fullQuery, id) {
+    let conn;
+    let statementIndex = 0;
+    let serverStatus = mySQLConsts.SERVER_STATUS_AUTOCOMMIT;
+    log.debug(`${this.logContext()} multi-statement query started statements=${statements.length}`);
+    try {
+      conn = ConnectionPool.getConnectionById(id);
+      if (!conn) throw new Error(`No database connection in pool for ${id}`);
+      conn.disableSocketWrite();
+      for (const [sql, type] of statements) {
+        statementIndex += 1;
+        this.batchStatement = `${statementIndex}/${statements.length}`;
+        let rows;
+        let fields;
+        if (type === 'w' && this.isNotBacklogQuery(sql, this.BACKLOG_DB)) {
+          if (this.operator.sessionQueries[id] !== undefined) {
+            await this.operator.sendWriteQuery(this.operator.sessionQueries[id], -1);
+            this.operator.sessionQueries[id] = undefined;
+          }
+          const result = await this.operator.sendWriteQuery(sql, id, fullQuery);
+          // Master returns [result, sequence, timestamp]; replicas return result directly.
+          if (Array.isArray(result) && result[0] === null && result[2] && typeof result[2] === 'object') throw result[2];
+          rows = Array.isArray(result) ? result[0] : result;
+          if (Array.isArray(rows) && rows[2]) throw rows[2];
+          if (!rows) throw new Error('Batch write returned no database result');
+        } else {
+          if (type === 's') this.operator.sessionQueries[id] = sql;
+          let error;
+          // Positional rows preserve duplicate column names in SELECT results.
+          [rows, fields, error] = await conn.query({ sql, rowsAsArray: true }, true);
+          if (error) throw error;
+        }
+        if (rows && rows.serverStatus != null) serverStatus = rows.serverStatus;
+        // eslint-disable-next-line no-bitwise
+        const responseStatus = (serverStatus & ~mySQLConsts.SERVER_MORE_RESULTS_EXISTS)
+          | (statementIndex < statements.length ? mySQLConsts.SERVER_MORE_RESULTS_EXISTS : 0);
+        if (fields && fields.length) {
+          this.sendDefinitions(fields, { serverStatus: responseStatus });
+          this.sendRows(rows, { serverStatus: responseStatus });
+        } else {
+          this.sendOK({
+            message: rows.info || '',
+            affectedRows: rows.affectedRows || 0,
+            insertId: rows.insertId || 0,
+            warningCount: rows.warningStatus || 0,
+            serverStatus: responseStatus,
+          });
+        }
+      }
+      log.debug(`${this.logContext()} multi-statement query completed statements=${statementIndex}`);
+    } catch (err) {
+      this.logFailure(`multi-statement query failed at statement=${statementIndex}/${statements.length}`, err);
+      this.sendError({
+        message: err.message || 'Batch query failed', errno: err.errno || 1105, sqlState: err.sqlState || 'HY000', error: err,
+      });
+    } finally {
+      this.batchStatement = null;
+      if (conn) conn.setSocket(ConnectionPool.getSocketById(id), id);
     }
   }
 
@@ -767,17 +839,15 @@ class Operator {
   static async handleStmtResult(sql, id) {
     // log.query(`handleStmtResult [conn=${id}] sql: ${sql}`);
     try {
-      // Mirror the status guard in handleCommand — skip processing during SYNC/ROLLBACK.
+      // Reject prepared queries during SYNC/ROLLBACK so they cannot appear successful.
       const opStatus = this.operator.status;
       if (opStatus !== 'OK') {
-        // log.info(`handleStmtResult [conn=${id}] skipped — operator status: ${opStatus}`);
-        return null;
+        throw new Error(`Prepared query rejected: operator status=${opStatus}`);
       }
 
       const conn = ConnectionPool.getConnectionById(id);
       if (!conn) {
-        // log.error(`handleStmtResult [conn=${id}] no connection in pool`);
-        return null;
+        throw new Error(`No database connection in pool for ${id}`);
       }
 
       // Classify the query the same way handleCommand does for COM_QUERY.
@@ -810,11 +880,16 @@ class Operator {
           // log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
           const backlogResult = await this.operator.sendWriteQuery(sql, id, sql);
           if (backlogResult === null || backlogResult === undefined) {
-            // log.error(`handleStmtResult [conn=${id}] sendWriteQuery returned null — masterNode may be null. sql: ${sql}`);
+            throw new Error('Prepared write returned no result from master');
           }
           // Master returns [ResultSetHeader, seq, ts]; slave returns ResultSetHeader
           // directly (the master's result[0] forwarded back via callback).
+          if (Array.isArray(backlogResult) && backlogResult[0] === null && backlogResult[2] && typeof backlogResult[2] === 'object') {
+            throw backlogResult[2]; // DBClient error tuple forwarded by the master
+          }
           const okPacket = Array.isArray(backlogResult) ? backlogResult[0] : backlogResult;
+          if (Array.isArray(okPacket) && okPacket[2]) throw okPacket[2];
+          if (!okPacket) throw new Error('Prepared write returned no database result');
           const affectedRows = (okPacket && okPacket.affectedRows) || 0;
           const insertId = (okPacket && okPacket.insertId) || 0;
           // log.query(`handleStmtResult [conn=${id}] write done — affectedRows=${affectedRows}, insertId=${insertId}`);
@@ -845,8 +920,9 @@ class Operator {
         conn.setSocket(ConnectionPool.getSocketById(id), id);
       }
     } catch (err) {
-      // log.error(`handleStmtResult [conn=${id}] exception: ${err.stack || err}`);
-      return null;
+      this.logFailure('prepared query failed', err);
+      // Let the emulator send an ERR packet instead of converting failure to OK.
+      throw err;
     }
   }
 
