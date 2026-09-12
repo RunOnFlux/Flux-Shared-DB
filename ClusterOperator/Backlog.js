@@ -44,7 +44,7 @@ class BackLog {
     this.UserDBClient = UserDBClient;
     try {
       if (config.dbType === 'mysql') {
-        const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
+        const dbList = await this.BLClient.execute('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?', [config.dbBacklog]);
         if (dbList.length === 0) {
           log.info('Backlog DB not defined yet, creating backlog DB...');
           await this.BLClient.createDB(config.dbBacklog);
@@ -52,8 +52,7 @@ class BackLog {
           log.info('Backlog DB already exists, moving on...');
         }
         await this.BLClient.setDB(config.dbBacklog);
-        let tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
-          WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogCollection}'`);
+        let tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbBacklogCollection]);
         if (tableList.length === 0) {
           log.info('Backlog table not defined yet, creating backlog table...');
           await this.BLClient.query(`CREATE TABLE ${config.dbBacklogCollection} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
@@ -65,8 +64,7 @@ class BackLog {
           log.info('Backlog table already exists, moving on...');
           this.sequenceNumber = await this.getLastSequenceNumber();
         }
-        tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
-          WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbBacklogBuffer}'`);
+        tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbBacklogBuffer]);
         if (tableList.length === 0) {
           log.info('Backlog buffer table not defined yet, creating buffer table...');
           await this.BLClient.query(`CREATE TABLE ${config.dbBacklogBuffer} (seq bigint, query longtext, timestamp bigint) ENGINE=InnoDB;`);
@@ -77,8 +75,7 @@ class BackLog {
         } else {
           log.info('Backlog buffer table already exists, moving on...');
         }
-        tableList = await this.BLClient.query(`SELECT * FROM INFORMATION_SCHEMA.tables 
-          WHERE table_schema = '${config.dbBacklog}' and table_name = '${config.dbOptions}'`);
+        tableList = await this.BLClient.execute('SELECT * FROM INFORMATION_SCHEMA.tables \n          WHERE table_schema = ? and table_name = ?', [config.dbBacklog, config.dbOptions]);
         if (tableList.length === 0) {
           log.info('Backlog options table not defined yet, creating options table...');
           await this.BLClient.query(`CREATE TABLE ${config.dbOptions} (k varchar(64), value text, PRIMARY KEY (k)) ENGINE=InnoDB;`);
@@ -760,7 +757,7 @@ class BackLog {
 
   static async testDB() {
     try {
-      const dbList = await this.BLClient.query(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${config.dbBacklog}'`);
+      const dbList = await this.BLClient.execute('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?', [config.dbBacklog]);
       if (dbList.length === 0) {
         log.error('DB test failed', 'red');
         return false;
