@@ -83,6 +83,8 @@ class Operator {
 
   static sessionQueries = {};
 
+  static pendingLocalWrites = new Map();
+
   static syncing = false;
 
   static buffer = {};
@@ -123,6 +125,7 @@ class Operator {
   static closeMasterConnection() {
     if (this.masterWSConn) {
       try {
+        for (const pending of this.pendingLocalWrites.values()) pending.disconnected();
         this.masterWSConn.removeAllListeners();
         this.masterWSConn.disconnect();
         this.masterWSConn = null;
@@ -199,14 +202,14 @@ class Operator {
           if (this.status === 'OK') {
             // if it's the next sequnce number in line push it to the backlog, else put it in buffer
             if (sequenceNumber === BackLog.sequenceNumber + 1) {
-              await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+              await this.applyReplicatedQuery(query, sequenceNumber, timestamp, connId);
               // push queries from buffer until there is a gap or the buffer is empty
               while (this.buffer[BackLog.sequenceNumber + 1] !== undefined) {
                 const nextQuery = this.buffer[BackLog.sequenceNumber + 1];
                 if (nextQuery !== undefined && nextQuery !== null) {
                   // log.info(JSON.stringify(nextQuery), 'magenta');
                   log.info(`moving seqNo ${nextQuery.sequenceNumber} from buffer to backlog`, 'magenta');
-                  await BackLog.pushQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, false, nextQuery.connId);
+                  await this.applyReplicatedQuery(nextQuery.query, nextQuery.sequenceNumber, nextQuery.timestamp, nextQuery.connId);
                   delete this.buffer[nextQuery.sequenceNumber];
                 }
               }
@@ -244,8 +247,10 @@ class Operator {
           } else if (this.status === 'SYNC' || this.status === 'COMPRESSING') {
             // push to buffer
             await BackLog.pushQuery(query, sequenceNumber, timestamp, true, connId);
+            this.pendingLocalWrites.get(connId)?.cancel(new Error(`Local write buffered while operator status=${this.status}`));
           } else {
             log.info(`omitted query status: ${this.status}`);
+            this.pendingLocalWrites.get(connId)?.cancel(new Error(`Local write omitted while operator status=${this.status}`));
           }
         });
         this.masterWSConn.on('updateKey', async (key, value) => {
@@ -365,12 +370,15 @@ class Operator {
   * [sendWriteQuery]
   * @param {string} query [description]
   */
-  static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null) {
+  static async sendWriteQuery(query, connId = false, fullQuery = null, masterSocket = null, waitForLocalApply = false) {
     if (this.masterNode !== null) {
       if (!this.IamMaster) {
         log.info(`forwarding query to master node: ${this.masterNode}`);
         const { masterWSConn } = this;
         if (masterWSConn) {
+          if (waitForLocalApply && Number.isInteger(connId) && connId >= 0) {
+            return this.forwardClientWrite(query, connId, masterWSConn);
+          }
           return new Promise((resolve) => {
             masterWSConn.emit('writeQuery', query, connId, (response) => {
               resolve(response.result);
@@ -391,6 +399,75 @@ class Operator {
       return result;
     }
     return null;
+  }
+
+  static async forwardClientWrite(query, connId, masterSocket) {
+    if (masterSocket.connected === false) throw new Error('Master is not connected');
+    if (this.pendingLocalWrites.has(connId)) throw new Error(`Local write already pending for connection ${connId}`);
+    let finishApply;
+    let finishAck;
+    const localApplied = new Promise((resolve) => { finishApply = resolve; });
+    const acknowledged = new Promise((resolve) => { finishAck = resolve; });
+    const pending = {
+      query,
+      applying: false,
+      error: null,
+      complete(error = null) { finishApply({ error: this.error || error }); },
+      cancel(error) {
+        this.error = error;
+        // A running query must drain while the emulator still suppresses raw bytes.
+        if (!this.applying) this.complete(error);
+      },
+    };
+    this.pendingLocalWrites.set(connId, pending);
+    const disconnected = () => {
+      const error = new Error('Master disconnected before the local write completed');
+      pending.cancel(error);
+      finishAck({ error });
+      // A buffered echo can be replayed later, after this client has moved on.
+      for (const entry of Object.values(this.buffer)) {
+        if (entry.connId === connId && entry.query === query) entry.connId = false;
+      }
+    };
+    pending.disconnected = disconnected;
+    masterSocket.once('disconnect', disconnected);
+    try {
+      masterSocket.emit('writeQuery', query, connId, (response) => {
+        if (!response || response.status === 'error') {
+          const error = new Error(response?.message || String(response?.result || 'Master rejected write'));
+          pending.cancel(error);
+          finishAck({ error });
+        } else {
+          log.debug(`[replication conn=${connId}] master acknowledged write; waiting for local apply`);
+          finishAck(response);
+        }
+      });
+      const [response, applied] = await Promise.all([acknowledged, localApplied]);
+      if (response.error || applied.error) throw response.error || applied.error;
+      return response.result;
+    } finally {
+      masterSocket.off('disconnect', disconnected);
+      this.pendingLocalWrites.delete(connId);
+    }
+  }
+
+  static async applyReplicatedQuery(query, sequenceNumber, timestamp, connId) {
+    const candidate = this.pendingLocalWrites.get(connId);
+    const pending = candidate?.query === query ? candidate : null;
+    if (pending) pending.applying = true;
+    try {
+      const result = await BackLog.pushQuery(query, sequenceNumber, timestamp, false, connId);
+      const localResult = result?.[0];
+      if (Array.isArray(localResult) && localResult[2]) throw localResult[2];
+      if (pending && !localResult) throw new Error('Replicated client write returned no local database result');
+      if (pending) {
+        log.debug(`[replication conn=${connId} seq=${sequenceNumber}] local write completed`);
+        pending.complete();
+      }
+    } catch (error) {
+      log.error(`[replication conn=${connId} seq=${sequenceNumber}] local apply failed: ${error.stack || error}`);
+      if (pending) pending.complete(error);
+    }
   }
 
   /**
@@ -785,7 +862,7 @@ class Operator {
             await this.operator.sendWriteQuery(this.operator.sessionQueries[id], -1);
             this.operator.sessionQueries[id] = undefined;
           }
-          const result = await this.operator.sendWriteQuery(sql, id, fullQuery);
+          const result = await this.operator.sendWriteQuery(sql, id, fullQuery, null, true);
           // Master returns [result, sequence, timestamp]; replicas return result directly.
           if (Array.isArray(result) && result[0] === null && result[2] && typeof result[2] === 'object') throw result[2];
           rows = Array.isArray(result) ? result[0] : result;
@@ -878,7 +955,7 @@ class Operator {
           // emulator snapshot and sendWriteQuery would silently return null,
           // dropping every prepared-statement write without touching the backlog.
           // log.query(`handleStmtResult [conn=${id}] calling sendWriteQuery (masterNode=${this.operator.masterNode}, IamMaster=${this.operator.IamMaster})`);
-          const backlogResult = await this.operator.sendWriteQuery(sql, id, sql);
+          const backlogResult = await this.operator.sendWriteQuery(sql, id, sql, null, true);
           if (backlogResult === null || backlogResult === undefined) {
             throw new Error('Prepared write returned no result from master');
           }
