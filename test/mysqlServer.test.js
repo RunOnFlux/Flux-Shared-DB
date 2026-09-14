@@ -27,7 +27,7 @@ function loadModule(relativePath, dependencies) {
   return module.exports;
 }
 
-function fixture(options = {}) {
+function fixture(options = {}, operatorDependencies = {}) {
   const logs = [];
   const log = Object.fromEntries(['error', 'warn', 'info', 'debug'].map((level) => [
     level, (message) => logs.push({ level, message }),
@@ -56,6 +56,7 @@ function fixture(options = {}) {
       './log': log,
       '../ClusterOperator/config': { clientType: 'mariadb', containerDataPath: '' },
     }),
+    ...operatorDependencies,
   });
   const server = emulator.createServer({
     socket,
@@ -71,7 +72,7 @@ function fixture(options = {}) {
   server.onPacket = server.normalPacketHandler;
   socket.writes.length = 0;
   return {
-    server, socket, logs, pool,
+    server, socket, logs, pool, operator,
   };
 }
 
@@ -254,8 +255,8 @@ test('synchronous write and end failures use the operator error logger', () => {
   assert.ok(logs.some(({ message }) => /ending connection failed.*end failed/.test(message)));
 });
 
-async function connectedClient(t) {
-  const context = fixture();
+async function connectedClient(t, options = {}, operatorDependencies = {}) {
+  const context = fixture(options, operatorDependencies);
   const { server, socket } = context;
   const stream = new Duplex({
     read() {},
@@ -396,4 +397,150 @@ test('batch OK packets preserve status, warnings and large insert IDs across seq
   assert.equal(results[0].affectedRows, 2 ** 25);
   await client.ping();
   assert.equal(clientErrors.length, 0);
+});
+
+test('follower waits for delayed replication echoes before finishing a batch', { timeout: 5000 }, async (t) => {
+  const master = new EventEmitter();
+  master.disconnect = () => {};
+  let sequence = 0;
+  const applications = [];
+  const acknowledgements = [];
+  let context;
+  const backlog = {
+    sequenceNumber: 0,
+    async pushQuery(sql, seq, timestamp, buffer, connId) {
+      this.sequenceNumber = seq;
+      const result = await context.pool.getConnectionById(connId).query(sql);
+      return [result[0], seq, timestamp];
+    },
+  };
+  context = await connectedClient(t, {}, {
+    'socket.io-client': { io: { connect: () => master } },
+    './Backlog': backlog,
+  });
+  const {
+    operator, server, client, clientErrors,
+  } = context;
+  const { backend, executed } = batchBackend(context);
+  let release;
+  const delay = new Promise((resolve) => { release = resolve; });
+  const query = backend.query.bind(backend);
+  backend.query = async (sql) => { await delay; return query(sql); };
+  operator.masterNode = '192.0.2.1';
+  operator.IamMaster = false;
+  operator.status = 'OK';
+  operator.initMasterConnection();
+  server.operator = operator;
+  const apply = master.listeners('query')[0];
+  master.on('writeQuery', (sql, connId, callback) => {
+    sequence += 1;
+    applications.push(apply(sql, sequence, Date.now(), connId));
+    // Socket.IO delivers the echo before the ack, but does not await its handler.
+    callback({ status: 'OK', result: { affectedRows: 1, insertId: 0, serverStatus: 2 } });
+    acknowledgements.push(sequence);
+  });
+  const batch = client.query('CREATE TABLE t (id INT); INSERT INTO t VALUES (1)');
+  await new Promise((resolve) => { setImmediate(resolve); });
+  release();
+  const [results] = await batch;
+  await Promise.all(applications);
+  await client.ping();
+  assert.equal(results.length, 2);
+  assert.equal(acknowledgements.length, 2);
+  assert.equal(executed.length, 2);
+  assert.equal(clientErrors.length, 0);
+});
+
+test('a buffered client echo stays pending until the missing replication sequence arrives', async () => {
+  const master = new EventEmitter();
+  master.disconnect = () => {};
+  const applied = [];
+  const backlog = {
+    sequenceNumber: 0,
+    async pushQuery(sql, seq, timestamp) {
+      applied.push(seq);
+      this.sequenceNumber = seq;
+      return [{ affectedRows: 1 }, seq, timestamp];
+    },
+  };
+  const { operator } = fixture({}, {
+    'socket.io-client': { io: { connect: () => master } },
+    'memory-cache': { get: () => true },
+    './Backlog': backlog,
+  });
+  operator.masterNode = '192.0.2.1';
+  operator.status = 'OK';
+  operator.initMasterConnection();
+  const receiveEcho = master.listeners('query')[0];
+  let buffered;
+  master.on('writeQuery', (sql, connId, ack) => {
+    buffered = receiveEcho(sql, 2, Date.now(), connId);
+    ack({ status: 'OK', result: { affectedRows: 1 } });
+  });
+  let completed = false;
+  const write = operator.sendWriteQuery('INSERT INTO t VALUES (1)', 0, null, null, true).then((result) => {
+    completed = true;
+    return result;
+  });
+  await buffered;
+  assert.equal(completed, false);
+  assert.equal(operator.pendingLocalWrites.size, 1);
+  await receiveEcho('CREATE TABLE t (id INT)', 1, Date.now(), false);
+  assert.equal((await write).affectedRows, 1);
+  assert.deepEqual(applied, [1, 2]);
+  assert.equal(operator.pendingLocalWrites.size, 0);
+});
+
+test('disconnect waits for an already running local apply before releasing suppression', async () => {
+  const master = new EventEmitter();
+  master.disconnect = () => {};
+  let release;
+  const delay = new Promise((resolve) => { release = resolve; });
+  const backlog = {
+    sequenceNumber: 0,
+    async pushQuery(sql, seq, timestamp) {
+      this.sequenceNumber = seq;
+      await delay;
+      return [{ affectedRows: 1 }, seq, timestamp];
+    },
+  };
+  const { operator } = fixture({}, {
+    'socket.io-client': { io: { connect: () => master } }, './Backlog': backlog,
+  });
+  operator.masterNode = '192.0.2.1';
+  operator.status = 'OK';
+  operator.initMasterConnection();
+  const receiveEcho = master.listeners('query')[0];
+  let application;
+  master.on('writeQuery', (sql, connId, ack) => {
+    application = receiveEcho(sql, 1, Date.now(), connId);
+    ack({ status: 'OK', result: { affectedRows: 1 } });
+  });
+  let completed = false;
+  const write = operator.sendWriteQuery('INSERT INTO t VALUES (1)', 0, null, null, true).catch((error) => {
+    completed = true;
+    return error;
+  });
+  operator.closeMasterConnection();
+  await new Promise((resolve) => { setImmediate(resolve); });
+  assert.equal(completed, false);
+  release();
+  await application;
+  assert.match((await write).message, /Master disconnected/);
+  assert.equal(operator.pendingLocalWrites.size, 0);
+});
+
+test('local replication errors reject the originating write and clear its pending state', async () => {
+  const master = new EventEmitter();
+  const error = Object.assign(new Error('local apply failed'), { errno: 1146, sqlState: '42S02' });
+  const { operator, logs } = fixture({}, {
+    './Backlog': { pushQuery: async () => [[null, null, error], 1, Date.now()] },
+  });
+  master.on('writeQuery', (sql, id, ack) => {
+    operator.applyReplicatedQuery(sql, 1, Date.now(), id);
+    ack({ status: 'OK', result: { affectedRows: 1 } });
+  });
+  await assert.rejects(operator.forwardClientWrite('INSERT INTO t VALUES (1)', 0, master), { errno: 1146 });
+  assert.equal(operator.pendingLocalWrites.size, 0);
+  assert.ok(logs.some(({ message }) => /replication conn=0 seq=1.*local apply failed/.test(message)));
 });

@@ -1,0 +1,37 @@
+services:
+  master:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_HOST: '%'
+    ports:
+      - '127.0.0.1:17306:3306'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 2s
+      timeout: 2s
+      retries: 60
+  follower1:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_HOST: '%'
+    ports:
+      - '127.0.0.1:17307:3306'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 2s
+      timeout: 2s
+      retries: 60
+  follower2:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_HOST: '%'
+    ports:
+      - '127.0.0.1:17308:3306'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 2s
+      timeout: 2s
+      retries: 60
