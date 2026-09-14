@@ -1120,10 +1120,14 @@ async function startUI() { // Make async to potentially await DB client init if 
     if (safeDbName.includes('..') || safeTableName.includes('..') || safePkColumn.includes('..')) {
       return res.status(400).json({ error: 'Invalid characters in names.' });
     }
+    if (pkValue !== null && typeof pkValue === 'object') {
+      return res.status(400).json({ error: 'Invalid primary key value.' });
+    }
 
     // --- Build Query ---
-    const queryParams = [pkValue];
-    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ${queryParams}`;
+    // Escape the primary key value for the WHERE clause
+    const escapedPkValue = dbClientInstance.connection.escape(pkValue);
+    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ${escapedPkValue}`;
 
     // --- Execute ---
     try {
