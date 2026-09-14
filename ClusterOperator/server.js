@@ -1120,6 +1120,9 @@ async function startUI() { // Make async to potentially await DB client init if 
     if (safeDbName.includes('..') || safeTableName.includes('..') || safePkColumn.includes('..')) {
       return res.status(400).json({ error: 'Invalid characters in names.' });
     }
+    if (pkValue !== null && typeof pkValue === 'object') {
+      return res.status(400).json({ error: 'Invalid primary key value.' });
+    }
 
     // --- Build Query ---
     // Escape the primary key value for the WHERE clause
