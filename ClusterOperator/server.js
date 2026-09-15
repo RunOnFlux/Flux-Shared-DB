@@ -26,6 +26,7 @@ const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
 const SqlImporter = require('../lib/mysqlimport');
+const { buildDeleteQuery, isPrimaryKeyValue, unpackBacklogWriteResult } = require('../lib/rawQuery');
 // Import the factory function, not the class directly
 const { createClient } = require('./DBClient'); // Assuming DBClient.js exports createClient
 
@@ -1114,25 +1115,25 @@ async function startUI() { // Make async to potentially await DB client init if 
     const safeTableName = sanitize(tableName.replace(/`/g, ''));
     const safePkColumn = sanitize(pkColumn?.replace(/`/g, ''));
 
-    if (!safeDbName || !safeTableName || !safePkColumn || pkValue === undefined) {
+    if (!safeDbName || !safeTableName || !safePkColumn || !isPrimaryKeyValue(pkValue)) {
       return res.status(400).json({ error: 'Invalid input: Missing database, table, or primary key info.' });
     }
     if (safeDbName.includes('..') || safeTableName.includes('..') || safePkColumn.includes('..')) {
       return res.status(400).json({ error: 'Invalid characters in names.' });
     }
 
-    // --- Build Query ---
-    const queryParams = [pkValue];
-    const query = `DELETE FROM ${quoteIdentifier(safeTableName)} WHERE ${quoteIdentifier(safePkColumn)} = ${queryParams}`;
+    // Store a complete query in the backlog so every node executes it against the same database.
+    const query = buildDeleteQuery(safeDbName, safeTableName, safePkColumn, pkValue);
 
     // --- Execute ---
     try {
       if (Operator.IamMaster) {
         // Emit a message to all nodes if needed (e.g., for replication)
-        const result = await Operator.sendWriteQuery(query);
-        if (result && result.error) {
-          if (result.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
-          return res.status(500).json({ error: `Failed to delete row: ${result.error}`, code: result.code });
+        const backlogResult = await Operator.sendWriteQuery(query);
+        const { error: queryError, result } = unpackBacklogWriteResult(backlogResult);
+        if (queryError) {
+          if (queryError.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: `Table '${safeDbName}.${safeTableName}' not found.` });
+          return res.status(500).json({ error: `Failed to delete row: ${queryError.message || queryError}`, code: queryError.code });
         }
         if (result && result.affectedRows !== undefined) {
           if (result.affectedRows > 0) {
@@ -1140,9 +1141,11 @@ async function startUI() { // Make async to potentially await DB client init if 
           } else {
             res.status(404).json({ error: `Row not found with PK ${safePkColumn}=${pkValue}.` });
           }
-        } else {
+        } else if (result) {
           log.warn('Delete executed but result format unexpected:', result);
           res.json({ success: true, message: 'Delete command executed, but result format was unexpected.' });
+        } else {
+          res.status(503).json({ error: 'Delete command could not be submitted to the backlog.' });
         }
       } else {
         return res.status(500).json({ error: 'Failed: only master nodes can do this' });
