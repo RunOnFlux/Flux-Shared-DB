@@ -4,7 +4,7 @@ This opt-in test uses three disposable MariaDB 11.4 containers, real mysql2
 clients, and Socket.IO over TCP. Each node loads the production Operator,
 Backlog, DBClient, SQL analyzer, and MySQL emulator. The master transport mirrors
 the echo-before-acknowledgement ordering in `ClusterOperator/server.js`.
-Discovery, authorization, and initial snapshot sync are bypassed.
+Discovery and initial snapshot sync are bypassed. Socket.IO connections use the production session-bound operator authentication middleware and client proofs.
 
 The test delays follower database requests and checks database setup, a
 nine-statement import, connection reuse, prepared writes, duplicate-key errors,

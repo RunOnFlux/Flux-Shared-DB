@@ -43,6 +43,7 @@ To use Flux Shared DB in your project, link it to a DB engine and the Operator h
       "DB_COMPONENT_NAME=mysql",
       "INIT_DB_NAME=my-db",
       "DB_INIT_PASS=PASSWORD",
+      "OPERATOR_API_SECRET=REPLACE_WITH_RANDOM_64_HEX_SECRET",
       "DB_USER=root",
       "DB_PORT=13307",
       "API_PORT=17071"
@@ -88,6 +89,7 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
    [
       "INIT_DB_NAME=my-db",
       "DB_INIT_PASS=PASSWORD",
+      "OPERATOR_API_SECRET=REPLACE_WITH_RANDOM_64_HEX_SECRET",
       "DB_USER=root",
       "DB_PORT=13307",
       "API_PORT=17071"
@@ -97,12 +99,29 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Operator API authentication
+
+Every operator Socket.IO connection now requires a session-bound HMAC proof in addition to an allowed source IP. This includes discovery, election, replication, key exchange, and session synchronization. `WHITELIST` never bypasses authentication, and unauthenticated application nodes cannot subscribe to operator broadcasts.
+
+Set the same randomly generated `OPERATOR_API_SECRET` on every replica (at least 32 bytes; for example, generate one with `openssl rand -hex 32`). If it is unset, the operator derives its authentication key from `DB_INIT_PASS`, which must then meet the same minimum length. Empty, short, and default `secret` credentials cannot start the API. An explicitly empty `OPERATOR_API_SECRET` is rejected rather than falling back to the DB password.
+
+The key is derived with HKDF-SHA256 using `DB_APPNAME` and a versioned operator authentication purpose. `DB_APPNAME` is resolved from Flux hostinfo when unset; set it explicitly for local deployments. All replicas must use the same app name. Neither the password nor the derived key is transmitted: the proof authenticates the fresh Engine.IO session ID, so a captured proof cannot be reused on a later connection.
+
+For encryption and protection against active network interception, configure `OPERATOR_TLS_CERT` and `OPERATOR_TLS_KEY` with PEM file paths on every replica. Clients then use HTTPS and verify server certificates. For a private CA, also set `OPERATOR_TLS_CA` to its PEM file. Certificates must cover the peer IPs, or set `OPERATOR_TLS_SERVERNAME` to a shared DNS identity covered by the certificates. The existing `SSL` option controls the UI separately. Without operator TLS, traffic remains readable and susceptible to active relaying/tampering despite replay-resistant connection authentication.
+
+Upgrade all replicas together: older clients without authentication will be rejected, and mixed-version clusters cannot replicate reliably. Rotate an independent `OPERATOR_API_SECRET` by restarting all replicas with the same new value. When using the DB password fallback, changing `DB_INIT_PASS` also changes API authentication, but does not change an existing DB engine password; coordinate the actual DB password change separately. A password-derived API key also gives DB password holders operator privileges; use the dedicated secret when those permissions should differ.
+
 ### Environment Variables
 | Variable | Description | Default |
 |----------|-------------|---------|
 |`DB_COMPONENT_NAME` | Hostname for the DB engine component. Required for the DB-less image; leave unset for bundled images (defaults to `localhost`). | `localhost` |
 |`INIT_DB_NAME` | Initial database name created immediately after initialization | Required |
 |`DB_INIT_PASS` | Root password for the DB engine | `secret` |
+|`OPERATOR_API_SECRET` | Shared random operator authentication secret, minimum 32 bytes | Falls back to `DB_INIT_PASS` |
+|`DB_APPNAME` | Cluster identity for operator key derivation | Resolved from Flux hostinfo |
+|`OPERATOR_TLS_CERT` / `OPERATOR_TLS_KEY` | PEM certificate and private key file paths for the operator API; set both | Unset (HTTP) |
+|`OPERATOR_TLS_CA` | PEM CA file for validating operator peer certificates | System trust store |
+|`OPERATOR_TLS_SERVERNAME` | Certificate DNS identity when dialing peer IPs | Peer IP |
 |`DB_USER` | Username that can authenticate with the Operator | `root` |
 |`DB_PORT` | External DB port for the DB Interface, first item in the Ports array | Required |
 |`API_PORT` | External API port for cluster communication, second item in the Ports array | Required |

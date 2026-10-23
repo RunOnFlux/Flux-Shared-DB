@@ -14,6 +14,7 @@ const { Server: SocketServer } = require('socket.io');
 const socketClient = require('socket.io-client');
 const { identify } = require('sql-query-identifier');
 const constants = require('../../lib/mysqlConstants');
+const operatorAuth = require('../../lib/operatorAuth');
 
 function load(relativePath, dependencies) {
   const filename = path.join(__dirname, '../..', relativePath);
@@ -33,6 +34,8 @@ function load(relativePath, dependencies) {
 async function nodeInstance(port, t) {
   const config = {
     dbHost: '127.0.0.1',
+    dbPass: 'integration-secret-with-at-least-32-bytes',
+    DBAppName: 'integration-test',
     dbPort: port,
     dbType: 'mysql',
     clientType: 'mariadb',
@@ -89,6 +92,10 @@ async function nodeInstance(port, t) {
   backlog.UserDBClient = user;
   const operator = load('ClusterOperator/Operator.js', {
     'socket.io-client': socketClient,
+    '../lib/operatorAuth': {
+      peerURL: (ip, apiPort) => operatorAuth.peerURL(ip, apiPort, config),
+      clientOptions: (getSessionId) => operatorAuth.clientOptions(getSessionId, config),
+    },
     './Backlog': backlog,
     './config': config,
     '../lib/log': log,
@@ -149,6 +156,7 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
   const transport = new SocketServer(0, { transports: ['websocket'] });
   await once(transport.httpServer, 'listening');
   t.after(() => new Promise((resolve) => { transport.close(resolve); }));
+  transport.use(operatorAuth.middleware(() => true, master.config));
   let sequence = 0;
   transport.on('connection', (socket) => {
     // Same ordering as server.js: master execution, echo, then acknowledgement.

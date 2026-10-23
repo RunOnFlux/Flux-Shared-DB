@@ -21,6 +21,7 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
+const operatorAuth = require('../lib/operatorAuth');
 const IdService = require('./IdService');
 const SqlImporter = require('../lib/mysqlimport');
 
@@ -144,7 +145,8 @@ class Operator {
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
-        this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`, {
+        this.masterWSConn = io.connect(operatorAuth.peerURL(this.masterNode, config.containerApiPort), {
+          ...operatorAuth.clientOptions(() => this.masterWSConn.io.engine.id),
           transports: ['websocket'],
           reconnection: false,
           timeout: 2000,

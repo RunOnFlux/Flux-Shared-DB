@@ -49,6 +49,7 @@ function fixture(options = {}, operatorDependencies = {}) {
   });
   const operator = loadModule('ClusterOperator/Operator.js', {
     '../lib/mysqlConstants': constants,
+    '../lib/operatorAuth': { peerURL: (ip, port) => `http://${ip}:${port}`, clientOptions: () => ({}) },
     '../lib/ConnectionPool': pool,
     '../lib/log': log,
     '../lib/sqlAnalyzer': loadModule('lib/sqlAnalyzer.js', {

@@ -6,6 +6,7 @@
 /* eslint-disable no-unused-vars */
 const { Server } = require('socket.io');
 const https = require('https');
+const http = require('http');
 const timer = require('timers/promises');
 const express = require('express');
 const RateLimit = require('express-rate-limit');
@@ -25,6 +26,7 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
+const operatorAuth = require('../lib/operatorAuth');
 const SqlImporter = require('../lib/mysqlimport');
 const { buildDeleteQuery, isPrimaryKeyValue, unpackBacklogWriteResult } = require('../lib/rawQuery');
 // Import the factory function, not the class directly
@@ -1334,6 +1336,9 @@ async function validate(ip) {
 */
 async function initServer() {
   try {
+    await Operator.resolveAppName();
+    operatorAuth.deriveKey(config); // Fail closed before opening any listeners.
+    const tlsOptions = operatorAuth.serverTLSOptions();
     Security.init(); // Initialize security components
     /*
     // --- Initialize DB Client Instance ---
@@ -1352,7 +1357,10 @@ async function initServer() {
 
     // --- Initialize Operator and Socket.IO ---
     await Operator.init(dbClientInstance); // Pass DB client to Operator if needed
-    const io = new Server(config.apiPort, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
+    const listener = tlsOptions ? https.createServer(tlsOptions) : http.createServer();
+    const io = new Server(listener, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
+    io.use(operatorAuth.middleware((socket) => auth(utill.convertIP(socket.handshake.address))));
+    listener.listen(config.apiPort);
     Operator.setServerSocket(io);
 
     // --- Socket.IO Connection Handling ---
