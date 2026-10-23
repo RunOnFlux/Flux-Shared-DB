@@ -9,11 +9,17 @@ const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { once } = require('node:events');
 const timer = require('node:timers/promises');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
 const mysql = require('mysql2/promise');
+// The legacy ESLint resolver does not understand this package's CJS exports.
+// eslint-disable-next-line import/no-unresolved
+const mariadb = require('mariadb');
 const { Server: SocketServer } = require('socket.io');
 const socketClient = require('socket.io-client');
 const { identify } = require('sql-query-identifier');
 const constants = require('../../lib/mysqlConstants');
+const operatorAuth = require('../../lib/operatorAuth');
 
 function load(relativePath, dependencies) {
   const filename = path.join(__dirname, '../..', relativePath);
@@ -33,10 +39,13 @@ function load(relativePath, dependencies) {
 async function nodeInstance(port, t) {
   const config = {
     dbHost: '127.0.0.1',
+    dbPass: 'secret',
+    DBAppName: 'integration-test',
     dbPort: port,
     dbType: 'mysql',
     clientType: 'mariadb',
     dbUser: 'root',
+    whiteListedIps: '127.0.0.1',
     dbBacklog: 'flux_backlog',
     dbBacklogCollection: 'backlog',
     containerDataPath: '',
@@ -47,7 +56,7 @@ async function nodeInstance(port, t) {
     'mysql2/promise': mysql,
     net,
     './config': config,
-    './Security': { getKey: () => 'integration-secret' },
+    './Security': { getKey: () => 'secret' },
     '../lib/log': log,
   });
   const connections = [];
@@ -88,7 +97,13 @@ async function nodeInstance(port, t) {
   backlog.BLClient = backlogConn;
   backlog.UserDBClient = user;
   const operator = load('ClusterOperator/Operator.js', {
+    net,
     'socket.io-client': socketClient,
+    '../lib/operatorAuth': {
+      ...operatorAuth,
+      peerURL: (ip, apiPort) => operatorAuth.peerURL(ip, apiPort, config),
+      clientOptions: (getSessionId, _settings, role) => operatorAuth.clientOptions(getSessionId, config, role),
+    },
     './Backlog': backlog,
     './config': config,
     '../lib/log': log,
@@ -112,7 +127,9 @@ async function nodeInstance(port, t) {
   const listener = net.createServer((socket) => {
     emulator.createServer({
       socket,
-      onAuthorize: () => true,
+      getPassword: () => 'secret',
+      onAuthorize: operator.handleAuthorize,
+      appIPList: [],
       onCommand: operator.handleCommand,
       onStmtResult: operator.handleStmtResult,
       operator,
@@ -126,7 +143,13 @@ async function nodeInstance(port, t) {
   await once(listener, 'listening');
   t.after(() => new Promise((resolve) => { listener.close(resolve); }));
   return {
-    operator, backlog, user, config, messages, port: listener.address().port,
+    operator,
+    backlog,
+    user,
+    config,
+    messages,
+    port: listener.address().port,
+    allocatedConnections: () => poolConnections.length,
   };
 }
 
@@ -149,6 +172,11 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
   const transport = new SocketServer(0, { transports: ['websocket'] });
   await once(transport.httpServer, 'listening');
   t.after(() => new Promise((resolve) => { transport.close(resolve); }));
+  const authSettings = { ...master.config, operatorAuthEnforceAt: operatorAuth.DEFAULT_ENFORCE_AT };
+  const cutoff = operatorAuth.enforcementTime(authSettings);
+  let authNow = cutoff - 60 * 60 * 1000;
+  const authPolicy = operatorAuth.install(transport, () => true, authSettings, { now: () => authNow });
+  assert.equal(operatorAuth.hasReplicationPeer(transport, authSettings), false);
   let sequence = 0;
   transport.on('connection', (socket) => {
     // Same ordering as server.js: master execution, echo, then acknowledgement.
@@ -171,9 +199,65 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     await once(follower.operator.masterWSConn, 'connect');
     t.after(() => follower.operator.closeMasterConnection());
   }
+  // Exercise a legacy writer before cutoff, then keep authenticated replication
+  // sockets alive while enforcing the deadline on that legacy connection.
+  const legacy = socketClient.io(`http://127.0.0.1:${transport.httpServer.address().port}`, {
+    autoConnect: false, reconnection: false, transports: ['websocket'],
+  });
+  t.after(() => legacy.disconnect());
+  const legacyConnected = once(legacy, 'connect');
+  legacy.connect();
+  await legacyConnected;
+  const legacyResult = await legacy.timeout(2000).emitWithAck('writeQuery', 'CREATE DATABASE IF NOT EXISTS auth_grace_test', false);
+  assert.equal(legacyResult.status, 'OK');
+  const legacyDisconnected = once(legacy, 'disconnect');
+  authNow = cutoff;
+  authPolicy.enforce();
+  await legacyDisconnected;
+  for (const follower of followers) assert.equal(follower.operator.masterWSConn.connected, true);
+  const legacyRejected = once(legacy, 'connect_error');
+  legacy.connect();
+  assert.match((await legacyRejected)[0].message, /authentication failed/);
+  legacy.disconnect();
+  assert.equal(operatorAuth.hasReplicationPeer(transport, authSettings), true);
   for (const [index, follower] of followers.entries()) {
+    if (index === 0 && process.env.MYSQL_CLI_IMAGE) {
+      const run = promisify(execFile);
+      const args = ['run', '--rm', '--network', 'host', '--entrypoint', 'mysql', process.env.MYSQL_CLI_IMAGE,
+        '--protocol=TCP', '--host=127.0.0.1', `--port=${follower.port}`, '--user=root',
+        '--ssl-mode=DISABLED', '--default-auth=caching_sha2_password', '--skip-column-names', '--execute=SELECT 1'];
+      const { stdout } = await run('docker', [...args, '--password=secret'], { timeout: 20000 });
+      assert.equal(stdout.trim(), '1');
+      const beforeBadCLI = follower.allocatedConnections();
+      await assert.rejects(
+        run('docker', [...args, '--password=wrong-password'], { timeout: 20000 }),
+        (error) => error.stderr.includes('1045'),
+      );
+      assert.equal(follower.allocatedConnections(), beforeBadCLI);
+    }
+    const beforeAuthFailures = follower.allocatedConnections();
+    for (const createConnection of [mysql.createConnection.bind(mysql), mariadb.createConnection.bind(mariadb)]) {
+      for (const credentials of [
+        { user: 'root', password: 'wrong-password' },
+        { user: 'root' },
+        { user: 'wrong-user', password: 'secret' },
+      ]) {
+        await assert.rejects(
+          createConnection({ host: '127.0.0.1', port: follower.port, ...credentials }),
+          (error) => error.errno === 1045 && error.sqlState === '28000',
+        );
+      }
+    }
+    assert.equal(follower.allocatedConnections(), beforeAuthFailures);
+    const mariaClient = await mariadb.createConnection({
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret',
+    }).catch((error) => {
+      throw new Error(`${error.message}\nOperator logs:\n${follower.messages.slice(-12).join('\n')}`);
+    });
+    await mariaClient.ping();
+    await mariaClient.end();
     const client = await mysql.createConnection({
-      host: '127.0.0.1', port: follower.port, user: 'root', multipleStatements: true,
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret', multipleStatements: true,
     });
     clients.push(client);
     const errors = [];

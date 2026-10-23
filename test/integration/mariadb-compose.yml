@@ -2,7 +2,7 @@ services:
   master:
     image: mariadb:11.4
     environment:
-      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_PASSWORD: secret
       MARIADB_ROOT_HOST: '%'
     ports:
       - '127.0.0.1:17306:3306'
@@ -14,7 +14,7 @@ services:
   follower1:
     image: mariadb:11.4
     environment:
-      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_PASSWORD: secret
       MARIADB_ROOT_HOST: '%'
     ports:
       - '127.0.0.1:17307:3306'
@@ -26,7 +26,7 @@ services:
   follower2:
     image: mariadb:11.4
     environment:
-      MARIADB_ROOT_PASSWORD: integration-secret
+      MARIADB_ROOT_PASSWORD: secret
       MARIADB_ROOT_HOST: '%'
     ports:
       - '127.0.0.1:17308:3306'

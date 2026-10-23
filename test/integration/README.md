@@ -1,10 +1,20 @@
 # MariaDB Follower Regression
 
 This opt-in test uses three disposable MariaDB 11.4 containers, real mysql2
-clients, and Socket.IO over TCP. Each node loads the production Operator,
+and MariaDB clients, and Socket.IO over TCP. Each node loads the production Operator,
 Backlog, DBClient, SQL analyzer, and MySQL emulator. The master transport mirrors
 the echo-before-acknowledgement ordering in `ClusterOperator/server.js`.
-Discovery, authorization, and initial snapshot sync are bypassed.
+Discovery and initial snapshot sync are bypassed. Socket.IO connections use the production session-bound operator authentication middleware and client proofs.
+
+The test verifies that wrong/missing passwords and wrong usernames are rejected
+by the production password and username checks before pool allocation, using
+both mysql2 and MariaDB clients. It also verifies successful authentication using
+the historical root/secret credentials and operator API key derivation from the
+default DB password.
+
+The test also accepts a legacy writer during the authentication grace period,
+advances the cutoff clock, disconnects/rejects that legacy peer, and verifies
+that authenticated follower connections remain open and continue replicating.
 
 The test delays follower database requests and checks database setup, a
 nine-statement import, connection reuse, prepared writes, duplicate-key errors,
@@ -21,3 +31,14 @@ docker compose -p flux-mariadb-echo-test -f test/integration/mariadb-compose.yml
 
 Ports 17306-17308 must be free. The test creates and resets its databases inside
 these disposable containers. Normal `npm test` skips this integration test.
+
+To also verify a real MySQL 8 CLI starts with SHA2 and successfully switches to
+native authentication (including rejection of an incorrect password), set
+`MYSQL_CLI_IMAGE` to a locally available image containing the `mysql` binary:
+
+```sh
+MARIADB_INTEGRATION=1 MYSQL_CLI_IMAGE=mysql:8.0 node test/integration/follower.test.js
+```
+
+Pull the client image before running this optional check. The CLI containers use
+host networking to reach the disposable emulator listeners.

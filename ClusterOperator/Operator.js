@@ -21,10 +21,19 @@ const mySQLConsts = require('../lib/mysqlConstants');
 const sqlAnalyzer = require('../lib/sqlAnalyzer');
 const ConnectionPool = require('../lib/ConnectionPool');
 const Security = require('./Security');
+const operatorAuth = require('../lib/operatorAuth');
 const IdService = require('./IdService');
 const SqlImporter = require('../lib/mysqlimport');
 
-// const e = require('cors');
+// Only RFC1918 IPv4 ranges qualify for automatic local-network access.
+// Validate the full address before checking octets; textual prefixes also
+// match malformed addresses and public ranges such as 172.32.0.0/11.
+function isPrivateIPv4(ip) {
+  if (!net.isIPv4(ip)) return false;
+  const [first, second] = ip.split('.').map(Number);
+  return first === 10 || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168);
+}
 
 class Operator {
   static localDB = null;
@@ -42,8 +51,6 @@ class Operator {
   static appLocations = [];
 
   static nodeInstances = 0;
-
-  static authorizedApp = null;
 
   static masterNode = null;
 
@@ -144,13 +151,16 @@ class Operator {
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
-        this.masterWSConn = io.connect(`http://${this.masterNode}:${config.containerApiPort}`, {
+        const conn = io.connect(operatorAuth.peerURL(this.masterNode, config.containerApiPort), {
+          ...operatorAuth.clientOptions(() => conn.io.engine.id, config, 'replica'),
           transports: ['websocket'],
           reconnection: false,
           timeout: 2000,
         });
-        this.masterWSConn.on('connect', async (socket) => {
-          const { engine } = this.masterWSConn.io;
+        this.masterWSConn = conn;
+        conn.on('connect', async (socket) => {
+          if (this.masterWSConn !== conn) return;
+          const { engine } = conn.io;
           log.info('connected to master, Sharing keys...');
           try {
             /*
@@ -281,7 +291,7 @@ class Operator {
         });
       } catch (e) {
         log.error(e);
-        this.masterWSConn.removeAllListeners();
+        this.closeMasterConnection();
       }
     }
   }
@@ -297,11 +307,11 @@ class Operator {
         net.createServer((so) => {
           mySQLServer.createServer({
             socket: so,
+            getPassword: () => Security.getKey(),
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
             onStmtResult: this.handleStmtResult,
             operator: this,
-            authorizedApp: this.authorizedApp,
             localDB: this.localDB,
             serverSocket: this.serverSocket,
             masterWSConn: this.masterWSConn,
@@ -335,15 +345,16 @@ class Operator {
         return false;
       }
       // wait untill there are incomming connections
-      if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+      if (this.operator.IamMaster && !operatorAuth.hasReplicationPeer(this.operator.serverSocket, config)) {
         log.warn('no incomming connections: refusing DB client auth', 'yellow');
         return false;
       }
       const remoteIp = param.remoteIP;
+      if (!net.isIP(remoteIp)) return false;
       if (param.username !== config.dbUser) {
         log.warn(`wrong db username from ${remoteIp}:${param.username}`, 'yellow');
+        return false;
       }
-      if (this.authorizedApp === null && remoteIp.startsWith('172')) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');
       // temporary whitelist ip for flux team debugging, should be removed after final release
       if ((whiteList.length && whiteList.includes(remoteIp))) {
@@ -355,7 +366,7 @@ class Operator {
         log.info(`DB connection rejected from ${remoteIp}, authMasterOnly: ${config.authMasterOnly}`);
         return false;
       }
-      if (remoteIp === this.authorizedApp) {
+      if (isPrivateIPv4(remoteIp)) {
         return true;
       }
       if (this.appIPList.includes(remoteIp)) return true;
@@ -1482,7 +1493,7 @@ class Operator {
           this.initMasterConnection();
           return;
         }
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
+        if (this.IamMaster && !operatorAuth.hasReplicationPeer(this.serverSocket, config) && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           this.closeMasterConnection();
           await this.findMaster();

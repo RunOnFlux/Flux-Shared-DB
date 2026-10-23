@@ -1,16 +1,22 @@
 /* eslint-disable no-underscore-dangle */
-/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-restricted-syntax, no-bitwise */
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const { EventEmitter } = require('node:events');
 const { Duplex } = require('node:stream');
 const mysql = require('mysql2/promise');
 const { identify } = require('sql-query-identifier');
+const { token } = require('mysql/lib/protocol/Auth');
 const constants = require('../lib/mysqlConstants');
+const operatorAuth = require('../lib/operatorAuth');
+
+const TEST_PASSWORD = 'test-password-ä-🔐';
+const TEST_SALT = Buffer.from('01234567890123456789');
 
 // Isolate protocol handling from the real database, operator services and log files.
 function loadModule(relativePath, dependencies) {
@@ -48,7 +54,9 @@ function fixture(options = {}, operatorDependencies = {}) {
     crypto,
   });
   const operator = loadModule('ClusterOperator/Operator.js', {
+    net,
     '../lib/mysqlConstants': constants,
+    '../lib/operatorAuth': { ...operatorAuth, peerURL: (ip, port) => `http://${ip}:${port}`, clientOptions: () => ({}) },
     '../lib/ConnectionPool': pool,
     '../lib/log': log,
     '../lib/sqlAnalyzer': loadModule('lib/sqlAnalyzer.js', {
@@ -61,6 +69,8 @@ function fixture(options = {}, operatorDependencies = {}) {
   const server = emulator.createServer({
     socket,
     onAuthorize: async () => true,
+    getPassword: () => TEST_PASSWORD,
+    salt: TEST_SALT,
     onCommand: operator.handleCommand,
     onStmtResult: operator.handleStmtResult,
     operator: { status: 'OK', sessionQueries: {} },
@@ -84,8 +94,11 @@ async function receive(server, payload, sequence = 0) {
   await server._packetQueue;
 }
 
-function hello() {
-  return Buffer.concat([Buffer.alloc(32), Buffer.from('client\0\0')]);
+function hello(username = 'client', password = TEST_PASSWORD) {
+  const header = Buffer.alloc(32);
+  header.writeUInt32LE(constants.CLIENT_PROTOCOL_41 | constants.CLIENT_SECURE_CONNECTION);
+  const response = token(password, TEST_SALT);
+  return Buffer.concat([header, Buffer.from(`${username}\0`), Buffer.from([response.length]), response]);
 }
 
 test('unknown commands produce a contextual error log and ERR response', async () => {
@@ -148,7 +161,7 @@ test('missing packet handlers and framing failures are no longer silent', async 
   assert.ok(logs.some(({ message }) => /receiving data failed.*bad data/.test(message)));
 });
 
-test('authorization rejection and allocation failure are logged before destruction', async () => {
+test('authorization rejection and allocation failure are logged before closing', async () => {
   for (const allocationFailure of [false, true]) {
     const {
       server, logs, pool, socket,
@@ -158,9 +171,321 @@ test('authorization rejection and allocation failure are logged before destructi
     pool.getFreeConnection = async () => { throw new Error('pool exhausted'); };
     // eslint-disable-next-line no-await-in-loop
     await receive(server, hello(), 1);
-    assert.equal(socket.destroyed, true);
+    assert.equal(socket.ended, true);
     assert.ok(logs.some(({ message }) => /command=HANDSHAKE.*authorization or connection allocation failed/.test(message)));
     assert.ok(logs.some(({ message }) => message.includes(allocationFailure ? 'pool exhausted' : 'Not Authorized')));
+  }
+});
+
+test('bad, missing, replayed and malformed authentication cannot allocate a connection or run queued commands', async () => {
+  const valid = hello();
+  const wrong = Buffer.from(valid);
+  wrong[wrong.length - 1] ^= 1;
+  const unsupported = Buffer.from(valid);
+  unsupported.writeUInt32LE(constants.CLIENT_PROTOCOL_41);
+  const unterminated = Buffer.concat([valid.subarray(0, 32), Buffer.from('client')]);
+  const truncated = valid.subarray(0, valid.length - 1);
+  const missing = Buffer.concat([valid.subarray(0, 32), Buffer.from('client\0\0')]);
+  const missingDB = Buffer.from(valid);
+  missingDB.writeUInt32LE(missingDB.readUInt32LE(0) | constants.CLIENT_CONNECT_WITH_DB);
+  const wrongPlugin = Buffer.concat([valid, Buffer.from('caching_sha2_password')]);
+  wrongPlugin.writeUInt32LE(wrongPlugin.readUInt32LE(0) | (1 << 19));
+  const oversized = Buffer.from(valid);
+  oversized[39] = 21;
+  for (const [packet, options] of [
+    [wrong, {}], [missing, {}], [unterminated, {}], [truncated, {}], [missingDB, {}],
+    [Buffer.alloc(0), {}], [Buffer.alloc(31), {}], [unsupported, {}],
+    [valid, { salt: Buffer.from('different-salt-123456') }],
+    [valid, { getPassword: undefined }], [valid, { getPassword: () => '' }],
+    [wrongPlugin, {}], [oversized, {}],
+  ]) {
+    let allocations = 0;
+    let authorizations = 0;
+    let commands = 0;
+    const {
+      server, socket, pool, logs,
+    } = fixture({
+      onAuthorize: () => { authorizations += 1; return true; },
+      onCommand: () => { commands += 1; },
+      ...options,
+    });
+    pool.getFreeConnection = async () => { allocations += 1; return 7; };
+    server.connId = null;
+    server.onPacket = server.helloPacketHandler;
+    // Queue a command immediately after the auth packet, before verification.
+    const header = Buffer.alloc(4);
+    header.writeUIntLE(packet.length, 0, 3);
+    header[3] = 1;
+    server.handleData(Buffer.concat([header, packet, Buffer.from([1, 0, 0, 0, constants.COM_PING])]));
+    // eslint-disable-next-line no-await-in-loop
+    await server._packetQueue;
+    assert.equal(socket.ended, true);
+    assert.equal(allocations, 0);
+    assert.equal(authorizations, 0);
+    assert.equal(commands, 0);
+    assert.equal(socket.writes.length, 1);
+    assert.equal(socket.writes[0][3], 2);
+    assert.equal(socket.writes[0][4], 0xff);
+    assert.equal(socket.writes[0].readUInt16LE(5), 1045);
+    assert.equal(socket.writes[0].toString('ascii', 8, 13), '28000');
+    assert.ok(logs.every(({ message }) => !message.includes(TEST_PASSWORD)));
+  }
+});
+
+test('native-password plugin handshakes preserve the username and optional database', async () => {
+  let received;
+  const { server, socket } = fixture({ onAuthorize: (params) => { received = params; return true; } });
+  const packet = Buffer.concat([hello(), Buffer.from('example_db\0mysql_native_password\0')]);
+  packet.writeUInt32LE(packet.readUInt32LE(0) | constants.CLIENT_CONNECT_WITH_DB | (1 << 19) | (1 << 21));
+  server.onPacket = server.helloPacketHandler;
+  await receive(server, packet, 1);
+  assert.equal(received.username, 'client');
+  assert.equal(received.database, 'example_db');
+  assert.equal(socket.writes[0][4], 0);
+});
+
+test('SHA2-first clients switch to native authentication before authorization or pool allocation', async () => {
+  for (const [password, succeeds] of [[TEST_PASSWORD, true], ['wrong-password', false], ['', false]]) {
+    let allocations = 0;
+    let authorized;
+    const { server, socket, pool } = fixture({ onAuthorize: (params) => { authorized = params; return true; } });
+    server.connId = null;
+    server.onPacket = server.helloPacketHandler;
+    pool.getFreeConnection = async () => { allocations += 1; return 7; };
+    const header = Buffer.alloc(32);
+    header.writeUInt32LE(constants.CLIENT_PROTOCOL_41 | constants.CLIENT_SECURE_CONNECTION | constants.CLIENT_CONNECT_WITH_DB | (1 << 19) | (1 << 21));
+    const packet = Buffer.concat([header, Buffer.from('client\0'), Buffer.from([32]), Buffer.alloc(32, 1), Buffer.from('example_db\0caching_sha2_password\0')]);
+    // eslint-disable-next-line no-await-in-loop
+    await receive(server, packet, 1);
+    assert.equal(allocations, 0);
+    assert.equal(authorized, undefined);
+    const request = socket.writes[0];
+    assert.equal(request[3], 2);
+    assert.equal(request[4], 0xfe);
+    const pluginEnd = request.indexOf(0, 5);
+    assert.equal(request.toString('ascii', 5, pluginEnd), 'mysql_native_password');
+    const challenge = request.subarray(pluginEnd + 1, request.length - 1);
+    assert.equal(challenge.length, 20);
+    assert.notDeepEqual(challenge, TEST_SALT);
+    // eslint-disable-next-line no-await-in-loop
+    await receive(server, token(password, challenge), 3);
+    assert.equal(socket.writes[1][3], 4);
+    assert.equal(socket.writes[1][4], succeeds ? 0 : 0xff);
+    assert.equal(allocations, succeeds ? 1 : 0);
+    if (succeeds) {
+      assert.equal(authorized.username, 'client');
+      assert.equal(authorized.database, 'example_db');
+    } else {
+      assert.equal(socket.writes[1].readUInt16LE(5), 1045);
+      assert.equal(authorized, undefined);
+      assert.equal(socket.ended, true);
+    }
+  }
+});
+
+test('auth-switch responses cannot replay the old challenge or execute a command instead of authenticating', async () => {
+  for (const response of [token(TEST_PASSWORD, TEST_SALT), Buffer.from([constants.COM_PING]), Buffer.alloc(0), Buffer.alloc(21)]) {
+    const { server, socket, pool } = fixture();
+    server.connId = null;
+    server.onPacket = server.helloPacketHandler;
+    let allocations = 0;
+    pool.getFreeConnection = async () => { allocations += 1; return 7; };
+    const packet = Buffer.concat([hello(), Buffer.from('caching_sha2_password\0')]);
+    packet.writeUInt32LE(packet.readUInt32LE(0) | (1 << 19));
+    // eslint-disable-next-line no-await-in-loop
+    await receive(server, packet, 1);
+    // eslint-disable-next-line no-await-in-loop
+    await receive(server, response, 3);
+    assert.equal(allocations, 0);
+    assert.equal(socket.writes[1][4], 0xff);
+    assert.equal(socket.ended, true);
+  }
+});
+
+test('disconnects during login never allocate after closure or leak a late pooled connection', async () => {
+  for (const stage of ['authorization', 'allocation']) {
+    for (const event of ['end', 'error', 'close', 'destroyed']) {
+      let resume;
+      let reached;
+      const pending = new Promise((resolve) => { resume = resolve; });
+      const waiting = new Promise((resolve) => { reached = resolve; });
+      let allocations = 0;
+      const released = [];
+      const { server, socket, pool } = fixture({
+        onAuthorize: async () => { if (stage === 'authorization') { reached(); await pending; } return true; },
+      });
+      server.connId = null;
+      server.onPacket = server.helloPacketHandler;
+      pool.getFreeConnection = async () => {
+        allocations += 1;
+        if (stage === 'allocation') { reached(); await pending; }
+        return 7;
+      };
+      pool.releaseConnection = (id) => released.push(id);
+      const login = receive(server, hello(), 1);
+      // eslint-disable-next-line no-await-in-loop
+      await waiting;
+      if (event === 'destroyed') socket.destroy();
+      else socket.emit(event, event === 'error' ? new Error('client dropped') : false);
+      resume();
+      // eslint-disable-next-line no-await-in-loop
+      await login;
+      assert.equal(allocations, stage === 'authorization' ? 0 : 1);
+      assert.deepEqual(released, stage === 'authorization' ? [] : [7]);
+      assert.equal(server.connId, null);
+      assert.equal(socket.writes.length, 0);
+      socket.emit('end');
+      socket.emit('close', false);
+      assert.deepEqual(released, stage === 'authorization' ? [] : [7]);
+    }
+  }
+});
+
+test('a close-only event releases an authenticated connection exactly once', () => {
+  const { socket, pool, server } = fixture();
+  const released = [];
+  pool.releaseConnection = (id) => released.push(id);
+  socket.emit('close', false);
+  socket.emit('end');
+  assert.deepEqual(released, [7]);
+  assert.equal(server.connId, null);
+});
+
+test('master proofs stay bound to their original connection after replacement or cleanup', () => {
+  let options;
+  const conn = new EventEmitter();
+  conn.io = { engine: { id: 'original-session' } };
+  conn.disconnect = () => {};
+  const { operator } = fixture({}, {
+    'socket.io-client': { io: { connect: (_url, opts) => { options = opts; return conn; } } },
+    '../lib/operatorAuth': {
+      peerURL: () => 'http://127.0.0.1', clientOptions: (getId) => ({ auth: (callback) => callback(getId()) }),
+    },
+  });
+  operator.masterNode = '127.0.0.1';
+  operator.initMasterConnection();
+  operator.masterWSConn = { io: { engine: { id: 'replacement-session' } } };
+  options.auth((id) => assert.equal(id, 'original-session'));
+  operator.masterWSConn = null;
+  options.auth((id) => assert.equal(id, 'original-session'));
+});
+
+test('master connection setup failures are caught without dereferencing a missing socket', () => {
+  const { operator, logs } = fixture({}, {
+    'socket.io-client': { io: { connect: () => { throw new Error('connection setup failed'); } } },
+  });
+  operator.masterNode = '127.0.0.1';
+  assert.doesNotThrow(() => operator.initMasterConnection());
+  assert.ok(logs.some(({ message }) => String(message).includes('connection setup failed')));
+});
+
+test('operator requires the configured username even for whitelisted and application IPs', () => {
+  const config = { dbUser: 'root', whiteListedIps: '192.0.2.10', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  const context = {
+    status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: ['192.0.2.10'],
+  };
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
+  config.whiteListedIps = '';
+  assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '203.0.113.10' }), false);
+});
+
+test('master DB admission requires an admitted replication peer, not raw connections or discovery', () => {
+  const config = { dbUser: 'root', whiteListedIps: '127.0.0.1', operatorAuthEnforceAt: '2000-01-01T00:00:00Z' };
+  const { operator } = fixture({}, { './config': config });
+  const sockets = new Map();
+  const context = {
+    status: 'OK', operator: { ghosted: false, IamMaster: true, serverSocket: { engine: { clientsCount: 99 }, sockets: { sockets } } },
+  };
+  const params = { username: 'root', remoteIP: '127.0.0.1' };
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+  const peer = { connected: true, data: { operatorAuthenticated: true, operatorReplica: false } };
+  sockets.set('peer', peer);
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+  peer.data.operatorReplica = true;
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  peer.data.operatorAuthenticated = false;
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+  config.operatorAuthEnforceAt = '2100-01-01T00:00:00Z';
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  peer.connected = false;
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+});
+
+test('automatic local-network authorization accepts only valid RFC1918 IPv4 addresses', () => {
+  const config = { dbUser: 'root', whiteListedIps: '', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  function authorize(remoteIP, username = 'root') {
+    // Match production: every connection gets its own server context.
+    return operator.handleAuthorize.call({
+      status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [], authorizedApp: null,
+    }, { remoteIP, username });
+  }
+  for (const ip of [
+    '10.0.0.0', '10.0.0.1', '10.255.255.255',
+    '172.16.0.0', '172.17.0.2', '172.31.255.255',
+    '192.168.0.0', '192.168.1.5', '192.168.255.255',
+  ]) {
+    assert.equal(authorize(ip), true, ip);
+    assert.equal(authorize(ip, 'wrong-user'), false, ip);
+  }
+  for (const ip of [
+    '9.255.255.255', '11.0.0.0', '172.0.0.1', '172.15.255.255',
+    '172.32.0.0', '172.217.0.1', '172.255.255.255',
+    '192.167.255.255', '192.169.0.0', '8.8.8.8', '100.64.0.1',
+    '127.0.0.1', '169.254.1.1', '::1', 'fc00::1',
+    '172', '172.evil', '172.16.0.256', '172.016.0.1', '172.16.0.1.extra', '', undefined,
+  ]) assert.equal(authorize(ip), false, String(ip));
+  config.authMasterOnly = true;
+  assert.equal(authorize('172.17.0.2'), false);
+  const masterContext = {
+    status: 'OK', operator: { ghosted: false, IamMaster: true, serverSocket: { sockets: { sockets: new Map([['replica', { connected: true, data: { operatorAuthenticated: true, operatorReplica: true } }]]) } } }, appIPList: [],
+  };
+  assert.equal(operator.handleAuthorize.call(masterContext, { username: 'root', remoteIP: '172.17.0.2' }), true);
+  masterContext.operator.ghosted = true;
+  assert.equal(operator.handleAuthorize.call(masterContext, { username: 'root', remoteIP: '172.17.0.2' }), false);
+});
+
+test('public 172 addresses require explicit whitelist or discovered application membership', () => {
+  const ip = '172.32.10.20';
+  const config = { dbUser: 'root', whiteListedIps: '', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  const context = { status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [] };
+  const params = { username: 'root', remoteIP: ip };
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+  config.whiteListedIps = ip;
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  config.whiteListedIps = '';
+  context.appIPList = [ip];
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  assert.equal(operator.handleAuthorize.call(context, { ...params, username: 'wrong-user' }), false);
+});
+
+test('missing or empty DB environment values retain root/secret and reject blank client passwords', async () => {
+  for (const env of [{}, { DB_USER: '', DB_INIT_PASS: '' }]) {
+    const module = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../ClusterOperator/config.js'), 'utf8'), {
+      module, process: { env },
+    });
+    const config = module.exports;
+    assert.equal(config.dbUser, 'root');
+    assert.equal(config.dbPass, 'secret');
+    for (const password of ['secret', '']) {
+      const { server, socket, operator } = fixture({ getPassword: () => config.dbPass }, { './config': config });
+      server.status = 'OK';
+      server.operator.ghosted = false;
+      server.appIPList = [];
+      config.whiteListedIps = '192.0.2.10';
+      server.onAuthorize = operator.handleAuthorize;
+      server.onPacket = server.helloPacketHandler;
+      // eslint-disable-next-line no-await-in-loop
+      await receive(server, hello('root', password), 1);
+      assert.equal(socket.writes[0][4], password ? 0 : 0xff);
+      assert.equal(Boolean(socket.ended), !password);
+    }
   }
 });
 
@@ -267,7 +592,9 @@ async function connectedClient(t, options = {}, operatorDependencies = {}) {
   });
   socket.write = (data) => { socket.writes.push(Buffer.from(data)); return stream.push(Buffer.from(data)); };
   socket.end = () => stream.push(null);
-  const connecting = mysql.createConnection({ stream, user: 'client', multipleStatements: true });
+  const connecting = mysql.createConnection({
+    stream, user: 'client', password: TEST_PASSWORD, multipleStatements: true,
+  });
   server.onPacket = server.helloPacketHandler;
   server.sequence = 0;
   server.sendServerHello();

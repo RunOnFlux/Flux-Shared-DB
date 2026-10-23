@@ -6,6 +6,7 @@
 /* eslint-disable no-unused-vars */
 const { Server } = require('socket.io');
 const https = require('https');
+const http = require('http');
 const timer = require('timers/promises');
 const express = require('express');
 const RateLimit = require('express-rate-limit');
@@ -25,6 +26,7 @@ const log = require('../lib/log');
 const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
+const operatorAuth = require('../lib/operatorAuth');
 const SqlImporter = require('../lib/mysqlimport');
 const { buildDeleteQuery, isPrimaryKeyValue, unpackBacklogWriteResult } = require('../lib/rawQuery');
 // Import the factory function, not the class directly
@@ -1319,21 +1321,18 @@ async function startUI() { // Make async to potentially await DB client init if 
 } // End of startUI function
 
 /**
-* [validate] - Placeholder/Example validation
-* @param {string} ip
-*/
-async function validate(ip) {
-  // Replace with actual validation logic if needed for socket connections
-  if (Operator.AppNodes.includes(ip)) return true;
-  // log.info(`appnodes: ${JSON.stringify(Operator.AppNodes)}`);
-  return false; // Default to false if not in AppNodes
-}
-
-/**
 * [initServer] - Main server initialization function
 */
 async function initServer() {
   try {
+    await Operator.resolveAppName();
+    operatorAuth.initialize(config); // Resolve keys/TLS once, after app identity is known.
+    const authCutoff = operatorAuth.enforcementTime(config);
+    log.info(`Operator authentication cutoff: ${new Date(authCutoff).toISOString()}`);
+    if (config.operatorApiSecret === undefined && Buffer.byteLength(config.dbPass) < 32) {
+      log.warn('Legacy DB password used for operator API authentication; configure a private, randomly generated OPERATOR_API_SECRET for stronger protection.');
+    }
+    const tlsOptions = operatorAuth.serverTLSOptions();
     Security.init(); // Initialize security components
     /*
     // --- Initialize DB Client Instance ---
@@ -1352,20 +1351,20 @@ async function initServer() {
 
     // --- Initialize Operator and Socket.IO ---
     await Operator.init(dbClientInstance); // Pass DB client to Operator if needed
-    const io = new Server(config.apiPort, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
+    const listener = tlsOptions ? https.createServer(tlsOptions) : http.createServer();
+    const io = new Server(listener, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
+    const operatorAuthPolicy = operatorAuth.install(io, (socket) => auth(utill.convertIP(socket.handshake.address)), config, {
+      onEnforce: () => log.info('Operator authentication enforcement active; legacy sockets disconnected.'),
+    });
+    listener.listen(config.apiPort);
     Operator.setServerSocket(io);
 
     // --- Socket.IO Connection Handling ---
     io.on('connection', async (socket) => {
       const ip = utill.convertIP(socket.handshake.address);
-      let isOperatorNode = false;
-      let isValidatedAppNode = false;
 
       try {
-        isOperatorNode = auth(ip); // Check if it's an operator node
-        isValidatedAppNode = await validate(ip); // Check if it's a validated app node
-
-        if (isOperatorNode) {
+        if (auth(ip)) {
           log.debug(`Operator node connected: ${ip}`);
           // Operator node specific event listeners
           socket.on('disconnect', (reason) => {
@@ -1378,6 +1377,12 @@ async function initServer() {
                 status: Operator.status,
                 sequenceNumber: BackLog.sequenceNumber,
                 firstSequenceNumber: await BackLog.getFirstSequenceNumber(),
+                operatorAuth: {
+                  version: 1,
+                  required: operatorAuthPolicy.isEnforced(),
+                  enforceAt: new Date(authCutoff).toISOString(),
+                  secondaryKeyConfigured: config.operatorApiSecretSecondary !== undefined,
+                },
                 remoteIP: ip, // Use already determined IP
                 masterIP: Operator.getMaster(),
               });
@@ -1395,6 +1400,7 @@ async function initServer() {
             log.info(`getBackLog from Operator ${ip}, starting at ${start}`);
             try {
               const records = await BackLog.getLogs(start, 400); // Limit records fetched
+              Object.assign(socket.data, { operatorReplica: true }); // Older replicas request backlog.
               callback({
                 status: Operator.status, sequenceNumber: BackLog.sequenceNumber, firstSequenceNumber: BackLog.firstSequenceNumber, records,
               });
@@ -1513,14 +1519,6 @@ async function initServer() {
             await BackLog.pushKey('lastCompression', seqNo, false);
             socket.broadcast.emit('compressionStart', seqNo);
           });
-        } else if (isValidatedAppNode) {
-          log.debug(`Validated App node connected: ${ip}`);
-          // Application node specific event listeners (if any)
-          // Example: Allow read-only queries?
-          socket.on('disconnect', (reason) => {
-            log.info(`App node disconnected: ${ip}, Reason: ${reason}`);
-          });
-          // Add app-specific listeners here if needed
         } else {
           log.warn(`Connection rejected for unauthorized IP: ${ip}`);
           socket.disconnect(true); // Force disconnect

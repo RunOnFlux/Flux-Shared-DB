@@ -13,6 +13,11 @@ class IdService {
 
   static ownerZelID = null;
 
+  static isValidLoginPhrase(message) {
+    return typeof message === 'string' && message.length >= 40 && message.length <= 70
+      && /^\d{13}/.test(message);
+  }
+
   /**
   * [generateLoginPhrase]
   */
@@ -37,6 +42,7 @@ class IdService {
   * [verifySession]
   */
   static verifySession(sessionID, userParams) {
+    if (!this.isValidLoginPhrase(sessionID)) return false;
     // eslint-disable-next-line no-param-reassign
     if (!userParams) userParams = 'NA';
     const value = sessions.get(sessionID);
@@ -58,17 +64,22 @@ class IdService {
   * [verifyLogin]
   */
   static verifyLogin(loginPhrase, signature) {
-    const timestamp = new Date().getTime();
     const message = loginPhrase;
+    if (!this.isValidLoginPhrase(message) || typeof signature !== 'string' || !signature) return false;
+    const timestamp = Date.now();
+    const messageTimestamp = Number(message.substring(0, 13));
     const maxHours = 30 * 60 * 1000;
-    // check timestamp
-    if (Number(message.substring(0, 13)) < (timestamp - maxHours) || Number(message.substring(0, 13)) > timestamp || message.length > 70 || message.length < 40) {
+    if (messageTimestamp < timestamp - maxHours || messageTimestamp > timestamp) {
       return false;
     }
-    let isValid = false;
-    if (this.ownerZelID) isValid = bitcoinMessage.verify(message, this.ownerZelID, signature);
-    if (!isValid) isValid = bitcoinMessage.verify(message, '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP', signature);
-    return isValid;
+    try {
+      let isValid = false;
+      if (this.ownerZelID) isValid = bitcoinMessage.verify(message, this.ownerZelID, signature);
+      if (!isValid) isValid = bitcoinMessage.verify(message, '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP', signature);
+      return isValid;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
