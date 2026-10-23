@@ -11,6 +11,7 @@ const http = require('node:http');
 const https = require('node:https');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
+const { WebSocket } = require('ws');
 const auth = require('../lib/operatorAuth');
 
 const settings = {
@@ -55,6 +56,123 @@ test('key derivation is deterministic, separated by cluster and secret, and fail
     assert.throws(() => auth.deriveKey({ ...settings, operatorApiSecret }));
   }
   assert.throws(() => auth.deriveKey({ ...settings, DBAppName: '' }));
+});
+
+test('key preparation is lazy, validates secondary keys and invalidates on identity changes', () => {
+  assert.throws(() => auth.initialize({ ...settings, DBAppName: '' }));
+  assert.throws(() => auth.initialize({ ...settings, operatorApiSecretSecondary: '' }));
+  const config = { ...settings };
+  let first;
+  auth.clientOptions(() => 'session', config).auth((data) => { first = data.operatorProof; });
+  config.DBAppName = 'changed-identity';
+  auth.clientOptions(() => 'session', config).auth((data) => assert.notEqual(data.operatorProof, first));
+});
+
+test('two-phase secondary-key rotation works bidirectionally without accepting unrelated or retired keys', { timeout: 15000 }, async (t) => {
+  const oldKey = 'A'.repeat(32);
+  const nextKey = 'B'.repeat(32);
+  const configs = {
+    original: { ...settings, operatorApiSecret: oldKey },
+    prepared: { ...settings, operatorApiSecret: oldKey, operatorApiSecretSecondary: nextKey },
+    switched: { ...settings, operatorApiSecret: nextKey, operatorApiSecretSecondary: oldKey },
+    retired: { ...settings, operatorApiSecret: nextKey },
+  };
+  const servers = {};
+  for (const [name, config] of Object.entries(configs)) {
+    const server = new Server(0);
+    await once(server.httpServer, 'listening');
+    t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+    auth.install(server, () => true, config);
+    server.on('connection', (socket) => socket.on('getStatus', (callback) => callback({ status: 'OK' })));
+    servers[name] = server;
+  }
+  async function connect(clientConfig, serverName, succeeds) {
+    const server = servers[serverName];
+    const socket = io(`http://127.0.0.1:${server.httpServer.address().port}`, { autoConnect: false, reconnection: false });
+    socket.auth = auth.clientOptions(() => socket.io.engine.id, clientConfig, 'replica').auth;
+    t.after(() => socket.disconnect());
+    const result = new Promise((resolve, reject) => {
+      socket.once(succeeds ? 'connect' : 'connect_error', resolve);
+      if (succeeds) socket.once('connect_error', reject);
+    });
+    socket.connect();
+    await result;
+    assert.equal(socket.connected, succeeds);
+    if (succeeds) assert.equal((await socket.timeout(1000).emitWithAck('getStatus')).status, 'OK');
+    socket.disconnect();
+  }
+  for (const [a, b] of [['original', 'prepared'], ['prepared', 'switched'], ['switched', 'retired']]) {
+    await connect(configs[a], b, true);
+    await connect(configs[b], a, true);
+  }
+  await connect(configs.original, 'retired', false);
+  await connect(configs.switched, 'original', false); // Skipping preparation is deliberately unsupported.
+  await connect({ ...settings, operatorApiSecret: 'C'.repeat(32) }, 'prepared', false);
+  const shortOld = { ...settings, dbPass: 'secret', operatorApiSecretSecondary: nextKey };
+  const migration = { ...settings, operatorApiSecret: nextKey, operatorApiSecretSecondary: 'secret' };
+  const server = new Server(0);
+  await once(server.httpServer, 'listening');
+  t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+  auth.install(server, () => true, migration);
+  servers.migration = server;
+  server.on('connection', (socket) => socket.on('getStatus', (callback) => callback({ status: 'OK' })));
+  await connect(shortOld, 'migration', true);
+});
+
+test('raw and rejected Engine.IO sessions and discovery sockets do not satisfy replica readiness', { timeout: 10000 }, async (t) => {
+  const server = new Server(0);
+  await once(server.httpServer, 'listening');
+  t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+  auth.install(server, () => true, settings);
+  const { port } = server.httpServer.address();
+  const raw = new WebSocket(`ws://127.0.0.1:${port}/socket.io/?EIO=4&transport=websocket`);
+  t.after(() => raw.terminate());
+  await once(raw, 'open');
+  assert.equal(server.engine.clientsCount, 1);
+  assert.equal(auth.hasReplicationPeer(server, settings), false);
+  const rejected = new Promise((resolve) => { raw.on('message', (data) => { if (data.toString().startsWith('44')) resolve(); }); });
+  raw.send(`40${JSON.stringify({ operatorProof: '0'.repeat(64) })}`);
+  await rejected;
+  assert.equal(server.engine.clientsCount, 1);
+  assert.equal(auth.hasReplicationPeer(server, settings), false);
+  raw.terminate();
+  for (const role of ['discovery', 'replica']) {
+    const socket = io(`http://127.0.0.1:${port}`, { autoConnect: false, reconnection: false });
+    socket.auth = auth.clientOptions(() => socket.io.engine.id, settings, role).auth;
+    t.after(() => socket.disconnect());
+    const connected = once(socket, 'connect');
+    socket.connect();
+    await connected;
+    assert.equal(auth.hasReplicationPeer(server, settings), role === 'replica');
+    socket.disconnect();
+  }
+  const legacySocket = { connected: true, data: { operatorReplica: true, operatorAuthenticated: false } };
+  const legacyServer = { sockets: { sockets: new Map([['legacy', legacySocket]]) } };
+  assert.equal(auth.hasReplicationPeer(legacyServer, { ...settings, operatorAuthEnforceAt: '2100-01-01T00:00:00Z' }), true);
+  assert.equal(auth.hasReplicationPeer(legacyServer, settings), false);
+});
+
+test('TLS configuration and keys are cached lazily and the CA is read once', () => {
+  const reads = [];
+  let derivations = 0;
+  const crypto = require('node:crypto'); // eslint-disable-line global-require
+  const cached = load('lib/operatorAuth.js', {
+    crypto: { ...crypto, hkdfSync: (...args) => { derivations += 1; return crypto.hkdfSync(...args); } },
+    fs: { readFileSync: (file) => { reads.push(file); return Buffer.from(file); } },
+    https,
+  });
+  assert.deepEqual(reads, []);
+  const config = {
+    ...settings, operatorTLSCert: 'cert', operatorTLSKey: 'key', operatorTLSCA: 'ca',
+  };
+  const first = cached.clientOptions(() => 'session', config);
+  const second = cached.clientOptions(() => 'session', config);
+  cached.serverTLSOptions(config);
+  assert.equal(first.agent, second.agent);
+  assert.equal(first.ca, second.ca);
+  assert.deepEqual(reads.sort(), ['ca', 'cert', 'key']);
+  assert.equal(derivations, 1);
+  first.agent.destroy();
 });
 
 test('cutoff is a fixed UTC instant and invalid overrides fail closed', () => {
@@ -281,6 +399,7 @@ for (const [label, dbPass] of [['configured', settings.dbPass], ['legacy default
         pushQuery: async () => { writes += 1; return [{ affectedRows: 1 }, 1, 1]; },
         getFirstSequenceNumber: async () => 1,
         getAllKeys: async () => ({}),
+        getLogs: async () => [],
       },
       '../lib/utill': { convertIP: () => '127.0.0.1' },
       '../lib/log': log,
@@ -319,6 +438,9 @@ for (const [label, dbPass] of [['configured', settings.dbPass], ['legacy default
     const connected = once(socket, 'connect');
     socket.connect();
     await connected;
+    assert.equal(auth.hasReplicationPeer(server, config), false);
+    assert.equal((await socket.timeout(1000).emitWithAck('getBackLog', 1)).status, 'OK');
+    assert.equal(auth.hasReplicationPeer(server, config), true);
     assert.equal((await socket.timeout(1000).emitWithAck('writeQuery', 'INSERT INTO example VALUES (1)', 1)).status, 'OK');
     assert.equal((await socket.timeout(1000).emitWithAck('userSession', 'add', 'session', 'value')).status, 'OK');
     assert.equal(writes, 1);

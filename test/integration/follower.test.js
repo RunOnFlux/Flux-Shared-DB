@@ -9,6 +9,8 @@ const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { once } = require('node:events');
 const timer = require('node:timers/promises');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
 const mysql = require('mysql2/promise');
 // The legacy ESLint resolver does not understand this package's CJS exports.
 // eslint-disable-next-line import/no-unresolved
@@ -98,8 +100,9 @@ async function nodeInstance(port, t) {
     net,
     'socket.io-client': socketClient,
     '../lib/operatorAuth': {
+      ...operatorAuth,
       peerURL: (ip, apiPort) => operatorAuth.peerURL(ip, apiPort, config),
-      clientOptions: (getSessionId) => operatorAuth.clientOptions(getSessionId, config),
+      clientOptions: (getSessionId, _settings, role) => operatorAuth.clientOptions(getSessionId, config, role),
     },
     './Backlog': backlog,
     './config': config,
@@ -173,6 +176,7 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
   const cutoff = operatorAuth.enforcementTime(authSettings);
   let authNow = cutoff - 60 * 60 * 1000;
   const authPolicy = operatorAuth.install(transport, () => true, authSettings, { now: () => authNow });
+  assert.equal(operatorAuth.hasReplicationPeer(transport, authSettings), false);
   let sequence = 0;
   transport.on('connection', (socket) => {
     // Same ordering as server.js: master execution, echo, then acknowledgement.
@@ -215,7 +219,22 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
   legacy.connect();
   assert.match((await legacyRejected)[0].message, /authentication failed/);
   legacy.disconnect();
+  assert.equal(operatorAuth.hasReplicationPeer(transport, authSettings), true);
   for (const [index, follower] of followers.entries()) {
+    if (index === 0 && process.env.MYSQL_CLI_IMAGE) {
+      const run = promisify(execFile);
+      const args = ['run', '--rm', '--network', 'host', '--entrypoint', 'mysql', process.env.MYSQL_CLI_IMAGE,
+        '--protocol=TCP', '--host=127.0.0.1', `--port=${follower.port}`, '--user=root',
+        '--ssl-mode=DISABLED', '--default-auth=caching_sha2_password', '--skip-column-names', '--execute=SELECT 1'];
+      const { stdout } = await run('docker', [...args, '--password=secret'], { timeout: 20000 });
+      assert.equal(stdout.trim(), '1');
+      const beforeBadCLI = follower.allocatedConnections();
+      await assert.rejects(
+        run('docker', [...args, '--password=wrong-password'], { timeout: 20000 }),
+        (error) => error.stderr.includes('1045'),
+      );
+      assert.equal(follower.allocatedConnections(), beforeBadCLI);
+    }
     const beforeAuthFailures = follower.allocatedConnections();
     for (const createConnection of [mysql.createConnection.bind(mysql), mariadb.createConnection.bind(mariadb)]) {
       for (const credentials of [

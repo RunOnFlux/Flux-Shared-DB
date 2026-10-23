@@ -31,3 +31,14 @@ docker compose -p flux-mariadb-echo-test -f test/integration/mariadb-compose.yml
 
 Ports 17306-17308 must be free. The test creates and resets its databases inside
 these disposable containers. Normal `npm test` skips this integration test.
+
+To also verify a real MySQL 8 CLI starts with SHA2 and successfully switches to
+native authentication (including rejection of an incorrect password), set
+`MYSQL_CLI_IMAGE` to a locally available image containing the `mysql` binary:
+
+```sh
+MARIADB_INTEGRATION=1 MYSQL_CLI_IMAGE=mysql:8.0 node test/integration/follower.test.js
+```
+
+Pull the client image before running this optional check. The CLI containers use
+host networking to reach the disposable emulator listeners.

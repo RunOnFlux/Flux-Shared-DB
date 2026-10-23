@@ -69,7 +69,7 @@ class IdService {
     const timestamp = Date.now();
     const messageTimestamp = Number(message.substring(0, 13));
     const maxHours = 30 * 60 * 1000;
-    if (!Number.isFinite(messageTimestamp) || messageTimestamp < timestamp - maxHours || messageTimestamp > timestamp) {
+    if (messageTimestamp < timestamp - maxHours || messageTimestamp > timestamp) {
       return false;
     }
     try {

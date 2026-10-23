@@ -151,14 +151,16 @@ class Operator {
     if (this.masterNode && !this.IamMaster) {
       log.info(`establishing persistent connection to master node...${this.masterNode}`);
       try {
-        this.masterWSConn = io.connect(operatorAuth.peerURL(this.masterNode, config.containerApiPort), {
-          ...operatorAuth.clientOptions(() => this.masterWSConn.io.engine.id),
+        const conn = io.connect(operatorAuth.peerURL(this.masterNode, config.containerApiPort), {
+          ...operatorAuth.clientOptions(() => conn.io.engine.id, config, 'replica'),
           transports: ['websocket'],
           reconnection: false,
           timeout: 2000,
         });
-        this.masterWSConn.on('connect', async (socket) => {
-          const { engine } = this.masterWSConn.io;
+        this.masterWSConn = conn;
+        conn.on('connect', async (socket) => {
+          if (this.masterWSConn !== conn) return;
+          const { engine } = conn.io;
           log.info('connected to master, Sharing keys...');
           try {
             /*
@@ -289,7 +291,7 @@ class Operator {
         });
       } catch (e) {
         log.error(e);
-        this.masterWSConn.removeAllListeners();
+        this.closeMasterConnection();
       }
     }
   }
@@ -343,7 +345,7 @@ class Operator {
         return false;
       }
       // wait untill there are incomming connections
-      if (this.operator.IamMaster && this.operator.serverSocket.engine.clientsCount < 1) {
+      if (this.operator.IamMaster && !operatorAuth.hasReplicationPeer(this.operator.serverSocket, config)) {
         log.warn('no incomming connections: refusing DB client auth', 'yellow');
         return false;
       }
@@ -1491,7 +1493,7 @@ class Operator {
           this.initMasterConnection();
           return;
         }
-        if (this.IamMaster && this.serverSocket.engine.clientsCount < 1 && this.status !== 'INIT') {
+        if (this.IamMaster && !operatorAuth.hasReplicationPeer(this.serverSocket, config) && this.status !== 'INIT') {
           log.info('No incomming connections, should find a new master', 'yellow');
           this.closeMasterConnection();
           await this.findMaster();
