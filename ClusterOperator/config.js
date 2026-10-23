@@ -5,6 +5,7 @@ module.exports = {
   dbUser: process.env.DB_USER || 'root',
   dbPass: process.env.DB_INIT_PASS || 'secret',
   operatorApiSecret: process.env.OPERATOR_API_SECRET,
+  operatorAuthEnforceAt: process.env.OPERATOR_AUTH_ENFORCE_AT,
   operatorTLSCert: process.env.OPERATOR_TLS_CERT,
   operatorTLSKey: process.env.OPERATOR_TLS_KEY,
   operatorTLSCA: process.env.OPERATOR_TLS_CA,

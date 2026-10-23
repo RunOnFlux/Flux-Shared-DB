@@ -13,7 +13,9 @@ const os = require('node:os');
 const { execFileSync } = require('node:child_process');
 const auth = require('../lib/operatorAuth');
 
-const settings = { dbPass: 'a-random-test-password-of-at-least-32-bytes', DBAppName: 'operator-test' };
+const settings = {
+  dbPass: 'a-random-test-password-of-at-least-32-bytes', DBAppName: 'operator-test', operatorAuthEnforceAt: '2000-01-01T00:00:00Z',
+};
 
 function load(relativePath, dependencies, transform = (source) => source) {
   const filename = path.join(__dirname, '..', relativePath);
@@ -53,6 +55,130 @@ test('key derivation is deterministic, separated by cluster and secret, and fail
     assert.throws(() => auth.deriveKey({ ...settings, operatorApiSecret }));
   }
   assert.throws(() => auth.deriveKey({ ...settings, DBAppName: '' }));
+});
+
+test('cutoff is a fixed UTC instant and invalid overrides fail closed', () => {
+  assert.equal(auth.DEFAULT_ENFORCE_AT, '2026-10-25T17:48:17Z');
+  assert.equal(auth.enforcementTime({}), Date.parse('2026-10-25T17:48:17Z'));
+  for (const operatorAuthEnforceAt of ['', null, 'tomorrow', '2026-10-25', '2026-10-25T17:48:17',
+    '2026-10-25T19:48:17+02:00', '2026-02-30T00:00:00Z', '2026-10-25T25:00:00Z']) {
+    assert.throws(() => auth.enforcementTime({ operatorAuthEnforceAt }));
+  }
+  assert.equal(auth.enforcementTime({ operatorAuthEnforceAt: '2026-10-25T17:48:17.123Z' }), Date.parse('2026-10-25T17:48:17.123Z'));
+});
+
+for (const transports of [['websocket'], ['polling']]) {
+  test(`legacy grace and live cutoff (${transports[0]}) preserve authenticated peers and block stale sockets`, { timeout: 15000 }, async (t) => {
+    const server = new Server(0);
+    await once(server.httpServer, 'listening');
+    t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+    const config = { ...settings, operatorAuthEnforceAt: auth.DEFAULT_ENFORCE_AT };
+    const cutoff = auth.enforcementTime(config);
+    let now = cutoff - 1000;
+    let wake;
+    let allowed = true;
+    let writes = 0;
+    const policy = auth.install(server, () => allowed, config, {
+      now: () => now,
+      setTimer: (callback, delay) => { wake = callback; assert.equal(delay, 1000); return { unref() {} }; },
+      clearTimer: () => {},
+    });
+    server.on('connection', (socket) => {
+      socket.on('writeQuery', (query, callback) => { writes += 1; callback(query); });
+      socket.on('getStatus', (callback) => callback({ status: 'OK' }));
+    });
+    const url = `http://127.0.0.1:${server.httpServer.address().port}`;
+    async function client(authenticated, expected = 'connect', credentials) {
+      const socket = io(url, {
+        autoConnect: false, reconnection: false, timeout: 1000, transports,
+      });
+      if (authenticated) socket.auth = auth.clientOptions(() => socket.io.engine.id, config).auth;
+      if (credentials !== undefined) socket.auth = credentials;
+      t.after(() => socket.disconnect());
+      const result = new Promise((resolve, reject) => {
+        socket.once(expected, resolve);
+        if (expected === 'connect') socket.once('connect_error', reject);
+      });
+      socket.connect();
+      await result;
+      assert.equal(socket.connected, expected === 'connect');
+      return socket;
+    }
+    for (const operatorProof of [null, '', '0'.repeat(64)]) {
+      await client(false, 'connect_error', { operatorProof });
+    }
+    allowed = false;
+    await client(false, 'connect_error');
+    await client(true, 'connect_error');
+    allowed = true;
+    const legacyActive = await client(false);
+    const legacyPassive = await client(false);
+    const authenticated = await client(true);
+    assert.equal(await legacyActive.timeout(1000).emitWithAck('writeQuery', 'legacy write'), 'legacy write');
+    assert.equal(await authenticated.timeout(1000).emitWithAck('writeQuery', 'authenticated write'), 'authenticated write');
+    now = cutoff - 1;
+    assert.equal((await legacyActive.timeout(1000).emitWithAck('getStatus')).status, 'OK');
+    const beforeCutoffBroadcast = once(legacyPassive, 'query');
+    server.emit('query', 'legacy replication');
+    assert.equal((await beforeCutoffBroadcast)[0], 'legacy replication');
+    now = cutoff;
+    // Packet guard applies before the scheduled callback is allowed to run.
+    const activeDisconnected = once(legacyActive, 'disconnect');
+    legacyActive.emit('writeQuery', 'must not run', () => assert.fail('Legacy write passed cutoff'));
+    await activeDisconnected;
+    assert.equal(writes, 2);
+    const passiveDisconnected = once(legacyPassive, 'disconnect');
+    wake();
+    await passiveDisconnected;
+    assert.equal(server.sockets.sockets.size, 1);
+    assert.equal(authenticated.connected, true);
+    const authenticatedBroadcast = once(authenticated, 'query');
+    server.emit('query', 'private replication');
+    assert.equal((await authenticatedBroadcast)[0], 'private replication');
+    assert.equal(await authenticated.timeout(1000).emitWithAck('writeQuery', 'after cutoff'), 'after cutoff');
+    await client(false, 'connect_error');
+    await client(true);
+    // Once enforced, a backwards clock adjustment must not reopen legacy access.
+    now = cutoff - 10000;
+    assert.equal(policy.isEnforced(), true);
+    await client(false, 'connect_error');
+  });
+}
+
+test('old-style servers accept new authenticated clients without a protocol downgrade', { timeout: 10000 }, async (t) => {
+  const server = new Server(0);
+  await once(server.httpServer, 'listening');
+  t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+  server.on('connection', (socket) => {
+    socket.on('getStatus', (callback) => callback({ status: 'OK' }));
+  });
+  const socket = io(`http://127.0.0.1:${server.httpServer.address().port}`, { autoConnect: false, reconnection: false });
+  socket.auth = auth.clientOptions(() => socket.io.engine.id, settings).auth;
+  t.after(() => socket.disconnect());
+  const connected = once(socket, 'connect');
+  socket.connect();
+  await connected;
+  assert.deepEqual(await socket.timeout(1000).emitWithAck('getStatus'), { status: 'OK' });
+});
+
+test('scheduled enforcement drops an idle legacy socket without receiving another packet', { timeout: 10000 }, async (t) => {
+  const server = new Server(0);
+  await once(server.httpServer, 'listening');
+  t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+  const config = { ...settings, operatorAuthEnforceAt: auth.DEFAULT_ENFORCE_AT };
+  const cutoff = auth.enforcementTime(config);
+  let now = cutoff - 50;
+  auth.install(server, () => true, config, { now: () => now });
+  const socket = io(`http://127.0.0.1:${server.httpServer.address().port}`, { autoConnect: false, reconnection: false });
+  t.after(() => socket.disconnect());
+  const connected = once(socket, 'connect');
+  socket.connect();
+  await connected;
+  const disconnected = once(socket, 'disconnect');
+  now = cutoff;
+  await disconnected;
+  assert.equal(socket.connected, false);
+  assert.equal(server.sockets.sockets.size, 0);
 });
 
 test('TLS configuration fails closed and never disables certificate verification', () => {

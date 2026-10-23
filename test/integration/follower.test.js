@@ -169,7 +169,10 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
   const transport = new SocketServer(0, { transports: ['websocket'] });
   await once(transport.httpServer, 'listening');
   t.after(() => new Promise((resolve) => { transport.close(resolve); }));
-  transport.use(operatorAuth.middleware(() => true, master.config));
+  const authSettings = { ...master.config, operatorAuthEnforceAt: operatorAuth.DEFAULT_ENFORCE_AT };
+  const cutoff = operatorAuth.enforcementTime(authSettings);
+  let authNow = cutoff - 60 * 60 * 1000;
+  const authPolicy = operatorAuth.install(transport, () => true, authSettings, { now: () => authNow });
   let sequence = 0;
   transport.on('connection', (socket) => {
     // Same ordering as server.js: master execution, echo, then acknowledgement.
@@ -192,6 +195,26 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     await once(follower.operator.masterWSConn, 'connect');
     t.after(() => follower.operator.closeMasterConnection());
   }
+  // Exercise a legacy writer before cutoff, then keep authenticated replication
+  // sockets alive while enforcing the deadline on that legacy connection.
+  const legacy = socketClient.io(`http://127.0.0.1:${transport.httpServer.address().port}`, {
+    autoConnect: false, reconnection: false, transports: ['websocket'],
+  });
+  t.after(() => legacy.disconnect());
+  const legacyConnected = once(legacy, 'connect');
+  legacy.connect();
+  await legacyConnected;
+  const legacyResult = await legacy.timeout(2000).emitWithAck('writeQuery', 'CREATE DATABASE IF NOT EXISTS auth_grace_test', false);
+  assert.equal(legacyResult.status, 'OK');
+  const legacyDisconnected = once(legacy, 'disconnect');
+  authNow = cutoff;
+  authPolicy.enforce();
+  await legacyDisconnected;
+  for (const follower of followers) assert.equal(follower.operator.masterWSConn.connected, true);
+  const legacyRejected = once(legacy, 'connect_error');
+  legacy.connect();
+  assert.match((await legacyRejected)[0].message, /authentication failed/);
+  legacy.disconnect();
   for (const [index, follower] of followers.entries()) {
     const beforeAuthFailures = follower.allocatedConnections();
     for (const createConnection of [mysql.createConnection.bind(mysql), mariadb.createConnection.bind(mariadb)]) {

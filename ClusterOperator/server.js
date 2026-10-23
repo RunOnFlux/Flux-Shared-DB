@@ -1338,6 +1338,8 @@ async function initServer() {
   try {
     await Operator.resolveAppName();
     operatorAuth.deriveKey(config); // Validate authentication configuration before opening listeners.
+    const authCutoff = operatorAuth.enforcementTime(config);
+    log.info(`Operator authentication cutoff: ${new Date(authCutoff).toISOString()}`);
     if (config.operatorApiSecret === undefined && Buffer.byteLength(config.dbPass) < 32) {
       log.warn('Legacy DB password used for operator API authentication; configure a private, randomly generated OPERATOR_API_SECRET for stronger protection.');
     }
@@ -1362,7 +1364,9 @@ async function initServer() {
     await Operator.init(dbClientInstance); // Pass DB client to Operator if needed
     const listener = tlsOptions ? https.createServer(tlsOptions) : http.createServer();
     const io = new Server(listener, { transports: ['websocket', 'polling'], maxHttpBufferSize: 4 * 1024 * 1024 });
-    io.use(operatorAuth.middleware((socket) => auth(utill.convertIP(socket.handshake.address))));
+    const operatorAuthPolicy = operatorAuth.install(io, (socket) => auth(utill.convertIP(socket.handshake.address)), config, {
+      onEnforce: () => log.info('Operator authentication enforcement active; legacy sockets disconnected.'),
+    });
     listener.listen(config.apiPort);
     Operator.setServerSocket(io);
 
@@ -1389,6 +1393,7 @@ async function initServer() {
                 status: Operator.status,
                 sequenceNumber: BackLog.sequenceNumber,
                 firstSequenceNumber: await BackLog.getFirstSequenceNumber(),
+                operatorAuth: { version: 1, required: operatorAuthPolicy.isEnforced(), enforceAt: new Date(authCutoff).toISOString() },
                 remoteIP: ip, // Use already determined IP
                 masterIP: Operator.getMaster(),
               });

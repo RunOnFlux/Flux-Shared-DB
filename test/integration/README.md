@@ -12,6 +12,10 @@ both mysql2 and MariaDB clients. It also verifies successful authentication usin
 the historical root/secret credentials and operator API key derivation from the
 default DB password.
 
+The test also accepts a legacy writer during the authentication grace period,
+advances the cutoff clock, disconnects/rejects that legacy peer, and verifies
+that authenticated follower connections remain open and continue replicating.
+
 The test delays follower database requests and checks database setup, a
 nine-statement import, connection reuse, prepared writes, duplicate-key errors,
 and replicated data on all three nodes. Unit tests separately cover buffered

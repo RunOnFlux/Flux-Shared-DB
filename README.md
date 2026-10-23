@@ -113,7 +113,11 @@ Regression coverage includes malformed and replayed handshakes, commands pipelin
 
 ### Operator API authentication
 
-Every operator Socket.IO connection now requires a session-bound HMAC proof in addition to an allowed source IP. This includes discovery, election, replication, key exchange, and session synchronization. `WHITELIST` never bypasses authentication, and unauthenticated application nodes cannot subscribe to operator broadcasts.
+Updated operator clients always send a session-bound HMAC proof. This release accepts legacy connections without proofs from allowed operator IPs until **2026-10-25 at 17:48:17 UTC**, then requires authentication for discovery, election, replication, key exchange, and session synchronization. This is a fixed release cutoff, not 48 hours after each restart. Invalid proofs and unauthorized IPs are rejected even during the grace period. The previous shared-IP exposure remains during that period.
+
+At the cutoff, already-connected unauthenticated peers are disconnected, including passive broadcast subscribers; incoming legacy commands are also blocked at dispatch. Authenticated connections remain open. Nodes starting after the cutoff enforce authentication immediately. Once enforcement is observed, a running process never reopens legacy access because of a backwards clock adjustment. Startup logs the cutoff, and `getStatus` reports `operatorAuth.version`, `operatorAuth.required`, and `operatorAuth.enforceAt`.
+
+To override the release cutoff, set the same `OPERATOR_AUTH_ENFORCE_AT` on every replica using an ISO UTC timestamp such as `2026-10-25T17:48:17Z`. A past timestamp enforces immediately; invalid or empty values prevent startup. Keep node clocks synchronized. Old binaries cannot enforce the cutoff themselves, so complete their replacement before it. TLS remains a separate setting; keep the transport consistent during the mixed-version rollout.
 
 Set the same randomly generated `OPERATOR_API_SECRET` on every replica (at least 32 bytes; for example, generate one with `openssl rand -hex 32`). If it is unset, the operator derives its authentication key from the effective DB password. For backward compatibility, the historical default `secret` and existing short DB passwords remain accepted, and startup logs a warning for passwords shorter than 32 bytes. The public default produces a predictable API key and does not protect against another app on an allowed node; configure a private password or dedicated API secret for that protection. An explicitly empty `OPERATOR_API_SECRET` is rejected rather than falling back to the DB password.
 
@@ -121,7 +125,7 @@ The key is derived with HKDF-SHA256 using `DB_APPNAME` and a versioned operator 
 
 For encryption and protection against active network interception, configure `OPERATOR_TLS_CERT` and `OPERATOR_TLS_KEY` with PEM file paths on every replica. Clients then use HTTPS and verify server certificates. For a private CA, also set `OPERATOR_TLS_CA` to its PEM file. Certificates must cover the peer IPs, or set `OPERATOR_TLS_SERVERNAME` to a shared DNS identity covered by the certificates. The existing `SSL` option controls the UI separately. Without operator TLS, traffic remains readable and susceptible to active relaying/tampering despite replay-resistant connection authentication.
 
-Upgrade all replicas together: older clients without authentication will be rejected, and mixed-version clusters cannot replicate reliably. Rotate an independent `OPERATOR_API_SECRET` by restarting all replicas with the same new value. When using the DB password fallback, changing `DB_INIT_PASS` also changes API authentication, but does not change an existing DB engine password; coordinate the actual DB password change separately. A password-derived API key also gives DB password holders operator privileges; use the dedicated secret when those permissions should differ.
+Complete the rolling upgrade before the cutoff: old clients can communicate with updated servers during the grace period, and updated clients can communicate with old servers. After the cutoff, updated servers reject old clients. This grace period does not relax the separate MySQL username/password or private-network checks. Rotate an independent `OPERATOR_API_SECRET` by restarting all replicas with the same new value. When using the DB password fallback, changing `DB_INIT_PASS` also changes API authentication, but does not change an existing DB engine password; coordinate the actual DB password change separately. A password-derived API key also gives DB password holders operator privileges; use the dedicated secret when those permissions should differ.
 
 ### Environment Variables
 | Variable | Description | Default |
@@ -129,6 +133,7 @@ Upgrade all replicas together: older clients without authentication will be reje
 |`DB_COMPONENT_NAME` | Hostname for the DB engine component. Required for the DB-less image; leave unset for bundled images (defaults to `localhost`). | `localhost` |
 |`INIT_DB_NAME` | Initial database name created immediately after initialization | Required |
 |`DB_INIT_PASS` | Root password for the DB engine | `secret` |
+|`OPERATOR_AUTH_ENFORCE_AT` | Shared UTC cutoff for requiring operator authentication; ISO datetime ending in `Z` | `2026-10-25T17:48:17Z` |
 |`OPERATOR_API_SECRET` | Shared random operator authentication secret, minimum 32 bytes | Falls back to `DB_INIT_PASS` |
 |`DB_APPNAME` | Cluster identity for operator key derivation | Resolved from Flux hostinfo |
 |`OPERATOR_TLS_CERT` / `OPERATOR_TLS_KEY` | PEM certificate and private key file paths for the operator API; set both | Unset (HTTP) |
