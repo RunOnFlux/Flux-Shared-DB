@@ -105,6 +105,8 @@ Missing or empty `DB_USER` and `DB_INIT_PASS` retain the historical defaults `ro
 
 The MySQL emulator requires the configured `DB_USER` and the effective DB password (initialized from `DB_INIT_PASS`), in addition to its existing IP and cluster-readiness checks. Whitelisted and application IPs must authenticate too. It verifies the `mysql_native_password` challenge response against the fresh per-connection salt before allocating a pooled DB connection. Wrong or omitted passwords, incorrect usernames, malformed handshakes, and unsupported authentication protocols receive error 1045 / SQLSTATE 28000 and the connection closes.
 
+Automatic local-network access is limited to valid RFC1918 IPv4 addresses: `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`. Public addresses (including other `172.x` ranges) require an explicit `WHITELIST` entry or a discovered application IP match. Local access still requires valid credentials and follows `AUTH_MASTER_ONLY`; loopback access uses the default `127.0.0.1` whitelist entry.
+
 This interface exposes a single configured account backed by the existing privileged connection pool; it does not implement separate MySQL user accounts or per-user grants. The operator API secret is separate and is not a MySQL login password. The emulator continues to use its existing native-password wire protocol without MySQL TLS support.
 
 Regression coverage includes malformed and replayed handshakes, commands pipelined after failed authentication, and username rejection on trusted IPs. The [three-node integration test](test/integration/README.md) also checks correct, incorrect, and missing credentials with real mysql2 and MariaDB clients, then verifies authenticated replication.

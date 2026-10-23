@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const { EventEmitter } = require('node:events');
 const { Duplex } = require('node:stream');
 const mysql = require('mysql2/promise');
@@ -52,6 +53,7 @@ function fixture(options = {}, operatorDependencies = {}) {
     crypto,
   });
   const operator = loadModule('ClusterOperator/Operator.js', {
+    net,
     '../lib/mysqlConstants': constants,
     '../lib/operatorAuth': { peerURL: (ip, port) => `http://${ip}:${port}`, clientOptions: () => ({}) },
     '../lib/ConnectionPool': pool,
@@ -245,7 +247,7 @@ test('operator requires the configured username even for whitelisted and applica
   const config = { dbUser: 'root', whiteListedIps: '192.0.2.10', authMasterOnly: false };
   const { operator } = fixture({}, { './config': config });
   const context = {
-    status: 'OK', operator: { ghosted: false, IamMaster: false }, authorizedApp: '192.0.2.10', appIPList: ['192.0.2.10'],
+    status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: ['192.0.2.10'],
   };
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
   assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
@@ -253,6 +255,55 @@ test('operator requires the configured username even for whitelisted and applica
   assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '203.0.113.10' }), false);
+});
+
+test('automatic local-network authorization accepts only valid RFC1918 IPv4 addresses', () => {
+  const config = { dbUser: 'root', whiteListedIps: '', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  function authorize(remoteIP, username = 'root') {
+    // Match production: every connection gets its own server context.
+    return operator.handleAuthorize.call({
+      status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [], authorizedApp: null,
+    }, { remoteIP, username });
+  }
+  for (const ip of [
+    '10.0.0.0', '10.0.0.1', '10.255.255.255',
+    '172.16.0.0', '172.17.0.2', '172.31.255.255',
+    '192.168.0.0', '192.168.1.5', '192.168.255.255',
+  ]) {
+    assert.equal(authorize(ip), true, ip);
+    assert.equal(authorize(ip, 'wrong-user'), false, ip);
+  }
+  for (const ip of [
+    '9.255.255.255', '11.0.0.0', '172.0.0.1', '172.15.255.255',
+    '172.32.0.0', '172.217.0.1', '172.255.255.255',
+    '192.167.255.255', '192.169.0.0', '8.8.8.8', '100.64.0.1',
+    '127.0.0.1', '169.254.1.1', '::1', 'fc00::1',
+    '172', '172.evil', '172.16.0.256', '172.016.0.1', '172.16.0.1.extra', '', undefined,
+  ]) assert.equal(authorize(ip), false, String(ip));
+  config.authMasterOnly = true;
+  assert.equal(authorize('172.17.0.2'), false);
+  const masterContext = {
+    status: 'OK', operator: { ghosted: false, IamMaster: true, serverSocket: { engine: { clientsCount: 1 } } }, appIPList: [],
+  };
+  assert.equal(operator.handleAuthorize.call(masterContext, { username: 'root', remoteIP: '172.17.0.2' }), true);
+  masterContext.operator.ghosted = true;
+  assert.equal(operator.handleAuthorize.call(masterContext, { username: 'root', remoteIP: '172.17.0.2' }), false);
+});
+
+test('public 172 addresses require explicit whitelist or discovered application membership', () => {
+  const ip = '172.32.10.20';
+  const config = { dbUser: 'root', whiteListedIps: '', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  const context = { status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [] };
+  const params = { username: 'root', remoteIP: ip };
+  assert.equal(operator.handleAuthorize.call(context, params), false);
+  config.whiteListedIps = ip;
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  config.whiteListedIps = '';
+  context.appIPList = [ip];
+  assert.equal(operator.handleAuthorize.call(context, params), true);
+  assert.equal(operator.handleAuthorize.call(context, { ...params, username: 'wrong-user' }), false);
 });
 
 test('missing or empty DB environment values retain root/secret and reject blank client passwords', async () => {
@@ -268,7 +319,6 @@ test('missing or empty DB environment values retain root/secret and reject blank
       const { server, socket, operator } = fixture({ getPassword: () => config.dbPass }, { './config': config });
       server.status = 'OK';
       server.operator.ghosted = false;
-      server.authorizedApp = null;
       server.appIPList = [];
       config.whiteListedIps = '192.0.2.10';
       server.onAuthorize = operator.handleAuthorize;

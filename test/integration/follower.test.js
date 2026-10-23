@@ -95,6 +95,7 @@ async function nodeInstance(port, t) {
   backlog.BLClient = backlogConn;
   backlog.UserDBClient = user;
   const operator = load('ClusterOperator/Operator.js', {
+    net,
     'socket.io-client': socketClient,
     '../lib/operatorAuth': {
       peerURL: (ip, apiPort) => operatorAuth.peerURL(ip, apiPort, config),
@@ -125,7 +126,6 @@ async function nodeInstance(port, t) {
       socket,
       getPassword: () => 'secret',
       onAuthorize: operator.handleAuthorize,
-      authorizedApp: null,
       appIPList: [],
       onCommand: operator.handleCommand,
       onStmtResult: operator.handleStmtResult,
