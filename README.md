@@ -99,11 +99,21 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### MySQL interface authentication
+
+Missing or empty `DB_USER` and `DB_INIT_PASS` retain the historical defaults `root` and `secret`; existing deployments using those credentials continue working without new environment variables. Blank client passwords are still rejected.
+
+The MySQL emulator requires the configured `DB_USER` and the effective DB password (initialized from `DB_INIT_PASS`), in addition to its existing IP and cluster-readiness checks. Whitelisted and application IPs must authenticate too. It verifies the `mysql_native_password` challenge response against the fresh per-connection salt before allocating a pooled DB connection. Wrong or omitted passwords, incorrect usernames, malformed handshakes, and unsupported authentication protocols receive error 1045 / SQLSTATE 28000 and the connection closes.
+
+This interface exposes a single configured account backed by the existing privileged connection pool; it does not implement separate MySQL user accounts or per-user grants. The operator API secret is separate and is not a MySQL login password. The emulator continues to use its existing native-password wire protocol without MySQL TLS support.
+
+Regression coverage includes malformed and replayed handshakes, commands pipelined after failed authentication, and username rejection on trusted IPs. The [three-node integration test](test/integration/README.md) also checks correct, incorrect, and missing credentials with real mysql2 and MariaDB clients, then verifies authenticated replication.
+
 ### Operator API authentication
 
 Every operator Socket.IO connection now requires a session-bound HMAC proof in addition to an allowed source IP. This includes discovery, election, replication, key exchange, and session synchronization. `WHITELIST` never bypasses authentication, and unauthenticated application nodes cannot subscribe to operator broadcasts.
 
-Set the same randomly generated `OPERATOR_API_SECRET` on every replica (at least 32 bytes; for example, generate one with `openssl rand -hex 32`). If it is unset, the operator derives its authentication key from `DB_INIT_PASS`, which must then meet the same minimum length. Empty, short, and default `secret` credentials cannot start the API. An explicitly empty `OPERATOR_API_SECRET` is rejected rather than falling back to the DB password.
+Set the same randomly generated `OPERATOR_API_SECRET` on every replica (at least 32 bytes; for example, generate one with `openssl rand -hex 32`). If it is unset, the operator derives its authentication key from the effective DB password. For backward compatibility, the historical default `secret` and existing short DB passwords remain accepted, and startup logs a warning for passwords shorter than 32 bytes. The public default produces a predictable API key and does not protect against another app on an allowed node; configure a private password or dedicated API secret for that protection. An explicitly empty `OPERATOR_API_SECRET` is rejected rather than falling back to the DB password.
 
 The key is derived with HKDF-SHA256 using `DB_APPNAME` and a versioned operator authentication purpose. `DB_APPNAME` is resolved from Flux hostinfo when unset; set it explicitly for local deployments. All replicas must use the same app name. Neither the password nor the derived key is transmitted: the proof authenticates the fresh Engine.IO session ID, so a captured proof cannot be reused on a later connection.
 

@@ -47,8 +47,11 @@ test('key derivation is deterministic, separated by cluster and secret, and fail
   assert.notDeepEqual(auth.deriveKey(settings), auth.deriveKey({ ...settings, dbPass: `${settings.dbPass}!` }));
   const dedicated = { ...settings, operatorApiSecret: 'an-independent-random-secret-at-least-32-bytes' };
   assert.deepEqual(auth.deriveKey(dedicated), auth.deriveKey({ ...dedicated, dbPass: 'changed' }));
-  for (const dbPass of [undefined, '', 'secret', 'short']) assert.throws(() => auth.deriveKey({ ...settings, dbPass }));
-  assert.throws(() => auth.deriveKey({ ...settings, operatorApiSecret: '' }));
+  for (const dbPass of [undefined, '']) assert.throws(() => auth.deriveKey({ ...settings, dbPass }));
+  for (const dbPass of ['secret', 'short']) assert.equal(auth.deriveKey({ ...settings, dbPass }).length, 32);
+  for (const operatorApiSecret of ['', 'secret', 'short']) {
+    assert.throws(() => auth.deriveKey({ ...settings, operatorApiSecret }));
+  }
   assert.throws(() => auth.deriveKey({ ...settings, DBAppName: '' }));
 });
 
@@ -109,89 +112,93 @@ test('operator TLS accepts a trusted identity and rejects untrusted or mismatche
   }
 });
 
-test('production server gates writes, sessions and secrets; discovery clients authenticate', { timeout: 15000 }, async (t) => {
-  const config = { ...settings, apiPort: 0, whiteListedIps: '127.0.0.1' };
-  const log = Object.fromEntries(['info', 'debug', 'warn', 'error'].map((level) => [level, () => {}]));
-  let server;
-  let writes = 0;
-  let sessions = 0;
-  const operator = {
-    OpNodes: [],
-    AppNodes: [],
-    status: 'OK',
-    IamMaster: true,
-    myIP: '127.0.0.1',
-    keys: {},
-    resolveAppName: async () => {},
-    init: async () => {},
-    findMaster: async () => {},
-    getMaster: () => '127.0.0.1',
-    setServerSocket: (ioServer) => { server = ioServer; },
-  };
-  const init = load('ClusterOperator/server.js', {
-    'socket.io': { Server },
-    http,
-    'memory-cache': { put: () => {} },
-    './config': config,
-    './Operator': operator,
-    '../lib/operatorAuth': configuredAuth(config),
-    './Security': {
-      init: () => {},
-      publicEncrypt: () => 'encrypted',
-      getCommAESKey: () => 'private',
-      getCommAESIv: () => 'iv',
-      getKey: () => 'password',
-      getIV: () => 'iv',
-      encryptComm: () => 'encrypted',
-    },
-    './IdService': { init: () => {}, addNewSession: () => { sessions += 1; } },
-    './Backlog': {
-      pushQuery: async () => { writes += 1; return [{ affectedRows: 1 }, 1, 1]; },
-      getFirstSequenceNumber: async () => 1,
-      getAllKeys: async () => ({}),
-    },
-    '../lib/utill': { convertIP: () => '127.0.0.1' },
-    '../lib/log': log,
-  }, (source) => source.replace(/initServer\(\);\s*$/, 'startUI = async () => {}; module.exports = initServer;'));
-  await init();
-  t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
-  if (!server.httpServer.listening) await once(server.httpServer, 'listening');
-  const { port } = server.httpServer.address();
-  const unauthorized = io(`http://127.0.0.1:${port}`, { autoConnect: false, reconnection: false });
-  t.after(() => unauthorized.disconnect());
-  let responses = 0;
-  for (const [event, args] of [
-    ['writeQuery', ['DROP DATABASE example', 1]], ['shareKeys', ['attacker-public-key']],
-    ['getKeys', []], ['userSession', ['add', 'forged-session', 'value']],
-  ]) unauthorized.emit(event, ...args, () => { responses += 1; });
-  const denied = once(unauthorized, 'connect_error');
-  unauthorized.connect();
-  assert.match((await denied)[0].message, /authentication failed/);
-  unauthorized.disconnect();
-  assert.equal(writes, 0);
-  assert.equal(sessions, 0);
-  assert.equal(responses, 0);
-  assert.equal(server.sockets.sockets.size, 0);
+for (const [label, dbPass] of [['configured', settings.dbPass], ['legacy defaults', 'secret']]) {
+  test(`production server (${label}) gates writes, sessions and secrets; discovery clients authenticate`, { timeout: 15000 }, async (t) => {
+    const config = {
+      ...settings, dbPass, apiPort: 0, whiteListedIps: '127.0.0.1',
+    };
+    const log = Object.fromEntries(['info', 'debug', 'warn', 'error'].map((level) => [level, () => {}]));
+    let server;
+    let writes = 0;
+    let sessions = 0;
+    const operator = {
+      OpNodes: [],
+      AppNodes: [],
+      status: 'OK',
+      IamMaster: true,
+      myIP: '127.0.0.1',
+      keys: {},
+      resolveAppName: async () => {},
+      init: async () => {},
+      findMaster: async () => {},
+      getMaster: () => '127.0.0.1',
+      setServerSocket: (ioServer) => { server = ioServer; },
+    };
+    const init = load('ClusterOperator/server.js', {
+      'socket.io': { Server },
+      http,
+      'memory-cache': { put: () => {} },
+      './config': config,
+      './Operator': operator,
+      '../lib/operatorAuth': configuredAuth(config),
+      './Security': {
+        init: () => {},
+        publicEncrypt: () => 'encrypted',
+        getCommAESKey: () => 'private',
+        getCommAESIv: () => 'iv',
+        getKey: () => 'password',
+        getIV: () => 'iv',
+        encryptComm: () => 'encrypted',
+      },
+      './IdService': { init: () => {}, addNewSession: () => { sessions += 1; } },
+      './Backlog': {
+        pushQuery: async () => { writes += 1; return [{ affectedRows: 1 }, 1, 1]; },
+        getFirstSequenceNumber: async () => 1,
+        getAllKeys: async () => ({}),
+      },
+      '../lib/utill': { convertIP: () => '127.0.0.1' },
+      '../lib/log': log,
+    }, (source) => source.replace(/initServer\(\);\s*$/, 'startUI = async () => {}; module.exports = initServer;'));
+    await init();
+    t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+    if (!server.httpServer.listening) await once(server.httpServer, 'listening');
+    const { port } = server.httpServer.address();
+    const unauthorized = io(`http://127.0.0.1:${port}`, { autoConnect: false, reconnection: false });
+    t.after(() => unauthorized.disconnect());
+    let responses = 0;
+    for (const [event, args] of [
+      ['writeQuery', ['DROP DATABASE example', 1]], ['shareKeys', ['attacker-public-key']],
+      ['getKeys', []], ['userSession', ['add', 'forged-session', 'value']],
+    ]) unauthorized.emit(event, ...args, () => { responses += 1; });
+    const denied = once(unauthorized, 'connect_error');
+    unauthorized.connect();
+    assert.match((await denied)[0].message, /authentication failed/);
+    unauthorized.disconnect();
+    assert.equal(writes, 0);
+    assert.equal(sessions, 0);
+    assert.equal(responses, 0);
+    assert.equal(server.sockets.sockets.size, 0);
 
-  const discovery = load('lib/fluxAPI.js', {
-    https, 'socket.io-client': { io }, './log': log, './operatorAuth': configuredAuth(config),
+    const discovery = load('lib/fluxAPI.js', {
+      https, 'socket.io-client': { io }, './log': log, './operatorAuth': configuredAuth(config),
+    });
+    assert.equal(await discovery.getMaster('127.0.0.1', port), '127.0.0.1');
+    assert.equal(await discovery.getMyIp('127.0.0.1', port), '127.0.0.1');
+    assert.equal((await discovery.getStatus('127.0.0.1', port)).status, 'OK');
+    assert.equal((await discovery.resetMaster('127.0.0.1', port)).status, 'OK');
+
+    const socket = io(`http://127.0.0.1:${port}`, { autoConnect: false, reconnection: false });
+    socket.auth = auth.clientOptions(() => socket.io.engine.id, config).auth;
+    t.after(() => socket.disconnect());
+    const connected = once(socket, 'connect');
+    socket.connect();
+    await connected;
+    assert.equal((await socket.timeout(1000).emitWithAck('writeQuery', 'INSERT INTO example VALUES (1)', 1)).status, 'OK');
+    assert.equal((await socket.timeout(1000).emitWithAck('userSession', 'add', 'session', 'value')).status, 'OK');
+    assert.equal(writes, 1);
+    assert.equal(sessions, 1);
   });
-  assert.equal(await discovery.getMaster('127.0.0.1', port), '127.0.0.1');
-  assert.equal(await discovery.getMyIp('127.0.0.1', port), '127.0.0.1');
-  assert.equal((await discovery.getStatus('127.0.0.1', port)).status, 'OK');
-  assert.equal((await discovery.resetMaster('127.0.0.1', port)).status, 'OK');
-
-  const socket = io(`http://127.0.0.1:${port}`, { autoConnect: false, reconnection: false });
-  socket.auth = auth.clientOptions(() => socket.io.engine.id, config).auth;
-  t.after(() => socket.disconnect());
-  const connected = once(socket, 'connect');
-  socket.connect();
-  await connected;
-  assert.equal((await socket.timeout(1000).emitWithAck('writeQuery', 'INSERT INTO example VALUES (1)', 1)).status, 'OK');
-  assert.equal((await socket.timeout(1000).emitWithAck('userSession', 'add', 'session', 'value')).status, 'OK');
-  assert.equal(writes, 1);
-  assert.equal(sessions, 1);
-});
+}
 
 test('real Socket.IO rejects same-IP unauthenticated clients and replays before handlers or broadcasts', { timeout: 15000 }, async (t) => {
   const server = new Server(0);

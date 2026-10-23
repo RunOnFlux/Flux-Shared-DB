@@ -299,6 +299,7 @@ class Operator {
         net.createServer((so) => {
           mySQLServer.createServer({
             socket: so,
+            getPassword: () => Security.getKey(),
             onAuthorize: this.handleAuthorize,
             onCommand: this.handleCommand,
             onStmtResult: this.handleStmtResult,
@@ -344,6 +345,7 @@ class Operator {
       const remoteIp = param.remoteIP;
       if (param.username !== config.dbUser) {
         log.warn(`wrong db username from ${remoteIp}:${param.username}`, 'yellow');
+        return false;
       }
       if (this.authorizedApp === null && remoteIp.startsWith('172')) this.authorizedApp = remoteIp;
       const whiteList = config.whiteListedIps.split(',');

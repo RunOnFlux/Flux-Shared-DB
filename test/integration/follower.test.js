@@ -10,6 +10,9 @@ const { performance } = require('node:perf_hooks');
 const { once } = require('node:events');
 const timer = require('node:timers/promises');
 const mysql = require('mysql2/promise');
+// The legacy ESLint resolver does not understand this package's CJS exports.
+// eslint-disable-next-line import/no-unresolved
+const mariadb = require('mariadb');
 const { Server: SocketServer } = require('socket.io');
 const socketClient = require('socket.io-client');
 const { identify } = require('sql-query-identifier');
@@ -34,12 +37,13 @@ function load(relativePath, dependencies) {
 async function nodeInstance(port, t) {
   const config = {
     dbHost: '127.0.0.1',
-    dbPass: 'integration-secret-with-at-least-32-bytes',
+    dbPass: 'secret',
     DBAppName: 'integration-test',
     dbPort: port,
     dbType: 'mysql',
     clientType: 'mariadb',
     dbUser: 'root',
+    whiteListedIps: '127.0.0.1',
     dbBacklog: 'flux_backlog',
     dbBacklogCollection: 'backlog',
     containerDataPath: '',
@@ -50,7 +54,7 @@ async function nodeInstance(port, t) {
     'mysql2/promise': mysql,
     net,
     './config': config,
-    './Security': { getKey: () => 'integration-secret' },
+    './Security': { getKey: () => 'secret' },
     '../lib/log': log,
   });
   const connections = [];
@@ -119,7 +123,10 @@ async function nodeInstance(port, t) {
   const listener = net.createServer((socket) => {
     emulator.createServer({
       socket,
-      onAuthorize: () => true,
+      getPassword: () => 'secret',
+      onAuthorize: operator.handleAuthorize,
+      authorizedApp: null,
+      appIPList: [],
       onCommand: operator.handleCommand,
       onStmtResult: operator.handleStmtResult,
       operator,
@@ -133,7 +140,13 @@ async function nodeInstance(port, t) {
   await once(listener, 'listening');
   t.after(() => new Promise((resolve) => { listener.close(resolve); }));
   return {
-    operator, backlog, user, config, messages, port: listener.address().port,
+    operator,
+    backlog,
+    user,
+    config,
+    messages,
+    port: listener.address().port,
+    allocatedConnections: () => poolConnections.length,
   };
 }
 
@@ -180,8 +193,29 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     t.after(() => follower.operator.closeMasterConnection());
   }
   for (const [index, follower] of followers.entries()) {
+    const beforeAuthFailures = follower.allocatedConnections();
+    for (const createConnection of [mysql.createConnection.bind(mysql), mariadb.createConnection.bind(mariadb)]) {
+      for (const credentials of [
+        { user: 'root', password: 'wrong-password' },
+        { user: 'root' },
+        { user: 'wrong-user', password: 'secret' },
+      ]) {
+        await assert.rejects(
+          createConnection({ host: '127.0.0.1', port: follower.port, ...credentials }),
+          (error) => error.errno === 1045 && error.sqlState === '28000',
+        );
+      }
+    }
+    assert.equal(follower.allocatedConnections(), beforeAuthFailures);
+    const mariaClient = await mariadb.createConnection({
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret',
+    }).catch((error) => {
+      throw new Error(`${error.message}\nOperator logs:\n${follower.messages.slice(-12).join('\n')}`);
+    });
+    await mariaClient.ping();
+    await mariaClient.end();
     const client = await mysql.createConnection({
-      host: '127.0.0.1', port: follower.port, user: 'root', multipleStatements: true,
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret', multipleStatements: true,
     });
     clients.push(client);
     const errors = [];

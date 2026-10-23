@@ -1337,7 +1337,10 @@ async function validate(ip) {
 async function initServer() {
   try {
     await Operator.resolveAppName();
-    operatorAuth.deriveKey(config); // Fail closed before opening any listeners.
+    operatorAuth.deriveKey(config); // Validate authentication configuration before opening listeners.
+    if (config.operatorApiSecret === undefined && Buffer.byteLength(config.dbPass) < 32) {
+      log.warn('Legacy DB password used for operator API authentication; configure a private, randomly generated OPERATOR_API_SECRET for stronger protection.');
+    }
     const tlsOptions = operatorAuth.serverTLSOptions();
     Security.init(); // Initialize security components
     /*

@@ -1,5 +1,5 @@
 /* eslint-disable no-underscore-dangle */
-/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-restricted-syntax, no-bitwise */
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
@@ -10,7 +10,11 @@ const { EventEmitter } = require('node:events');
 const { Duplex } = require('node:stream');
 const mysql = require('mysql2/promise');
 const { identify } = require('sql-query-identifier');
+const { token } = require('mysql/lib/protocol/Auth');
 const constants = require('../lib/mysqlConstants');
+
+const TEST_PASSWORD = 'test-password-ä-🔐';
+const TEST_SALT = Buffer.from('01234567890123456789');
 
 // Isolate protocol handling from the real database, operator services and log files.
 function loadModule(relativePath, dependencies) {
@@ -62,6 +66,8 @@ function fixture(options = {}, operatorDependencies = {}) {
   const server = emulator.createServer({
     socket,
     onAuthorize: async () => true,
+    getPassword: () => TEST_PASSWORD,
+    salt: TEST_SALT,
     onCommand: operator.handleCommand,
     onStmtResult: operator.handleStmtResult,
     operator: { status: 'OK', sessionQueries: {} },
@@ -85,8 +91,11 @@ async function receive(server, payload, sequence = 0) {
   await server._packetQueue;
 }
 
-function hello() {
-  return Buffer.concat([Buffer.alloc(32), Buffer.from('client\0\0')]);
+function hello(username = 'client', password = TEST_PASSWORD) {
+  const header = Buffer.alloc(32);
+  header.writeUInt32LE(constants.CLIENT_PROTOCOL_41 | constants.CLIENT_SECURE_CONNECTION);
+  const response = token(password, TEST_SALT);
+  return Buffer.concat([header, Buffer.from(`${username}\0`), Buffer.from([response.length]), response]);
 }
 
 test('unknown commands produce a contextual error log and ERR response', async () => {
@@ -149,7 +158,7 @@ test('missing packet handlers and framing failures are no longer silent', async 
   assert.ok(logs.some(({ message }) => /receiving data failed.*bad data/.test(message)));
 });
 
-test('authorization rejection and allocation failure are logged before destruction', async () => {
+test('authorization rejection and allocation failure are logged before closing', async () => {
   for (const allocationFailure of [false, true]) {
     const {
       server, logs, pool, socket,
@@ -159,9 +168,116 @@ test('authorization rejection and allocation failure are logged before destructi
     pool.getFreeConnection = async () => { throw new Error('pool exhausted'); };
     // eslint-disable-next-line no-await-in-loop
     await receive(server, hello(), 1);
-    assert.equal(socket.destroyed, true);
+    assert.equal(socket.ended, true);
     assert.ok(logs.some(({ message }) => /command=HANDSHAKE.*authorization or connection allocation failed/.test(message)));
     assert.ok(logs.some(({ message }) => message.includes(allocationFailure ? 'pool exhausted' : 'Not Authorized')));
+  }
+});
+
+test('bad, missing, replayed and malformed authentication cannot allocate a connection or run queued commands', async () => {
+  const valid = hello();
+  const wrong = Buffer.from(valid);
+  wrong[wrong.length - 1] ^= 1;
+  const unsupported = Buffer.from(valid);
+  unsupported.writeUInt32LE(constants.CLIENT_PROTOCOL_41);
+  const unterminated = Buffer.concat([valid.subarray(0, 32), Buffer.from('client')]);
+  const truncated = valid.subarray(0, valid.length - 1);
+  const missing = Buffer.concat([valid.subarray(0, 32), Buffer.from('client\0\0')]);
+  const missingDB = Buffer.from(valid);
+  missingDB.writeUInt32LE(missingDB.readUInt32LE(0) | constants.CLIENT_CONNECT_WITH_DB);
+  const wrongPlugin = Buffer.concat([valid, Buffer.from('caching_sha2_password\0')]);
+  wrongPlugin.writeUInt32LE(wrongPlugin.readUInt32LE(0) | (1 << 19));
+  const oversized = Buffer.from(valid);
+  oversized[39] = 21;
+  for (const [packet, options] of [
+    [wrong, {}], [missing, {}], [unterminated, {}], [truncated, {}], [missingDB, {}],
+    [Buffer.alloc(0), {}], [Buffer.alloc(31), {}], [unsupported, {}],
+    [valid, { salt: Buffer.from('different-salt-123456') }],
+    [valid, { getPassword: undefined }], [valid, { getPassword: () => '' }],
+    [wrongPlugin, {}], [oversized, {}],
+  ]) {
+    let allocations = 0;
+    let authorizations = 0;
+    let commands = 0;
+    const {
+      server, socket, pool, logs,
+    } = fixture({
+      onAuthorize: () => { authorizations += 1; return true; },
+      onCommand: () => { commands += 1; },
+      ...options,
+    });
+    pool.getFreeConnection = async () => { allocations += 1; return 7; };
+    server.connId = null;
+    server.onPacket = server.helloPacketHandler;
+    // Queue a command immediately after the auth packet, before verification.
+    const header = Buffer.alloc(4);
+    header.writeUIntLE(packet.length, 0, 3);
+    header[3] = 1;
+    server.handleData(Buffer.concat([header, packet, Buffer.from([1, 0, 0, 0, constants.COM_PING])]));
+    // eslint-disable-next-line no-await-in-loop
+    await server._packetQueue;
+    assert.equal(socket.ended, true);
+    assert.equal(allocations, 0);
+    assert.equal(authorizations, 0);
+    assert.equal(commands, 0);
+    assert.equal(socket.writes.length, 1);
+    assert.equal(socket.writes[0][3], 2);
+    assert.equal(socket.writes[0][4], 0xff);
+    assert.equal(socket.writes[0].readUInt16LE(5), 1045);
+    assert.equal(socket.writes[0].toString('ascii', 8, 13), '28000');
+    assert.ok(logs.every(({ message }) => !message.includes(TEST_PASSWORD)));
+  }
+});
+
+test('native-password plugin handshakes preserve the username and optional database', async () => {
+  let received;
+  const { server, socket } = fixture({ onAuthorize: (params) => { received = params; return true; } });
+  const packet = Buffer.concat([hello(), Buffer.from('example_db\0mysql_native_password\0')]);
+  packet.writeUInt32LE(packet.readUInt32LE(0) | constants.CLIENT_CONNECT_WITH_DB | (1 << 19) | (1 << 21));
+  server.onPacket = server.helloPacketHandler;
+  await receive(server, packet, 1);
+  assert.equal(received.username, 'client');
+  assert.equal(received.database, 'example_db');
+  assert.equal(socket.writes[0][4], 0);
+});
+
+test('operator requires the configured username even for whitelisted and application IPs', () => {
+  const config = { dbUser: 'root', whiteListedIps: '192.0.2.10', authMasterOnly: false };
+  const { operator } = fixture({}, { './config': config });
+  const context = {
+    status: 'OK', operator: { ghosted: false, IamMaster: false }, authorizedApp: '192.0.2.10', appIPList: ['192.0.2.10'],
+  };
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
+  config.whiteListedIps = '';
+  assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '203.0.113.10' }), false);
+});
+
+test('missing or empty DB environment values retain root/secret and reject blank client passwords', async () => {
+  for (const env of [{}, { DB_USER: '', DB_INIT_PASS: '' }]) {
+    const module = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../ClusterOperator/config.js'), 'utf8'), {
+      module, process: { env },
+    });
+    const config = module.exports;
+    assert.equal(config.dbUser, 'root');
+    assert.equal(config.dbPass, 'secret');
+    for (const password of ['secret', '']) {
+      const { server, socket, operator } = fixture({ getPassword: () => config.dbPass }, { './config': config });
+      server.status = 'OK';
+      server.operator.ghosted = false;
+      server.authorizedApp = null;
+      server.appIPList = [];
+      config.whiteListedIps = '192.0.2.10';
+      server.onAuthorize = operator.handleAuthorize;
+      server.onPacket = server.helloPacketHandler;
+      // eslint-disable-next-line no-await-in-loop
+      await receive(server, hello('root', password), 1);
+      assert.equal(socket.writes[0][4], password ? 0 : 0xff);
+      assert.equal(Boolean(socket.ended), !password);
+    }
   }
 });
 
@@ -268,7 +384,9 @@ async function connectedClient(t, options = {}, operatorDependencies = {}) {
   });
   socket.write = (data) => { socket.writes.push(Buffer.from(data)); return stream.push(Buffer.from(data)); };
   socket.end = () => stream.push(null);
-  const connecting = mysql.createConnection({ stream, user: 'client', multipleStatements: true });
+  const connecting = mysql.createConnection({
+    stream, user: 'client', password: TEST_PASSWORD, multipleStatements: true,
+  });
   server.onPacket = server.helloPacketHandler;
   server.sequence = 0;
   server.sendServerHello();
