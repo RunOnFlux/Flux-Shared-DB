@@ -152,6 +152,31 @@ test('raw and rejected Engine.IO sessions and discovery sockets do not satisfy r
   assert.equal(auth.hasReplicationPeer(legacyServer, settings), false);
 });
 
+test('admitted older peers without roles count during snapshot import without weakening the cutoff', { timeout: 10000 }, async (t) => {
+  for (const [authenticated, grace, succeeds] of [[false, true, true], [true, true, true], [true, false, true], [false, false, false]]) {
+    const config = { ...settings, operatorAuthEnforceAt: grace ? '2100-01-01T00:00:00Z' : settings.operatorAuthEnforceAt };
+    const server = new Server(0);
+    await once(server.httpServer, 'listening');
+    t.after(() => new Promise((resolve) => { server.disconnectSockets(true); server.close(resolve); }));
+    auth.install(server, () => true, config);
+    const socket = io(`http://127.0.0.1:${server.httpServer.address().port}`, { autoConnect: false, reconnection: false });
+    if (authenticated) {
+      // The previously released client sends a proof but no replica-role field.
+      socket.auth = (callback) => callback({ operatorProof: auth.proof(auth.deriveKey(config), socket.io.engine.id) });
+    }
+    t.after(() => socket.disconnect());
+    const result = new Promise((resolve, reject) => {
+      socket.once(succeeds ? 'connect' : 'connect_error', resolve);
+      if (succeeds) socket.once('connect_error', reject);
+    });
+    socket.connect();
+    await result;
+    // No getBackLog or other application packet has been sent yet.
+    assert.equal(auth.hasReplicationPeer(server, config), succeeds);
+    socket.disconnect();
+  }
+});
+
 test('TLS configuration and keys are cached lazily and the CA is read once', () => {
   const reads = [];
   let derivations = 0;
