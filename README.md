@@ -99,6 +99,19 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Admin UI assets and rendering
+
+Database rows, query results, and confirmation messages render values as text, including JSON columns. Admin and login pages pin every CDN script and stylesheet to an exact version with SHA-384 Subresource Integrity and anonymous CORS. When updating an asset, fetch the exact versioned URL over verified HTTPS and update its integrity hash together with the URL; never remove the integrity check to work around a loading failure.
+
+`npm test` includes UI rendering and asset-policy regressions. The optional Chromium integration test mounts the real Vue components with hostile JSON values, loads both pages with their pinned CDN bytes, and verifies that Chromium blocks a modified script. To run it, install `playwright-core` outside the repository, then provide its module path and an existing Chromium binary:
+
+```bash
+npm install --prefix /tmp/shared-db-ui-tests --no-save playwright-core@1.64.1
+NODE_PATH=/tmp/shared-db-ui-tests/node_modules RUN_UI_BROWSER_TESTS=1 CHROMIUM_PATH=/path/to/chrome node --test test/integration/uiSecurity.test.js
+```
+
+This opt-in test downloads the pinned CDN assets over verified HTTPS and checks every committed integrity hash before starting Chromium. It does not download a browser.
+
 ### Flux API trust
 
 Owner identity, app specifications, and deployment IP lists are fetched from `https://api.runonflux.io` with certificate chain and hostname verification enabled. These requests do not follow redirects. TLS failures return no owner or new deployment data; there is no insecure retry. Existing cached membership may remain in use according to the normal refresh logic. Flux maintenance login remains available when the owner lookup fails.
