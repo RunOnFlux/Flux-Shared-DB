@@ -99,6 +99,12 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Development image publishing
+
+The `development` branch restricts updates to repository administrators. Pull requests run the `Development tests` check without Docker Hub credentials. That check installs dependencies and runs the complete suite, including three disposable MariaDB nodes, a MySQL 8 client, and Chromium UI security tests; its database containers are removed even when a test fails.
+
+Dev images are published only after a push to `development`, successful tests, and a GitHub permission check confirming the push actor is a repository administrator. Administrators retain direct-push access, but publishing still waits for passing tests. A merged PR produces one publishing run through its branch push event.
+
 ### Admin UI assets and rendering
 
 Database rows, query results, and confirmation messages render values as text, including JSON columns. Admin and login pages pin every CDN script and stylesheet to an exact version with SHA-384 Subresource Integrity and anonymous CORS. When updating an asset, fetch the exact versioned URL over verified HTTPS and update its integrity hash together with the URL; never remove the integrity check to work around a loading failure.
