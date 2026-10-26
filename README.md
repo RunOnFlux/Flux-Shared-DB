@@ -99,6 +99,10 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Flux API trust
+
+Owner identity, app specifications, and deployment IP lists are fetched from `https://api.runonflux.io` with certificate chain and hostname verification enabled. These requests do not follow redirects. TLS failures return no owner or new deployment data; there is no insecure retry. Existing cached membership may remain in use according to the normal refresh logic. Flux maintenance login remains available when the owner lookup fails.
+
 ### Wallet administrator login
 
 The application owner and Flux maintenance address `16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP` retain administrator access. The maintenance address is intentionally trusted on every Shared-DB deployment, including enterprise instances.

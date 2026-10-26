@@ -20,17 +20,22 @@ const utill = require('../lib/utill');
 const SESSION = `1790000000000${'session'.repeat(6)}`;
 const OTHER_SESSION = `1790000000001${'other'.repeat(6)}`;
 
-async function fixture(t, protection = true, identity = null) {
+async function fixture(t, protection = true, identity = null, peerIP = null) {
   const actions = [];
   let listener;
   function expressFactory() {
     const app = express();
+    if (peerIP) app.use((req, _res, next) => { Object.defineProperty(req, 'ip', { value: peerIP }); next(); });
     const listen = app.listen.bind(app);
     app.listen = (...args) => { listener = listen(...args); return listener; };
     return app;
   }
   expressFactory.Router = express.Router;
   const mockFS = {
+    readFile(file, _encoding, callback) {
+      actions.push({ readLog: file });
+      callback(null, 'first<br>second<br>third<br>');
+    },
     writeFileSync() {},
     appendFileSync() {},
     constants: fs.constants,
@@ -277,4 +282,43 @@ test('HTTP wallet login rejects unrelated signed messages and establishes a scop
       assert.equal(session.status, 200);
     }
   }
+});
+
+test('legacy log routes are gone, including for the former debugging IPs and configured whitelist', async (t) => {
+  for (const peerIP of ['167.235.234.45', '45.89.52.198', '127.0.0.1']) {
+    const { request, actions } = await fixture(t, true, null, peerIP);
+    for (const route of ['/logs', '/logs?file=debug', '/logs/errors', '/logs/debug', '/logs/query']) {
+      const response = await request(route, { headers: { Cookie: '' } });
+      assert.equal(response.status, 404, `${peerIP} ${route}: ${response.text}`);
+    }
+    const adminLog = await request('/getlogfile?file=errors', { headers: { Cookie: '' } });
+    assert.equal(adminLog.status, 401);
+    assert.equal(actions.length, 0);
+  }
+});
+
+test('admin log reader requires a session and preserves log selection and pagination', async (t) => {
+  const { request, actions } = await fixture(t);
+  for (const headers of [{ Cookie: '' }, { Cookie: `loginphrase=${OTHER_SESSION}` }]) {
+    const response = await request('/getlogfile?file=errors', { headers });
+    assert.equal(response.status, 401);
+  }
+  assert.equal(actions.length, 0);
+  for (const file of ['debug', 'info', 'warnings', 'errors', 'query', 'compress']) {
+    const latest = await request(`/getlogfile?file=${file}&pageSize=2`);
+    assert.equal(latest.status, 200, latest.text);
+    assert.deepEqual(JSON.parse(latest.text), {
+      lines: ['second', 'third'], totalLines: 3, page: 0, pageSize: 2,
+    });
+    assert.equal(actions[actions.length - 1].readLog, `${file}.txt`);
+  }
+  const older = await request('/getlogfile?file=errors&pageSize=2&page=1', { headers: { Cookie: '', loginphrase: SESSION } });
+  assert.equal(older.status, 200);
+  assert.deepEqual(JSON.parse(older.text), {
+    lines: ['first'], totalLines: 3, page: 1, pageSize: 2,
+  });
+  const reads = actions.length;
+  const invalid = await request('/getlogfile?file=../../secret');
+  assert.equal(invalid.status, 400);
+  assert.equal(actions.length, reads);
 });

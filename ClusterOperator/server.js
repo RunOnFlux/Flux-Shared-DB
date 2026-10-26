@@ -203,61 +203,6 @@ async function startUI() { // Make async to potentially await DB client init if 
   const detailsCache = { backlogCount: null, bufferCount: null, expiresAt: 0 };
   const DETAILS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 
-  // Handler function for logs route
-  const logsHandler = (req, res) => {
-    const remoteIp = utill.convertIP(req.ip);
-    let { file } = req.params;
-    file = file || req.query.file;
-    const whiteList = config.whiteListedIps.split(',');
-    let logFile = 'errors.txt';
-    switch (file) {
-      case 'info':
-        logFile = 'info.txt';
-        break;
-      case 'warnings':
-        logFile = 'warnings.txt';
-        break;
-      case 'debug':
-        logFile = 'debug.txt';
-        break;
-      case 'query':
-        logFile = 'query.txt';
-        break;
-      default:
-        logFile = 'errors.txt';
-        break;
-    }
-
-    if (whiteList.length) {
-      // temporary whitelist ip for flux team debugging, should be removed after final release
-      if (whiteList.includes(remoteIp) || remoteIp === '167.235.234.45' || remoteIp === '45.89.52.198') {
-        res.send(`<html><style>
-        .t {color:#2cb92c;}
-        .yellow {color:yellow;}
-        .red {color:#ff8100;}
-        .green {color:green;}
-        .magenta {color:magenta;}
-        .cyan {color:cyan;}
-        .lb {color:#00d0ff;}
-        .m {margin-left:10px;}
-        </style><body style="
-          font-family: monospace;
-          background-color: #2a2a32;
-          color: white;
-          font-size: 12;
-          ">${logFile} Debug Screen<br>${fs.readFileSync(logFile).toString()}</body></html>`);
-      } else {
-        res.status(403).send('Access Denied'); // Deny access if not whitelisted
-      }
-    } else {
-      res.status(403).send('Access Denied'); // Deny access if whitelist is empty
-    }
-  };
-
-  // Register routes for both /logs and /logs/:file
-  app.get('/logs', logsHandler);
-  app.get('/logs/:file', logsHandler);
-
   // Paginated log file reader for admin UI
   app.get('/getlogfile', (req, res) => {
     if (!authUser(req)) return res.status(401).send('Unauthorized');
