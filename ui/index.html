@@ -99,6 +99,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/datepicker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/air-datepicker/2.2.3/js/i18n/datepicker.en.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="/assets/csrf.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
@@ -188,9 +189,7 @@
                 axios.interceptors.response.use(response => response, error => {
                     if (error.response && error.response.status === 401) {
                         console.warn('Unauthorized request detected, redirecting to login.');
-                        // Assuming logout clears session/cookie and redirects
-                        this.logout();
-                        // Or directly redirect: window.location.replace(this.apiUrl || '/');
+                        window.location.replace(this.apiUrl || '/');
                     }
                     return Promise.reject(error);
                 });

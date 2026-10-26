@@ -27,6 +27,7 @@ const utill = require('../lib/utill');
 const config = require('./config');
 const Security = require('./Security');
 const operatorAuth = require('../lib/operatorAuth');
+const { cookieCsrfProtection, sessionCredential, tokenForSession } = require('../lib/uiCsrf');
 const SqlImporter = require('../lib/mysqlimport');
 const { buildDeleteQuery, isPrimaryKeyValue, unpackBacklogWriteResult } = require('../lib/rawQuery');
 // Import the factory function, not the class directly
@@ -56,12 +57,7 @@ function auth(ip) {
 function authUser(req) {
   let remoteIp = utill.convertIP(req.ip);
   if (!remoteIp) remoteIp = req.socket.address().address;
-  let loginphrase = false;
-  if (req.headers.loginphrase) {
-    loginphrase = req.headers.loginphrase;
-  } else {
-    loginphrase = req.cookies.loginphrase;
-  }
+  const loginphrase = sessionCredential(req);
   if (loginphrase && IdService.verifySession(loginphrase, remoteIp)) {
     return true;
   }
@@ -146,6 +142,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   const app = express();
   app.use(cors()); // Configure CORS appropriately
   app.use(cookieParser());
+  app.use(cookieCsrfProtection); // Reject forged writes before parsing bodies/uploads.
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: false }));
   app.use(fileUpload({ limits: { fileSize: 2 * 1024 * 1024 * 1024 } })); // 2 GB cap, matches /import-from-url
@@ -167,7 +164,7 @@ async function startUI() { // Make async to potentially await DB client init if 
     if (req.method === 'OPTIONS') {
       res.header('Access-Control-Allow-Origin', '*'); // Adjust for production
       res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, loginphrase');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, loginphrase, X-CSRF-Token');
       return res.sendStatus(200);
     }
     next();
@@ -190,6 +187,9 @@ async function startUI() { // Make async to potentially await DB client init if 
   });
 
   // Serve assets (consider using express.static for the whole assets folder)
+  app.get('/assets/csrf.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../ui/assets/csrf.js'));
+  });
   app.get('/assets/zelID.svg', (req, res) => {
     res.sendFile(path.join(__dirname, '../ui/assets/zelID.svg'));
   });
@@ -728,9 +728,16 @@ async function startUI() { // Make async to potentially await DB client init if 
     }
   });
   // --- Authentication Routes ---
+  app.get('/csrf-token', (req, res) => {
+    res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.vary('Cookie');
+    if (!authUser(req)) return res.status(401).send('Unauthorized');
+    return res.json({ csrfToken: tokenForSession(sessionCredential(req)) });
+  });
+
   app.get('/isloggedin/', (req, res) => {
     if (authUser(req)) {
-      res.cookie('loginphrase', req.headers.loginphrase, { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
+      res.cookie('loginphrase', sessionCredential(req), { httpOnly: true, secure: config.ssl, sameSite: 'lax' });
       res.send('OK');
     } else {
       res.status(401).send('Unauthorized');

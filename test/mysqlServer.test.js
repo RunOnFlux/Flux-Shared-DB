@@ -112,7 +112,7 @@ test('unknown commands produce a contextual error log and ERR response', async (
   assert.equal(socket.writes[0].readUInt16LE(5), 1047);
 });
 
-test('socket error, timeout, peer end and close retain the last command', async () => {
+test('socket error, timeout and abnormal close retain the last command', async () => {
   const { server, logs, socket } = fixture();
   await receive(server, Buffer.from([constants.COM_PING]));
   socket.emit('error', Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }));
@@ -122,7 +122,7 @@ test('socket error, timeout, peer end and close retain the last command', async 
   assert.ok(logs.some(({ level, message }) => level === 'error'
     && /COM_PING.*socket error: code=ECONNRESET.*Error: connection reset/.test(message)));
   assert.ok(logs.some(({ message }) => /socket timeout/.test(message)));
-  assert.ok(logs.some(({ message }) => /client ended connection/.test(message)));
+  assert.ok(logs.every(({ message }) => !/client ended connection/.test(message)));
   assert.ok(logs.some(({ level, message }) => level === 'warn' && /socket closed hadError=true/.test(message)));
 });
 
@@ -489,11 +489,14 @@ test('missing or empty DB environment values retain root/secret and reject blank
   }
 });
 
-test('successful handshake and ping do not emit failure logs', async () => {
+test('successful handshake, ping and clean disconnect do not emit logs', async () => {
   const { server, logs, socket } = fixture();
   server.onPacket = server.helloPacketHandler;
   await receive(server, hello(), 1);
   await receive(server, Buffer.from([constants.COM_PING]));
+  server.end();
+  socket.emit('end');
+  socket.emit('close', false);
   assert.equal(logs.length, 0);
   assert.equal(socket.writes.length, 2);
   assert.equal(socket.writes[0][3], 2);

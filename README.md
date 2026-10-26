@@ -99,6 +99,14 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Browser session protection
+
+Cookie-authenticated UI writes require an `X-CSRF-Token` header. The bundled UI obtains a session-bound token from authenticated `GET /csrf-token` and adds it automatically for POST/PUT/PATCH/DELETE requests, logout, and cookie-based login checks. Reload already-open admin pages after upgrading so they load the new request interceptor.
+
+Cookie-based API clients must fetch `/csrf-token` with their session cookie and send the returned `csrfToken` value in `X-CSRF-Token` for writes. The token endpoint is not cached. Tokens are bound to the existing session and work across replicas without another cookie or per-node state. Browser writes from sibling or cross-site contexts are rejected; requests without Fetch Metadata headers still need the token when using cookie authentication. Invalid or missing tokens return HTTP 403 with code `CSRF_INVALID` before request bodies or uploads are processed.
+
+Non-browser clients using an explicit `loginphrase` authentication header continue to use that credential without a CSRF token; invalid header credentials never fall back to a session cookie. Signed wallet login callbacks still validate their signed payload independently. This protection does not depend on SameSite cookies treating sibling tenant subdomains as separate sites.
+
 ### MySQL interface authentication
 
 Missing or empty `DB_USER` and `DB_INIT_PASS` retain the historical defaults `root` and `secret`; existing deployments using those credentials continue working without new environment variables. Blank client passwords are still rejected.
