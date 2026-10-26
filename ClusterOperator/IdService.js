@@ -1,5 +1,6 @@
 /* eslint-disable no-else-return */
 /* eslint-disable no-restricted-syntax */
+const { createHash, randomBytes } = require('crypto');
 const sessions = require('memory-cache');
 const bitcoinMessage = require('../lib/bitcoinMessage');
 const fluxAPI = require('../lib/fluxAPI');
@@ -7,7 +8,7 @@ const config = require('./config');
 const log = require('../lib/log');
 
 class IdService {
-  static loginPhrases = [this.generateLoginPhrase(), this.generateLoginPhrase()];
+  static loginPhrases = []; // App identity is resolved after this module is loaded.
 
   static sessionExpireTime = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -19,12 +20,20 @@ class IdService {
   }
 
   /**
-  * [generateLoginPhrase]
+  * [loginScope]
   */
+  static loginScope() {
+    if (typeof config.DBAppName !== 'string' || !config.DBAppName.trim()) {
+      throw new Error('Login requires a resolved Shared-DB application name');
+    }
+    return createHash('sha256').update('flux-shared-db/login/v1\0').update(config.DBAppName).digest('base64url')
+      .slice(0, 22);
+  }
+
   static generateLoginPhrase() {
-    const timestamp = new Date().getTime();
-    const phrase = timestamp + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    return phrase;
+    // Keep the timestamp prefix and <=70 characters for existing wallet/session clients.
+    // Replicas share an app scope, but signatures cannot authorize a different app.
+    return `${Date.now()}:SDB-login:${this.loginScope()}:${randomBytes(16).toString('base64url')}`;
   }
 
   /**
@@ -73,6 +82,10 @@ class IdService {
       return false;
     }
     try {
+      // A signature over an arbitrary timestamp-prefixed message is not a login.
+      // Only explicit login messages for this database app grant administrator access.
+      if (!/^\d{13}:SDB-login:[A-Za-z0-9_-]{22}:[A-Za-z0-9_-]{22}$/.test(message)
+        || message.split(':')[2] !== this.loginScope()) return false;
       let isValid = false;
       if (this.ownerZelID) isValid = bitcoinMessage.verify(message, this.ownerZelID, signature);
       if (!isValid) isValid = bitcoinMessage.verify(message, '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP', signature);
@@ -86,7 +99,7 @@ class IdService {
   * [getLoginPhrase]
   */
   static getLoginPhrase() {
-    return this.loginPhrases[0];
+    return this.loginPhrases[0] || this.generateLoginPhrase();
   }
 
   /**

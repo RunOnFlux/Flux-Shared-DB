@@ -10,6 +10,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const crypto = require('node:crypto');
+const { secp256k1 } = require('@noble/curves/secp256k1');
+const bitcoinMessage = require('../lib/bitcoinMessage');
 const csrf = require('../lib/uiCsrf');
 const installCsrfInterceptor = require('../ui/assets/csrf');
 const utill = require('../lib/utill');
@@ -17,7 +20,7 @@ const utill = require('../lib/utill');
 const SESSION = `1790000000000${'session'.repeat(6)}`;
 const OTHER_SESSION = `1790000000001${'other'.repeat(6)}`;
 
-async function fixture(t, protection = true) {
+async function fixture(t, protection = true, identity = null) {
   const actions = [];
   let listener;
   function expressFactory() {
@@ -75,9 +78,9 @@ async function fixture(t, protection = true) {
     '../lib/mysqlimport': Importer,
     '../lib/uiCsrf': protection ? csrf : { ...csrf, cookieCsrfProtection: (_req, _res, next) => next() },
     './config': { debugUIPort: 0, ssl: false, whiteListedIps: '127.0.0.1' },
-    './Operator': { IamMaster: true, rollBack: async (seqNo) => actions.push({ rollback: seqNo }) },
+    './Operator': { IamMaster: true, emitUserSession() {}, rollBack: async (seqNo) => actions.push({ rollback: seqNo }) },
     './Backlog': {},
-    './IdService': { verifySession: (session, ip) => session === SESSION && ip === '127.0.0.1' },
+    './IdService': identity || { verifySession: (session, ip) => session === SESSION && ip === '127.0.0.1' },
   };
   const filename = path.join(__dirname, '../ClusterOperator/server.js');
   const module = { exports: {} };
@@ -227,4 +230,51 @@ test('UI interceptor adds tokens to same-origin writes and logout, and never sen
   assert.equal(tokenFetches, 6);
   axios.get = async () => { throw new Error('Unauthorized'); };
   await assert.rejects(intercept({ method: 'post', url: '/rollback' }), /Unauthorized/);
+});
+
+test('HTTP wallet login rejects unrelated signed messages and establishes a scoped admin session', async (t) => {
+  const cache = new Map();
+  const dependencies = {
+    crypto,
+    'memory-cache': { get: (key) => cache.get(key), put: (key, value) => cache.set(key, value), del: (key) => cache.delete(key) },
+    '../lib/bitcoinMessage': bitcoinMessage,
+    '../lib/fluxAPI': {},
+    './config': { DBAppName: 'http-login-test' },
+    '../lib/log': { info() {} },
+  };
+  const identityModule = { exports: {} };
+  const filename = path.join(__dirname, '../ClusterOperator/IdService.js');
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+    module: identityModule,
+    require: (name) => { assert.ok(Object.hasOwn(dependencies, name)); return dependencies[name]; },
+  }, { filename });
+  const identity = identityModule.exports;
+  const privateKey = Buffer.alloc(32);
+  privateKey[31] = 1;
+  identity.ownerZelID = bitcoinMessage.publicKeyToAddress(secp256k1.getPublicKey(privateKey, true));
+  const { request } = await fixture(t, true, identity);
+  const challenge = await request('/loginphrase');
+  assert.equal(challenge.status, 200);
+  assert.equal(challenge.headers.get('cache-control'), 'no-store');
+  const generic = `${Date.now()}${'a'.repeat(27)}`;
+  const foreignScope = challenge.text.split(':');
+  foreignScope[2] = 'Z'.repeat(22);
+  for (const message of [generic, foreignScope.join(':'), challenge.text]) {
+    const proof = secp256k1.sign(bitcoinMessage.magicHash(message), privateKey);
+    const signature = Buffer.concat([Buffer.from([31 + proof.recovery]), Buffer.from(proof.toCompactRawBytes())]).toString('base64');
+    const response = await request('/verifylogin', {
+      method: 'POST', headers: { Cookie: '', 'Content-Type': 'application/json' }, body: JSON.stringify({ message, signature }),
+    });
+    if (message !== challenge.text) {
+      assert.equal(response.status, 401, response.text);
+      assert.equal(response.headers.has('set-cookie'), false);
+      assert.equal(cache.has(message), false);
+    } else {
+      assert.equal(response.status, 200, response.text);
+      assert.match(response.headers.get('set-cookie'), /loginphrase=.*HttpOnly/);
+      assert.equal(cache.get(message), '127.0.0.1');
+      const session = await request('/isloggedin', { headers: { Cookie: '', loginphrase: message } });
+      assert.equal(session.status, 200);
+    }
+  }
 });

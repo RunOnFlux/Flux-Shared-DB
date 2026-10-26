@@ -99,6 +99,14 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
+### Wallet administrator login
+
+The application owner and Flux maintenance address `16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP` retain administrator access. The maintenance address is intentionally trusted on every Shared-DB deployment, including enterprise instances.
+
+Fetch a fresh message from `GET /loginphrase` and sign that exact message. Messages contain an explicit `SDB-login` purpose, a hash of the resolved database app name, a cryptographically random nonce, and a timestamp. A login signature works across replicas of that app for 30 minutes; it cannot authorize a different database app or reuse an unrelated timestamp-prefixed wallet signature. The nonce also makes the resulting session credential unpredictable. Signatures are reusable within that app and time window; this is not a one-time challenge protocol.
+
+Existing authenticated sessions remain valid. Refresh open login pages after upgrading to obtain the new message format. Login messages are not cached. No additional environment variables are required, but the database app name must be configured or resolved from Flux hostinfo, as required for operator authentication.
+
 ### Browser session protection
 
 Cookie-authenticated UI writes require an `X-CSRF-Token` header. The bundled UI obtains a session-bound token from authenticated `GET /csrf-token` and adds it automatically for POST/PUT/PATCH/DELETE requests, logout, and cookie-based login checks. Reload already-open admin pages after upgrading so they load the new request interceptor.

@@ -770,6 +770,7 @@ async function startUI() { // Make async to potentially await DB client init if 
   });
 
   app.get('/loginphrase/', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     res.send(IdService.generateLoginPhrase());
   });
 

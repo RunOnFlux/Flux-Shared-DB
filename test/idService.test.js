@@ -4,6 +4,7 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 const { secp256k1 } = require('@noble/curves/secp256k1');
 const bitcoinMessage = require('../lib/bitcoinMessage');
 
@@ -17,7 +18,7 @@ function sign(message) {
   return Buffer.concat([Buffer.from([31 + signature.recovery]), Buffer.from(signature.toCompactRawBytes())]).toString('base64');
 }
 
-function fixture() {
+function fixture(appName = 'shared-db-test', verifier = bitcoinMessage) {
   let now = 1790000000000;
   class TestDate extends Date {
     constructor(...args) { super(...(args.length ? args : [now])); }
@@ -27,9 +28,10 @@ function fixture() {
   const cache = new Map();
   const dependencies = {
     'memory-cache': { get: (key) => cache.get(key), put: (key, value) => cache.set(key, value), del: (key) => cache.delete(key) },
-    '../lib/bitcoinMessage': bitcoinMessage,
+    crypto,
+    '../lib/bitcoinMessage': verifier,
     '../lib/fluxAPI': {},
-    './config': {},
+    './config': { DBAppName: appName },
     '../lib/log': { info() {} },
   };
   const filename = path.join(__dirname, '../ClusterOperator/IdService.js');
@@ -72,14 +74,21 @@ test('rejects valid owner signatures over nonnumeric and malformed login phrases
   }
 });
 
-test('accepts fresh numeric phrases at both length and timestamp boundaries', () => {
-  const { IdService, now } = fixture();
-  for (const message of [phrase(now), phrase(now, 70), phrase(now - windowMs), IdService.generateLoginPhrase()]) {
-    assert.equal(IdService.verifyLogin(message, sign(message)), true);
-  }
-  for (const message of [phrase(now - windowMs - 1), phrase(now + 1)]) {
-    assert.equal(IdService.verifyLogin(message, sign(message)), false);
-  }
+test('accepts scoped login challenges at timestamp boundaries and across replicas', () => {
+  const { IdService, now, advanceTime } = fixture();
+  const replica = fixture().IdService;
+  const message = IdService.generateLoginPhrase();
+  assert.equal(message.length, 69);
+  assert.match(message, /^\d{13}:SDB-login:[A-Za-z0-9_-]{22}:[A-Za-z0-9_-]{22}$/);
+  assert.notEqual(message, IdService.generateLoginPhrase());
+  assert.equal(IdService.verifyLogin(message, sign(message)), true);
+  assert.equal(replica.verifyLogin(message, sign(message)), true);
+  const future = message.replace(String(now), String(now + 1));
+  assert.equal(IdService.verifyLogin(future, sign(future)), false);
+  advanceTime(windowMs);
+  assert.equal(IdService.verifyLogin(message, sign(message)), true);
+  advanceTime(1);
+  assert.equal(IdService.verifyLogin(message, sign(message)), false);
 });
 
 test('signed nonnumeric messages remain rejected after time advances', () => {
@@ -92,8 +101,8 @@ test('signed nonnumeric messages remain rejected after time advances', () => {
 });
 
 test('valid login signatures stop working after the 30-minute window', () => {
-  const { IdService, now, advanceTime } = fixture();
-  const message = phrase(now);
+  const { IdService, advanceTime } = fixture();
+  const message = IdService.generateLoginPhrase();
   const signature = sign(message);
   assert.equal(IdService.verifyLogin(message, signature), true);
   advanceTime(windowMs + 1);
@@ -101,8 +110,8 @@ test('valid login signatures stop working after the 30-minute window', () => {
 });
 
 test('rejects incorrect and malformed signatures', () => {
-  const { IdService, now } = fixture();
-  const message = phrase(now);
+  const { IdService } = fixture();
+  const message = IdService.generateLoginPhrase();
   const wrongKey = Buffer.alloc(32);
   wrongKey[31] = 2;
   IdService.ownerZelID = bitcoinMessage.publicKeyToAddress(secp256k1.getPublicKey(wrongKey, true));
@@ -125,4 +134,51 @@ test('rejects previously cached malformed sessions while preserving valid IP-bou
   assert.equal(IdService.verifySession(message, '192.0.2.4'), true);
   IdService.removeSession(message);
   assert.equal(IdService.verifySession(message, '192.0.2.4'), false);
+});
+
+test('valid signatures over generic timestamp messages and other app logins grant no access', () => {
+  const { IdService, now } = fixture();
+  const otherApp = fixture('different-shared-db').IdService;
+  const foreignMessage = otherApp.generateLoginPhrase();
+  assert.equal(otherApp.verifyLogin(foreignMessage, sign(foreignMessage)), true);
+  for (const message of [phrase(now), phrase(now, 70), foreignMessage]) {
+    assert.equal(bitcoinMessage.verify(message, owner, sign(message)), true);
+    assert.equal(IdService.verifyLogin(message, sign(message)), false);
+  }
+  const scoped = IdService.generateLoginPhrase();
+  const wrongPurpose = scoped.replace('SDB-login', 'SDB-other');
+  assert.equal(IdService.verifyLogin(wrongPurpose, sign(wrongPurpose)), false);
+});
+
+test('maintenance principal remains authorized on every app, with a separately scoped signature', () => {
+  const maintenance = '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP';
+  const verified = [];
+  // The real maintenance private key is intentionally unavailable to tests.
+  // Verify routing to its unchanged address; owner tests exercise real signatures.
+  const verifier = {
+    verify: (message, address, signature) => {
+      verified.push(address);
+      return address === maintenance && signature === `maintenance:${message}`;
+    },
+  };
+  const first = fixture('public-shared-db', verifier).IdService;
+  const second = fixture('enterprise-shared-db', verifier).IdService;
+  for (const service of [first, second]) {
+    const message = service.generateLoginPhrase();
+    assert.equal(service.verifyLogin(message, `maintenance:${message}`), true);
+    service.ownerZelID = null;
+    assert.equal(service.verifyLogin(message, `maintenance:${message}`), true);
+  }
+  const message = first.generateLoginPhrase();
+  assert.equal(second.verifyLogin(message, `maintenance:${message}`), false);
+  const generic = phrase(1790000000000);
+  assert.equal(first.verifyLogin(generic, `maintenance:${generic}`), false);
+  assert.ok(verified.includes(maintenance));
+});
+
+test('unknown app identity cannot issue or accept an admin login', () => {
+  const { IdService } = fixture('');
+  assert.throws(() => IdService.generateLoginPhrase(), /resolved Shared-DB application name/);
+  const message = fixture().IdService.generateLoginPhrase();
+  assert.equal(IdService.verifyLogin(message, sign(message)), false);
 });
