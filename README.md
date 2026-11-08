@@ -140,6 +140,7 @@ Complete the rolling upgrade before the cutoff: old clients can communicate with
 When migrating from the DB-password fallback, keep `DB_INIT_PASS` unchanged and use its current value as A in the switch phase. A retiring legacy DB password may be shorter than 32 bytes; an explicitly empty secondary is rejected. A new dedicated primary still requires at least 32 bytes. Old keys remain valid until retired. Check `getStatus` for `secondaryKeyConfigured` and rollout health before switching; do not skip preparation or silently fall back after failed authentication.
 
 ### Environment Variables
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 |`DB_COMPONENT_NAME` | Hostname for the DB engine component. Required for the DB-less image; leave unset for bundled images (defaults to `localhost`). | `localhost` |
@@ -153,6 +154,7 @@ When migrating from the DB-password fallback, keep `DB_INIT_PASS` unchanged and 
 |`OPERATOR_TLS_CA` | PEM CA file for validating operator peer certificates | System trust store |
 |`OPERATOR_TLS_SERVERNAME` | Certificate DNS identity when dialing peer IPs | Peer IP |
 |`DB_USER` | Username that can authenticate with the Operator | `root` |
+|`DISABLE_MAINTENANCE_LOGIN` | Set to `true` on every Operator replica to disable maintenance administrator login. Owner login remains enabled; existing sessions are not revoked. Restart required. | `false` |
 |`DB_PORT` | External DB port for the DB Interface, first item in the Ports array | Required |
 |`API_PORT` | External API port for cluster communication, second item in the Ports array | Required |
 |`WHITELIST` | Comma-separated list of IPs that can connect remotely to `DB_PORT` | Optional |

@@ -4,14 +4,82 @@ on:
   push:
     branches: [ "development" ]
   pull_request:
-    types: [closed]
     branches: [ "development" ]
 
+# PR tests have no registry credentials or repository write permissions.
+permissions:
+  contents: read
+
 jobs:
+  test:
+    name: Development tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/shared-db-ui-tests" --no-save --no-package-lock playwright-core@1.64.1
+          node "$RUNNER_TEMP/shared-db-ui-tests/node_modules/playwright-core/cli.js" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/shared-db-ui-tests/node_modules" >> "$GITHUB_ENV"
+          CHROMIUM_PATH=$(NODE_PATH="$RUNNER_TEMP/shared-db-ui-tests/node_modules" node -p "require('playwright-core').chromium.executablePath()")
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+
+      - name: Start disposable integration databases
+        run: |
+          docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml up -d --wait --wait-timeout 120
+          docker pull mysql:8.0
+
+      - name: Run unit, HTTP, database and browser integration tests
+        env:
+          MARIADB_INTEGRATION: '1'
+          MYSQL_CLI_IMAGE: mysql:8.0
+          RUN_UI_BROWSER_TESTS: '1'
+        run: npm test
+
+      - name: Remove integration databases
+        if: always()
+        run: docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml down -v
+
+  authorize_publish:
+    name: Authorize image publishing
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.admin.outputs.allowed }}
+    steps:
+      - name: Require a repository admin as the push actor
+        id: admin
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            const allowed = data.permission === 'admin';
+            core.setOutput('allowed', String(allowed));
+            if (!allowed) core.notice('Image publishing requires a repository admin push.');
 
   push_to_registry:
     name: Push Docker image to Docker Hub
-    if: github.event.pull_request.merged == true || github.event_name == 'push'
+    # Branch protection permits only admins to update development.
+    needs: [test, authorize_publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && needs.authorize_publish.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,6 +90,8 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
