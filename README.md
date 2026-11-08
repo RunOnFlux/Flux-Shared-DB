@@ -124,7 +124,7 @@ Owner identity, app specifications, and deployment IP lists are fetched from `ht
 
 ### Wallet administrator login
 
-The application owner and Flux maintenance address `16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP` have administrator access by default, including on enterprise instances.
+The application owner and Flux maintenance account have administrator access by default, including on enterprise instances.
 
 Set `DISABLE_MAINTENANCE_LOGIN=true` in the Operator component environment to disable the maintenance-address login fallback. The default is `false` (maintenance login enabled); only the exact value `true` disables it. Application-owner login remains available. If the maintenance address is itself the application owner, it retains owner access.
 
