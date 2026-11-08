@@ -120,11 +120,15 @@ This opt-in test downloads the pinned CDN assets over verified HTTPS and checks 
 
 ### Flux API trust
 
-Owner identity, app specifications, and deployment IP lists are fetched from `https://api.runonflux.io` with certificate chain and hostname verification enabled. These requests do not follow redirects. TLS failures return no owner or new deployment data; there is no insecure retry. Existing cached membership may remain in use according to the normal refresh logic. Flux maintenance login remains available when the owner lookup fails.
+Owner identity, app specifications, and deployment IP lists are fetched from `https://api.runonflux.io` with certificate chain and hostname verification enabled. These requests do not follow redirects. TLS failures return no owner or new deployment data; there is no insecure retry. Existing cached membership may remain in use according to the normal refresh logic. Flux maintenance login remains available when the owner lookup fails unless disabled with `DISABLE_MAINTENANCE_LOGIN=true`.
 
 ### Wallet administrator login
 
-The application owner and Flux maintenance address `16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP` retain administrator access. The maintenance address is intentionally trusted on every Shared-DB deployment, including enterprise instances.
+The application owner and Flux maintenance address `16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP` have administrator access by default, including on enterprise instances.
+
+Set `DISABLE_MAINTENANCE_LOGIN=true` in the Operator component environment to disable the maintenance-address login fallback. The default is `false` (maintenance login enabled); only the exact value `true` disables it. Application-owner login remains available. If the maintenance address is itself the application owner, it retains owner access.
+
+Apply this setting to every Operator replica and restart the processes. During a staggered rollout, replicas without the setting can still accept maintenance logins and share their sessions with other replicas. This setting blocks new maintenance logins on configured nodes; it does not revoke existing authenticated sessions. If owner lookup fails while maintenance login is disabled, new administrator logins are unavailable until owner lookup succeeds.
 
 Fetch a fresh message from `GET /loginphrase` and sign that exact message. Messages contain an explicit `SDB-login` purpose, a hash of the resolved database app name, a cryptographically random nonce, and a timestamp. A login signature works across replicas of that app for 30 minutes; it cannot authorize a different database app or reuse an unrelated timestamp-prefixed wallet signature. The nonce also makes the resulting session credential unpredictable. Signatures are reusable within that app and time window; this is not a one-time challenge protocol.
 

@@ -88,7 +88,9 @@ class IdService {
         || message.split(':')[2] !== this.loginScope()) return false;
       let isValid = false;
       if (this.ownerZelID) isValid = bitcoinMessage.verify(message, this.ownerZelID, signature);
-      if (!isValid) isValid = bitcoinMessage.verify(message, '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP', signature);
+      if (!isValid && !config.disableMaintenanceLogin) {
+        isValid = bitcoinMessage.verify(message, '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP', signature);
+      }
       return isValid;
     } catch (error) {
       return false;

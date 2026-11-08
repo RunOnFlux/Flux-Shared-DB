@@ -29,5 +29,6 @@ module.exports = {
   debugMode: true,
   containerDataPath: '',
   authMasterOnly: process.env.AUTH_MASTER_ONLY === 'true',
+  disableMaintenanceLogin: process.env.DISABLE_MAINTENANCE_LOGIN === 'true',
   ssl: process.env.SSL === 'true', // defaults to false; set SSL=true to enable
 };

@@ -18,7 +18,7 @@ function sign(message) {
   return Buffer.concat([Buffer.from([31 + signature.recovery]), Buffer.from(signature.toCompactRawBytes())]).toString('base64');
 }
 
-function fixture(appName = 'shared-db-test', verifier = bitcoinMessage) {
+function fixture(appName = 'shared-db-test', verifier = bitcoinMessage, configOverrides = {}) {
   let now = 1790000000000;
   class TestDate extends Date {
     constructor(...args) { super(...(args.length ? args : [now])); }
@@ -31,7 +31,7 @@ function fixture(appName = 'shared-db-test', verifier = bitcoinMessage) {
     crypto,
     '../lib/bitcoinMessage': verifier,
     '../lib/fluxAPI': {},
-    './config': { DBAppName: appName },
+    './config': { DBAppName: appName, ...configOverrides },
     '../lib/log': { info() {} },
   };
   const filename = path.join(__dirname, '../ClusterOperator/IdService.js');
@@ -174,6 +174,44 @@ test('maintenance principal remains authorized on every app, with a separately s
   const generic = phrase(1790000000000);
   assert.equal(first.verifyLogin(generic, `maintenance:${generic}`), false);
   assert.ok(verified.includes(maintenance));
+});
+
+test('maintenance login opt-out rejects the fallback while preserving owner login', () => {
+  const maintenance = '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP';
+  const verified = [];
+  const verifier = {
+    verify: (message, address, signature) => {
+      verified.push(address);
+      if (address === maintenance) return signature === `maintenance:${message}`;
+      return bitcoinMessage.verify(message, address, signature);
+    },
+  };
+  const { IdService } = fixture('shared-db-test', verifier, { disableMaintenanceLogin: true });
+  const message = IdService.generateLoginPhrase();
+  assert.equal(IdService.verifyLogin(message, `maintenance:${message}`), false);
+  assert.equal(IdService.verifyLogin(message, sign(message)), true);
+  IdService.ownerZelID = null;
+  assert.equal(IdService.verifyLogin(message, `maintenance:${message}`), false);
+  assert.equal(verified.includes(maintenance), false);
+});
+
+test('maintenance login environment setting requires an explicit true value', () => {
+  const filename = path.join(__dirname, '../ClusterOperator/config.js');
+  for (const value of [undefined, 'false', '', 'true']) {
+    const module = { exports: {} };
+    const env = value === undefined ? {} : { DISABLE_MAINTENANCE_LOGIN: value };
+    vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, process: { env } }, { filename });
+    assert.equal(module.exports.disableMaintenanceLogin, value === 'true');
+  }
+});
+
+test('maintenance login remains enabled when explicitly configured false', () => {
+  const maintenance = '16iJqiVbHptCx87q6XQwNpKdgEZnFtKcyP';
+  const { IdService } = fixture('shared-db-test', {
+    verify: (message, address, signature) => address === maintenance && signature === `maintenance:${message}`,
+  }, { disableMaintenanceLogin: false });
+  const message = IdService.generateLoginPhrase();
+  assert.equal(IdService.verifyLogin(message, `maintenance:${message}`), true);
 });
 
 test('unknown app identity cannot issue or accept an admin login', () => {
