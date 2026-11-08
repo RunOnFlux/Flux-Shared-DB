@@ -99,49 +99,6 @@ The bundled images run the DB engine (MySQL 8 or MariaDB) inside the same contai
 
 Note: `DB_INIT_PASS` sets the DB root password on first boot only. Changing it later will not re-key an already-initialized `/app/db` datadir.
 
-### Development image publishing
-
-The `development` branch restricts updates to repository administrators. Pull requests run the `Development tests` check without Docker Hub credentials. That check installs dependencies and runs the complete suite, including three disposable MariaDB nodes, a MySQL 8 client, and Chromium UI security tests; its database containers are removed even when a test fails.
-
-Dev images are published only after a push to `development`, successful tests, and a GitHub permission check confirming the push actor is a repository administrator. Administrators retain direct-push access, but publishing still waits for passing tests. A merged PR produces one publishing run through its branch push event.
-
-### Admin UI assets and rendering
-
-Database rows, query results, and confirmation messages render values as text, including JSON columns. Admin and login pages pin every CDN script and stylesheet to an exact version with SHA-384 Subresource Integrity and anonymous CORS. When updating an asset, fetch the exact versioned URL over verified HTTPS and update its integrity hash together with the URL; never remove the integrity check to work around a loading failure.
-
-`npm test` includes UI rendering and asset-policy regressions. The optional Chromium integration test mounts the real Vue components with hostile JSON values, loads both pages with their pinned CDN bytes, and verifies that Chromium blocks a modified script. To run it, install `playwright-core` outside the repository, then provide its module path and an existing Chromium binary:
-
-```bash
-npm install --prefix /tmp/shared-db-ui-tests --no-save playwright-core@1.64.1
-NODE_PATH=/tmp/shared-db-ui-tests/node_modules RUN_UI_BROWSER_TESTS=1 CHROMIUM_PATH=/path/to/chrome node --test test/integration/uiSecurity.test.js
-```
-
-This opt-in test downloads the pinned CDN assets over verified HTTPS and checks every committed integrity hash before starting Chromium. It does not download a browser.
-
-### Flux API trust
-
-Owner identity, app specifications, and deployment IP lists are fetched from `https://api.runonflux.io` with certificate chain and hostname verification enabled. These requests do not follow redirects. TLS failures return no owner or new deployment data; there is no insecure retry. Existing cached membership may remain in use according to the normal refresh logic. Flux maintenance login remains available when the owner lookup fails unless disabled with `DISABLE_MAINTENANCE_LOGIN=true`.
-
-### Wallet administrator login
-
-The application owner and Flux maintenance account have administrator access by default, including on enterprise instances.
-
-Set `DISABLE_MAINTENANCE_LOGIN=true` in the Operator component environment to disable the maintenance-address login fallback. The default is `false` (maintenance login enabled); only the exact value `true` disables it. Application-owner login remains available. If the maintenance address is itself the application owner, it retains owner access.
-
-Apply this setting to every Operator replica and restart the processes. During a staggered rollout, replicas without the setting can still accept maintenance logins and share their sessions with other replicas. This setting blocks new maintenance logins on configured nodes; it does not revoke existing authenticated sessions. If owner lookup fails while maintenance login is disabled, new administrator logins are unavailable until owner lookup succeeds.
-
-Fetch a fresh message from `GET /loginphrase` and sign that exact message. Messages contain an explicit `SDB-login` purpose, a hash of the resolved database app name, a cryptographically random nonce, and a timestamp. A login signature works across replicas of that app for 30 minutes; it cannot authorize a different database app or reuse an unrelated timestamp-prefixed wallet signature. The nonce also makes the resulting session credential unpredictable. Signatures are reusable within that app and time window; this is not a one-time challenge protocol.
-
-Existing authenticated sessions remain valid. Refresh open login pages after upgrading to obtain the new message format. Login messages are not cached. No additional environment variables are required, but the database app name must be configured or resolved from Flux hostinfo, as required for operator authentication.
-
-### Browser session protection
-
-Cookie-authenticated UI writes require an `X-CSRF-Token` header. The bundled UI obtains a session-bound token from authenticated `GET /csrf-token` and adds it automatically for POST/PUT/PATCH/DELETE requests, logout, and cookie-based login checks. Reload already-open admin pages after upgrading so they load the new request interceptor.
-
-Cookie-based API clients must fetch `/csrf-token` with their session cookie and send the returned `csrfToken` value in `X-CSRF-Token` for writes. The token endpoint is not cached. Tokens are bound to the existing session and work across replicas without another cookie or per-node state. Browser writes from sibling or cross-site contexts are rejected; requests without Fetch Metadata headers still need the token when using cookie authentication. Invalid or missing tokens return HTTP 403 with code `CSRF_INVALID` before request bodies or uploads are processed.
-
-Non-browser clients using an explicit `loginphrase` authentication header continue to use that credential without a CSRF token; invalid header credentials never fall back to a session cookie. Signed wallet login callbacks still validate their signed payload independently. This protection does not depend on SameSite cookies treating sibling tenant subdomains as separate sites.
-
 ### MySQL interface authentication
 
 Missing or empty `DB_USER` and `DB_INIT_PASS` retain the historical defaults `root` and `secret`; existing deployments using those credentials continue working without new environment variables. Blank client passwords are still rejected.
@@ -183,6 +140,7 @@ Complete the rolling upgrade before the cutoff: old clients can communicate with
 When migrating from the DB-password fallback, keep `DB_INIT_PASS` unchanged and use its current value as A in the switch phase. A retiring legacy DB password may be shorter than 32 bytes; an explicitly empty secondary is rejected. A new dedicated primary still requires at least 32 bytes. Old keys remain valid until retired. Check `getStatus` for `secondaryKeyConfigured` and rollout health before switching; do not skip preparation or silently fall back after failed authentication.
 
 ### Environment Variables
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 |`DB_COMPONENT_NAME` | Hostname for the DB engine component. Required for the DB-less image; leave unset for bundled images (defaults to `localhost`). | `localhost` |
@@ -196,6 +154,7 @@ When migrating from the DB-password fallback, keep `DB_INIT_PASS` unchanged and 
 |`OPERATOR_TLS_CA` | PEM CA file for validating operator peer certificates | System trust store |
 |`OPERATOR_TLS_SERVERNAME` | Certificate DNS identity when dialing peer IPs | Peer IP |
 |`DB_USER` | Username that can authenticate with the Operator | `root` |
+|`DISABLE_MAINTENANCE_LOGIN` | Set to `true` on every Operator replica to disable maintenance administrator login. Owner login remains enabled; existing sessions are not revoked. Restart required. | `false` |
 |`DB_PORT` | External DB port for the DB Interface, first item in the Ports array | Required |
 |`API_PORT` | External API port for cluster communication, second item in the Ports array | Required |
 |`WHITELIST` | Comma-separated list of IPs that can connect remotely to `DB_PORT` | Optional |
