@@ -160,14 +160,6 @@ When migrating from the DB-password fallback, keep `DB_INIT_PASS` unchanged and 
 |`WHITELIST` | Comma-separated list of IPs that can connect remotely to `DB_PORT` | Optional |
 |`AUTH_MASTER_ONLY` | If set to `"true"`, only the master node authenticates DB access from the app. This is useful if you want to keep a single reachable master node and return an error page to FDM so only the master node is reachable to end users. | `false` |
 
-## Snapshot restore failures
-
-Snapshot imports stop at the first SQL error and report its statement number and MySQL error code. A failed restore remains `IMPORT_FAILED`; `/status` exposes `importFailure` and `taskStatus: -2`. The failure marker is stored in the local backlog options so restarting does not turn a known partial restore into a healthy instance. A connected follower can try a newer snapshot; an explicit successful restore clears the marker. Fix the source schema/data or select a verified snapshot before retrying a permanent failure.
-
-Internal table/index DDL retries confirmed MySQL deadlocks and lock-wait timeouts at most twice, with 250 ms and 500 ms delays, under the same backlog record. Client-facing writes, data statements, connection losses, ambiguous timeouts, duplicate keys and invalid index definitions are not automatically retried. The importer never deletes duplicates or rewrites column types to make a failing index succeed.
-
-Backups use `utf8mb4` connections to preserve four-byte Unicode characters. Regression coverage for import failures and retry/readiness behavior is in `test/importRecovery.test.js`.
-
 ## Related Projects
 
 - Flux Postgres Cluster: [https://github.com/RunOnFlux/flux-pg-cluster](https://github.com/RunOnFlux/flux-pg-cluster)
