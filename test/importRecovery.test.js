@@ -1,4 +1,4 @@
-/* eslint-disable no-underscore-dangle, no-restricted-syntax, no-await-in-loop, class-methods-use-this */
+/* eslint-disable no-underscore-dangle, no-restricted-syntax, no-await-in-loop, class-methods-use-this, max-classes-per-file */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -112,28 +112,7 @@ function backlogFixture(results) {
   };
 }
 
-for (const code of ['ER_LOCK_WAIT_TIMEOUT', 'ER_LOCK_DEADLOCK']) {
-  test(`confirmed internal DDL ${code} is retried without duplicating the backlog`, async () => {
-    const fixture = backlogFixture([[null, null, { code }], { affectedRows: 0 }]);
-    const result = await fixture.backlog.pushQuery('ALTER TABLE x ADD KEY status(status)', 0, 0);
-    assert.equal(fixture.executions(), 2);
-    assert.equal(fixture.records(), 1);
-    assert.equal(result[1], 1);
-    assert.deepEqual(fixture.delays, [250]);
-  });
-}
-
-test('transient DDL retries have a bounded attempt count and backoff', async () => {
-  const error = { code: 'ER_LOCK_WAIT_TIMEOUT' };
-  const fixture = backlogFixture([[null, null, error]]);
-  const result = await fixture.backlog.pushQuery('CREATE TABLE x(id INT)', 0, 0);
-  assert.equal(fixture.executions(), 3);
-  assert.equal(fixture.records(), 1);
-  assert.deepEqual(fixture.delays, [250, 500]);
-  assert.equal(result[0][2], error);
-});
-
-for (const code of ['ER_DUP_ENTRY', 'ER_BLOB_KEY_WITHOUT_LENGTH', 'ER_PARSE_ERROR', 'ECONNRESET', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT']) {
+for (const code of ['ER_LOCK_WAIT_TIMEOUT', 'ER_LOCK_DEADLOCK', 'ER_DUP_ENTRY', 'ER_BLOB_KEY_WITHOUT_LENGTH', 'ER_PARSE_ERROR', 'ECONNRESET', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT']) {
   test(`internal DDL does not retry permanent or ambiguous failure ${code}`, async () => {
     const fixture = backlogFixture([[null, null, { code }]]);
     await fixture.backlog.pushQuery('ALTER TABLE x ADD KEY status(status)', 0, 0);
@@ -151,9 +130,11 @@ for (const sql of ['INSERT INTO x VALUES(1)', 'COMMIT', 'ALTER TABLE x ADD KEY s
 }
 
 function operatorFixture() {
-  const backlog = { pushKey: async () => {}, compressionTask: -1, readBeaconFile: async () => ({ backupFilename: 'bad' }) };
+  const backlog = {
+    pushKey: async () => {}, getKey: async () => null, compressionTask: -1, readBeaconFile: async () => ({ backupFilename: 'bad' }),
+  };
   const operator = load('ClusterOperator/Operator.js', {
-    './Backlog': backlog, './config': {}, '../lib/log': { error() {} },
+    './Backlog': backlog, './config': {}, '../lib/log': { error() {}, info() {} },
   });
   return { operator, backlog };
 }
@@ -170,28 +151,16 @@ test('failed snapshot cannot serve clients, elect a primary or be replayed indef
   assert.equal(operator.status, 'IMPORT_FAILED');
 });
 
-test('a newer snapshot lets a connected follower attempt a full restore', async () => {
-  const { operator, backlog } = operatorFixture();
-  await operator.failImport('bad', { code: 'ER_DUP_ENTRY' });
-  backlog.readBeaconFile = async () => ({ backupFilename: 'fixed' });
-  operator.masterWSConn = { connected: true };
-  operator.IamMaster = false;
-  let attempts = 0;
-  operator.syncLocalDB = async () => { attempts += 1; assert.equal(operator.snapshotRecoveryRequired, true); };
-  await operator.doHealthCheck();
-  assert.equal(attempts, 1);
-  assert.equal(operator.importFailure, null);
-});
-
 function snapshotFixture(failure = null) {
   const calls = {
-    imports: 0, clears: 0, shifts: [], resumed: 0,
+    imports: 0, clears: 0, shifts: [], resumed: 0, available: true,
   };
   const backlog = {
     pushKey: async () => {},
     sequenceNumber: 500,
     readBeaconFile: async () => ({ backupFilename: 'snapshot', seqNo: 100, BackupFilesize: 2000 }),
-    clearBacklog: async () => { calls.clears += 1; },
+    resetForSnapshot: async () => { calls.clears += 1; },
+    getKey: async () => null,
     clearBuffer: async () => {},
     getLastSequenceNumber: async () => 10,
     shiftBacklogSeqNo: async (delta) => calls.shifts.push(delta),
@@ -214,7 +183,7 @@ function snapshotFixture(failure = null) {
     './Backlog': backlog,
     './config': {},
     '../lib/log': { error() {}, info() {} },
-    fs: { existsSync: () => true, statSync: () => ({ size: 2000 }) },
+    fs: { existsSync: () => calls.available, statSync: () => ({ size: 2000 }) },
     '../lib/fluxAPI': { getStatus: async () => ({ firstSequenceNumber: 1 }) },
     '../lib/mysqlimport': SnapshotImporter,
     'timers/promises': { setTimeout: async () => {} },
@@ -261,4 +230,221 @@ test('successful restore clears the durable failure marker', async () => {
   assert.deepEqual(saved, { key: 'snapshotImportFailure', value: null, encrypt: false });
   assert.equal(operator.importFailure, null);
   assert.equal(operator.snapshotRecoveryRequired, false);
+});
+
+for (const prefix of ['', '\n', '\r\n  ', '# dump header\n-- trigger section\n', ' '.repeat(65532)]) {
+  test(`trigger delimiters survive leading whitespace, comments and stream boundaries (${prefix.length} bytes)`, async (t) => {
+    const trigger = "CREATE TRIGGER tr BEFORE INSERT ON x FOR EACH ROW BEGIN SET NEW.id=1; SET @text='semi;colon'; END";
+    const statements = [];
+    const fixture = await input(t, `${prefix}DELIMITER ;;\r\n${trigger};;\r\nDELIMITER ;\r\nINSERT INTO x VALUES(2);`, {
+      requireResult: true, callback: async (sql) => { statements.push(sql); return { affectedRows: 0 }; },
+    });
+    await fixture.run();
+    assert.deepEqual(statements, [trigger, 'INSERT INTO x VALUES(2)']);
+  });
+}
+
+test('DELIMITER reset at EOF is accepted without sending it to SQL', async (t) => {
+  const statements = [];
+  const fixture = await input(t, 'DELIMITER ;;\nSELECT 1;;\nDELIMITER ;', { callback: async (sql) => { statements.push(sql); } });
+  await fixture.run();
+  assert.deepEqual(statements, ['SELECT 1']);
+});
+
+test('a confirmed DDL error aborts the import without a retry gap or later statements', async (t) => {
+  const error = { code: 'ER_LOCK_DEADLOCK' };
+  const database = backlogFixture([[null, null, error], { affectedRows: 1 }]);
+  const fixture = await input(t, 'ALTER TABLE x ADD COLUMN y INT; INSERT INTO x(y) VALUES(1);', {
+    requireResult: true, callback: (sql) => database.backlog.pushQuery(sql),
+  });
+  await assert.rejects(fixture.run(), { code: 'ER_LOCK_DEADLOCK' });
+  assert.equal(database.executions(), 1);
+  assert.equal(database.records(), 1);
+  assert.deepEqual(database.delays, []);
+});
+
+for (const result of [[null, null, { code: 'ER_DISK_FULL' }], undefined, {}]) {
+  test(`durable snapshot markers reject unconfirmed writes (${JSON.stringify(result)})`, async () => {
+    const { backlog } = backlogFixture([]);
+    backlog.BLClient.execute = async () => result;
+    await assert.rejects(backlog.pushKey('snapshotImportFailure', 'failure', false, true));
+  });
+}
+
+test('durable snapshot writes use one upsert and propagate thrown database errors', async () => {
+  const { backlog } = backlogFixture([]);
+  const statements = [];
+  backlog.BLClient.execute = async (sql, values) => { statements.push({ sql, values }); return { affectedRows: 1 }; };
+  await backlog.pushKey('snapshotImportFailure', 'failure', false, true);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0].sql, /ON DUPLICATE KEY UPDATE/);
+  backlog.BLClient.execute = async () => { throw new Error('disk full'); };
+  await assert.rejects(backlog.pushKey('snapshotImportFailure', 'failure', false, true), /disk full/);
+});
+
+test('marker read failure keeps startup fenced and does not recurse in master discovery', async () => {
+  const { operator, backlog } = operatorFixture();
+  let reads = 0;
+  backlog.getKey = async () => { reads += 1; throw new Error('read failed'); };
+  assert.equal(await operator.findMaster(), null);
+  assert.equal(reads, 1);
+  assert.equal(operator.status, 'IMPORT_FAILED');
+  assert.equal(operator.snapshotRecoveryRequired, true);
+});
+
+test('a newer local snapshot recovers a restarted node without a master connection', async () => {
+  const { operator, backlog, calls } = snapshotFixture();
+  let marker = JSON.stringify({ snapshot: 'bad', code: 'ER_DUP_ENTRY' });
+  backlog.getKey = async () => marker;
+  backlog.pushKey = async (_key, value) => { marker = value; };
+  let beacon = { backupFilename: 'bad', seqNo: 100, BackupFilesize: 2000 };
+  backlog.readBeaconFile = async () => beacon;
+  operator.masterWSConn = null;
+  operator.snapshotRecoveryRequired = false;
+  await operator.findMaster();
+  assert.equal(operator.status, 'IMPORT_FAILED');
+  assert.equal(calls.imports, 0);
+  beacon = { ...beacon, backupFilename: 'fixed' };
+  let discoveries = 0;
+  operator.findMaster = async () => { assert.equal(operator.snapshotRecoveryRequired, false); discoveries += 1; };
+  operator.initMasterConnection = () => {};
+  await operator.doHealthCheck();
+  assert.equal(calls.imports, 1);
+  assert.equal(marker, null);
+  assert.equal(operator.importFailure, null);
+  assert.equal(discoveries, 1);
+});
+
+async function restoreFixture(t, sql, persist = async () => {}) {
+  // Use the real importer while keeping the SQL file outside the repository.
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'shared-db-restore-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const filename = path.join(temp, 'fixture.sql');
+  fs.writeFileSync(filename, sql);
+  class FixtureImporter extends Importer { import() { return super.import(filename); } }
+  const events = [];
+  function instance(name) {
+    const state = { marker: null, applied: [], resets: 0 };
+    const backlog = {
+      sequenceNumber: 0,
+      pushKey: async (_key, value, _encrypt, required) => {
+        assert.equal(required, true);
+        await persist(name, value);
+        state.marker = value;
+      },
+      resetForSnapshot: async () => { state.resets += 1; state.applied = []; backlog.sequenceNumber = 0; },
+      pushQuery: async (query, sequence = 0) => {
+        backlog.sequenceNumber = sequence || backlog.sequenceNumber + 1;
+        if (query.includes('missing')) return [[null, null, { code: 'ER_NO_SUCH_TABLE' }], backlog.sequenceNumber, 0];
+        state.applied.push(query);
+        return [{ affectedRows: 1 }, backlog.sequenceNumber, 0];
+      },
+    };
+    const operator = load('ClusterOperator/Operator.js', {
+      './Backlog': backlog, './config': {}, '../lib/log': { info() {}, error() {} }, '../lib/mysqlimport': FixtureImporter,
+    });
+    operator.status = 'OK';
+    return { operator, backlog, state };
+  }
+  const master = instance('master');
+  const follower = instance('follower');
+  master.operator.IamMaster = true;
+  master.operator.masterNode = '127.0.0.1';
+  const peer = {
+    connected: true,
+    data: { operatorReplica: true },
+    timeout() { return this; },
+    async emitWithAck(_event, state) {
+      events.push(state.phase);
+      await follower.operator.handleRestoreState(state);
+      return { status: 'OK' };
+    },
+  };
+  master.operator.serverSocket = {
+    sockets: { sockets: new Map([['follower', peer]]) },
+    emit(_event, ...args) {
+      assert.equal(follower.operator.status, 'IMPORTING');
+      follower.operator.queueRestoreQuery(...args);
+    },
+  };
+  return {
+    master, follower, peer, events,
+  };
+}
+
+test('a failed replicated restore fences every replica and preserves the failure across restart', async (t) => {
+  const { master, follower, events } = await restoreFixture(t, 'CREATE TABLE x(id INT); INSERT INTO x VALUES(1); INSERT INTO missing VALUES(2);');
+  await assert.rejects(master.operator.restoreSnapshot('fixture', { replicate: true }), { code: 'ER_NO_SUCH_TABLE' });
+  assert.equal(master.operator.status, 'IMPORT_FAILED');
+  assert.equal(follower.operator.status, 'IMPORT_FAILED');
+  assert.equal(follower.state.applied.length, 2);
+  assert.deepEqual(events, ['begin', 'reset', 'failed']);
+  assert.equal(JSON.parse(follower.state.marker).snapshot, 'fixture');
+  assert.equal(master.operator.restoreInProgress, false);
+});
+
+test('a successful replicated restore drains follower queries before clearing durable fences', async (t) => {
+  const { master, follower, events } = await restoreFixture(t, 'CREATE TABLE x(id INT); INSERT INTO x VALUES(1);');
+  await master.operator.restoreSnapshot('fixture', { replicate: true });
+  assert.deepEqual(events, ['begin', 'reset', 'complete']);
+  assert.equal(master.operator.status, 'OK');
+  assert.equal(follower.operator.status, 'OK');
+  assert.equal(master.state.marker, null);
+  assert.equal(follower.state.marker, null);
+  assert.equal(follower.state.applied.length, 2);
+});
+
+test('failed fencing acknowledgements abort before resetting or importing any database', async (t) => {
+  const { master, follower } = await restoreFixture(t, 'CREATE TABLE x(id INT);');
+  master.operator.notifyRestore = async () => { throw new Error('legacy replica did not acknowledge'); };
+  await assert.rejects(master.operator.restoreSnapshot('fixture', { replicate: true }), /did not acknowledge/);
+  assert.equal(master.state.resets, 0);
+  assert.equal(follower.state.resets, 0);
+  assert.equal(master.state.applied.length, 0);
+});
+
+test('a failed initial durable marker write aborts before any destructive operation', async (t) => {
+  const { master } = await restoreFixture(t, 'CREATE TABLE x(id INT);', async () => { throw new Error('disk full'); });
+  await assert.rejects(master.operator.restoreSnapshot('fixture', { replicate: true }), /disk full/);
+  assert.equal(master.state.resets, 0);
+  assert.equal(master.operator.status, 'IMPORT_FAILED');
+});
+
+test('failed marker clearing leaves the completed node fenced with its previous durable marker', async (t) => {
+  const { master } = await restoreFixture(t, 'CREATE TABLE x(id INT);', async (_node, value) => { if (value === null) throw new Error('clear failed'); });
+  await assert.rejects(master.operator.restoreSnapshot('fixture', { replicate: true }), /clear failed/);
+  assert.equal(master.operator.status, 'IMPORT_FAILED');
+  assert.ok(master.state.marker);
+});
+
+test('an incomplete replacement snapshot never permits election or clears the failure fence', async () => {
+  const { operator, calls } = snapshotFixture();
+  calls.available = false;
+  assert.equal(await operator.findMaster(), null);
+  assert.equal(calls.imports, 0);
+  assert.equal(operator.snapshotRecoveryRequired, true);
+  calls.available = true;
+  operator.findMaster = async () => null;
+  operator.initMasterConnection = () => {};
+  await operator.doHealthCheck();
+  assert.equal(calls.imports, 1);
+  assert.equal(operator.snapshotRecoveryRequired, false);
+});
+
+test('snapshot reset stops immediately when the database returns an error tuple', async () => {
+  const { backlog } = backlogFixture([]);
+  const statements = [];
+  backlog.BLClient.query = async (sql) => { statements.push(sql); return [null, null, { code: 'ER_DBACCESS_DENIED_ERROR' }]; };
+  await assert.rejects(backlog.resetForSnapshot(), { code: 'ER_DBACCESS_DENIED_ERROR' });
+  assert.equal(statements.length, 1);
+});
+
+test('a follower with a sequence gap cannot acknowledge a completed restore', async () => {
+  const { operator, backlog } = operatorFixture();
+  backlog.sequenceNumber = 0;
+  await operator.handleRestoreState({ phase: 'begin', snapshot: 'fixture' });
+  await operator.queueRestoreQuery('INSERT INTO x VALUES(1)', 2, 0);
+  assert.equal(operator.status, 'IMPORT_FAILED');
+  await assert.rejects(operator.handleRestoreState({ phase: 'complete', snapshot: 'fixture' }), /sequence gap/);
+  assert.equal(operator.snapshotRecoveryRequired, true);
 });

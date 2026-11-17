@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 const mySql = require('mysql2/promise');
 const net = require('net');
+const { createBackendStream } = require('../lib/mysqlBackendStream');
 const config = require('./config');
 const Security = require('./Security');
 const log = require('../lib/log');
@@ -119,6 +120,7 @@ class DBClient {
         this.connected = false; // Mark as disconnected during init
 
         await this.createStream();
+        this.stream = createBackendStream(this.stream);
         this.stream.on('data', (data) => {
           this.rawCallback(data);
         });
@@ -147,6 +149,8 @@ class DBClient {
           password: Security.getKey(),
           user: config.dbUser,
           stream: this.stream,
+          supportBigNumbers: true,
+          jsonStrings: true,
           connectTimeout: 15000, // Reduced timeout
           // --- *** DATE FIX: Apply typeCast function *** ---
           typeCast,

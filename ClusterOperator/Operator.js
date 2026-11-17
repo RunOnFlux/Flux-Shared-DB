@@ -203,6 +203,11 @@ class Operator {
         });
         this.masterWSConn.on('disconnect', async () => {
           log.info('disconnected from master...', 'red');
+          if (this.restoringSnapshot) {
+            const snapshot = this.restoringSnapshot;
+            this.restoringSnapshot = null;
+            try { await this.failImport(snapshot, new Error('Master disconnected during restore')); } catch (error) { log.error(error); }
+          }
           this.connectionDrops += 1;
           this.closeMasterConnection();
           // abort findmaster if compression or import is happening
@@ -211,7 +216,20 @@ class Operator {
             this.initMasterConnection();
           }
         });
+        this.masterWSConn.on('restoreState', async (state, acknowledge) => {
+          try {
+            await this.handleRestoreState(state);
+            acknowledge({ status: 'OK' });
+          } catch (error) {
+            this.status = 'IMPORT_FAILED';
+            acknowledge({ status: 'ERROR', error: error.message });
+          }
+        });
         this.masterWSConn.on('query', async (query, sequenceNumber, timestamp, connId) => {
+          if (this.restoringSnapshot) {
+            await this.queueRestoreQuery(query, sequenceNumber, timestamp);
+            return;
+          }
           log.info(`query from master:${sequenceNumber},${timestamp},${connId}`);
           if (this.status === 'OK') {
             // if it's the next sequnce number in line push it to the backlog, else put it in buffer
@@ -344,7 +362,7 @@ class Operator {
   */
   static handleAuthorize(param) {
     try {
-      if (this.status !== 'OK' || this.operator.ghosted) {
+      if (this.operator.status !== 'OK' || this.operator.ghosted) {
         // log.info(`status: ${this.status},${this.operator.status}, rejecting connection`);
         return false;
       }
@@ -666,87 +684,6 @@ class Operator {
   }
 
   /**
-  * [comperssBacklog]
-  *
-  */
-  static async comperssBacklogOld(filename = false, filesize = 0) {
-    try {
-      this.status = 'COMPRESSING';
-      await timer.setTimeout(500);
-      // create a snapshot
-      let backupFilename = filename;
-      if (backupFilename) {
-        let tries = 0;
-        while (!fs.existsSync(`./dumps/${backupFilename}.sql`)) {
-          // reset master if file is not being replicated.
-          if (tries > 30) {
-            // clear backlog
-            await BackLog.clearBacklog();
-            await BackLog.clearBuffer();
-            this.closeMasterConnection();
-            await this.findMaster();
-            this.initMasterConnection();
-            return;
-          }
-          log.info(`Waiting for ./dumps/${backupFilename}.sql to be created...`);
-          await timer.setTimeout(3000);
-          tries += 1;
-        }
-        while (fs.statSync(`./dumps/${backupFilename}.sql`).size !== filesize) {
-          log.info(`filesize don't match ${fs.statSync(`./dumps/${backupFilename}.sql`).size}, ${filesize}`);
-          await timer.setTimeout(3000);
-        }
-      } else {
-        log.info('creating snapshot...');
-        backupFilename = await BackLog.dumpBackup();
-        const fileStats = fs.statSync(`./dumps/${backupFilename}.sql`);
-        // eslint-disable-next-line no-param-reassign
-        filesize = fileStats.size;
-      }
-      if (backupFilename && filesize > 1000000) {
-        if (this.IamMaster) {
-          this.serverSocket.emit('compressbacklog', backupFilename, filesize);
-        }
-        // clear backlog
-        await BackLog.clearBacklog();
-        await BackLog.clearBuffer();
-        await timer.setTimeout(200);
-        this.pushToBacklog('SET FOREIGN_KEY_CHECKS=0');
-        // restore backlog from snapshot
-        const importer = new SqlImporter({
-          requireResult: true,
-          callback: this.pushToBacklog,
-          serverSocket: false,
-        });
-        importer.onProgress((progress) => {
-          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-          BackLog.compressionTask = percent;
-          log.info(`${percent}% Completed`, 'cyan');
-        });
-        importer.setEncoding('utf8');
-        await importer.import(`./dumps/${backupFilename}.sql`).then(async () => {
-          this.pushToBacklog('SET FOREIGN_KEY_CHECKS=1');
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-          await this.clearImportFailure();
-          this.status = 'OK';
-          BackLog.compressionTask = -1;
-          if (this.IamMaster) {
-            const files = await BackLog.listSqlFiles();
-            for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
-          }
-        }).catch(async (err) => {
-          log.error(err);
-          await this.failImport(backupFilename, err);
-        });
-      }
-    } catch (e) {
-      this.status = 'OK';
-      log.error(JSON.stringify(e));
-    }
-  }
-
-  /**
   * [emitUserSession]
   * @param {string} key [description]
   * @param {string} value [description]
@@ -810,8 +747,8 @@ class Operator {
       // command is a numeric ID, extra is a Buffer
       switch (command) {
         case mySQLConsts.COM_QUERY:
-          if (this.status !== 'OK') {
-            log.warn(`${this.logContext()} query skipped: operator status=${this.status}`);
+          if (this.operator.status !== 'OK') {
+            this.sendError({ message: `Database is not ready: ${this.operator.status}`, errno: 1047, sqlState: 'HY000' });
             break;
           }
           const query = extra.toString();
@@ -820,18 +757,16 @@ class Operator {
             await Operator.handleQueryBatch.call(this, analyzedQueries, query, id);
             break;
           }
-          for (const queryItem of analyzedQueries) {
-            if (queryItem[1] === 'w' && this.isNotBacklogQuery(queryItem[0], this.BACKLOG_DB)) {
+          for (const [sql, type] of analyzedQueries) {
+            if (type === 'w' && this.isNotBacklogQuery(sql, this.BACKLOG_DB)) {
               if (this.operator.sessionQueries[id] !== undefined) {
                 await this.sendWriteQuery(this.operator.sessionQueries[id], -1);
                 this.operator.sessionQueries[id] = undefined;
               }
-              await this.sendWriteQuery(queryItem[0], id, query);
+              await this.sendWriteQuery(sql, id, query);
             } else {
-              // Encode result metadata for the frontend's negotiated protocol.
-              // mysql2 now requests MariaDB extended metadata on backend links;
-              // forwarding those bytes to a MySQL frontend corrupts its columns.
-              await Operator.handleQueryBatch.call(this, [queryItem], query, id);
+              if (type === 's') this.operator.sessionQueries[id] = sql;
+              await ConnectionPool.getConnectionById(id).query(sql, true);
             }
           }
 
@@ -1019,23 +954,141 @@ class Operator {
     }
   }
 
-  /**
-  * [syncLocalDB]
-  */
-  static async failImport(snapshot, error) {
-    this.importFailure = { snapshot, code: error.code || 'IMPORT_FAILED' };
-    this.status = 'IMPORT_FAILED';
+  static restoreInProgress = false;
+
+  static restoringSnapshot = null;
+
+  static restoreQueue = Promise.resolve();
+
+  static restoreError = null;
+
+  static async markImport(snapshot, code) {
+    this.importFailure = { snapshot, code };
     this.snapshotRecoveryRequired = true;
+    this.status = code === 'IMPORT_IN_PROGRESS' ? 'IMPORTING' : 'IMPORT_FAILED';
+    await BackLog.pushKey('snapshotImportFailure', JSON.stringify(this.importFailure), false, true);
+  }
+
+  static async failImport(snapshot, error) {
+    this.status = 'IMPORT_FAILED';
     this.syncing = false;
     BackLog.compressionTask = -2;
-    await BackLog.pushKey('snapshotImportFailure', JSON.stringify(this.importFailure), false);
-    log.error(`Snapshot import failed: ${snapshot} (${this.importFailure.code}); application access remains disabled`);
+    await this.markImport(snapshot, error.code || 'IMPORT_FAILED');
+    log.error(`Snapshot import failed: ${snapshot} (${this.importFailure.code})`);
   }
 
   static async clearImportFailure() {
-    await BackLog.pushKey('snapshotImportFailure', null, false);
+    await BackLog.pushKey('snapshotImportFailure', null, false, true);
     this.importFailure = null;
     this.snapshotRecoveryRequired = false;
+  }
+
+  static async notifyRestore(phase, snapshot) {
+    const sockets = this.serverSocket?.sockets?.sockets;
+    if (!sockets) throw new Error('Replication transport is unavailable');
+    const replicas = [...sockets.values()].filter((socket) => socket.connected && socket.data.operatorReplica);
+    await Promise.all(replicas.map(async (socket) => {
+      const response = await socket.timeout(30000).emitWithAck('restoreState', { phase, snapshot });
+      if (response?.status !== 'OK') throw new Error(response?.error || 'Replica did not acknowledge snapshot restore');
+    }));
+  }
+
+  static async handleRestoreState({ phase, snapshot }) {
+    if (typeof snapshot !== 'string' || !snapshot || /[/\\]/.test(snapshot)) throw new Error('Invalid snapshot name');
+    if (phase === 'begin') {
+      if (this.restoreInProgress) throw new Error('A local restore is already running');
+      this.restoringSnapshot = snapshot;
+      this.restoreError = null;
+      this.restoreQueue = Promise.resolve();
+      await this.markImport(snapshot, 'IMPORT_IN_PROGRESS');
+      return;
+    }
+    if (this.restoringSnapshot !== snapshot) throw new Error('Snapshot restore state does not match');
+    await this.restoreQueue;
+    if (phase === 'failed') {
+      this.restoringSnapshot = null;
+      await this.failImport(snapshot, this.restoreError || new Error('Master snapshot import failed'));
+      return;
+    }
+    if (this.restoreError) throw this.restoreError;
+    if (phase === 'reset') {
+      await BackLog.resetForSnapshot();
+      BackLog.sequenceNumber = 0;
+      return;
+    }
+    if (phase !== 'complete') throw new Error('Unknown snapshot restore phase');
+    await this.clearImportFailure();
+    this.restoringSnapshot = null;
+    this.status = 'OK';
+  }
+
+  static queueRestoreQuery(query, sequenceNumber, timestamp) {
+    this.restoreQueue = this.restoreQueue.then(async () => {
+      if (this.restoreError) return;
+      try {
+        if (sequenceNumber !== BackLog.sequenceNumber + 1) throw new Error('Snapshot replication sequence gap');
+        const result = await BackLog.pushQuery(query, sequenceNumber, timestamp);
+        if (!result?.[0]) throw new Error('Snapshot replica did not confirm execution');
+        if (Array.isArray(result[0]) && result[0][2]) throw result[0][2];
+      } catch (error) {
+        this.restoreError = error;
+        await this.failImport(this.restoringSnapshot, error);
+      }
+    }).catch((error) => { this.restoreError = error; log.error(error); });
+    return this.restoreQueue;
+  }
+
+  // All snapshot imports share one strict parser, durable fence and cleanup path.
+  static async restoreSnapshot(snapshot, { replicate = false, sequenceNumber } = {}) {
+    if (this.restoreInProgress) throw new Error('A snapshot restore is already running');
+    this.restoreInProgress = true;
+    try {
+      await this.markImport(snapshot, 'IMPORT_IN_PROGRESS');
+      if (replicate) {
+        this.restoringSnapshot = snapshot;
+        await this.notifyRestore('begin', snapshot);
+        await this.notifyRestore('reset', snapshot);
+        await BackLog.resetForSnapshot();
+        BackLog.sequenceNumber = 0;
+      } else {
+        await BackLog.resetForSnapshot();
+      }
+      BackLog.executeLogs = false;
+      // SQL errors must reject the import, never terminate before recording failure.
+      BackLog.exitOnError = false;
+      const importer = new SqlImporter({
+        requireResult: true,
+        callback: (sql) => (replicate ? this.sendWriteQuery(sql, false, null, this.serverSocket) : this.pushToBacklog(sql, 0, false)),
+      });
+      importer.onProgress(({ bytes_processed: processed, total_bytes: total }) => {
+        BackLog.compressionTask = total ? Math.floor((processed / total) * 100) : 0;
+      });
+      importer.setEncoding('utf8');
+      await importer.import(`./dumps/${snapshot}.sql`);
+      if (sequenceNumber !== undefined) {
+        const latest = await BackLog.getLastSequenceNumber();
+        if (await BackLog.shiftBacklogSeqNo(sequenceNumber - latest) === false) throw new Error('Could not align snapshot sequence');
+      }
+      if (replicate) await this.notifyRestore('complete', snapshot);
+      await this.clearImportFailure();
+      this.status = replicate ? 'OK' : 'SYNC';
+      BackLog.compressionTask = -1;
+    } catch (error) {
+      // Followers are already fenced before any database reset or imported SQL.
+      if (replicate && this.restoringSnapshot) {
+        try { await this.notifyRestore('failed', snapshot); } catch (notifyError) { log.error(notifyError); }
+      }
+      try { await this.failImport(snapshot, error); } catch (persistError) {
+        log.error(`Could not persist snapshot failure: ${persistError.message}`);
+        error.persistenceError = persistError;
+      }
+      throw error;
+    } finally {
+      this.restoreInProgress = false;
+      this.restoringSnapshot = null;
+      BackLog.executeLogs = true;
+      BackLog.exitOnError = false;
+    }
   }
 
   static async syncLocalDB() {
@@ -1046,10 +1099,7 @@ class Operator {
     }
     if (this.masterWSConn && this.masterWSConn.connected) {
       this.syncing = true;
-      // selfManagedSync is set true when the importer path takes over cleanup.
-      // The finally block must not reset syncing in that case because the importer's
-      // .then()/.catch() already resets it and fires a recursive syncLocalDB() call
-      // that sets syncing=true again before finally runs.
+      // A restored snapshot resumes synchronization before this invocation exits.
       let selfManagedSync = false;
       try {
         const syncConn = this.masterWSConn;
@@ -1067,6 +1117,10 @@ class Operator {
           this.syncing = false;
           await this.findMaster();
           this.initMasterConnection();
+          return;
+        }
+        if (status.importFailure || status.status === 'IMPORTING' || status.status === 'IMPORT_FAILED') {
+          await this.failImport(status.importFailure?.snapshot || 'master-restore', new Error('Master snapshot is not ready'));
           return;
         }
         log.info(JSON.stringify(status));
@@ -1090,51 +1144,15 @@ class Operator {
               log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
               await timer.setTimeout(3000);
             }
-            await BackLog.clearBacklog();
-            this.status = 'CLEARBUFFER';
-            await BackLog.clearBuffer();
-            await timer.setTimeout(200);
-            this.status = 'SYNC';
-            log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
-            BackLog.executeLogs = false;
-            BackLog.exitOnError = true;
-            // restore backlog from snapshot
-            const importer = new SqlImporter({
-              requireResult: true,
-              callback: this.pushToBacklog,
-              serverSocket: false,
-            });
-            importer.onProgress((progress) => {
-              const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 1000);
-              BackLog.compressionTask = percent;
-              log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
-            });
-            importer.setEncoding('utf8');
-            selfManagedSync = true; // importer handles this.syncing and recursion from here
-            await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
-              const filesImported = importer.getImported();
-              log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-              const latestSequenceNumber = await BackLog.getLastSequenceNumber();
-              log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
-              await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
-              await this.clearImportFailure();
-              BackLog.executeLogs = true;
-              BackLog.exitOnError = false;
+            selfManagedSync = true;
+            try {
+              await this.restoreSnapshot(beaconContent.backupFilename, { sequenceNumber: beaconContent.seqNo });
               this.syncing = false;
-              const { masterWSConn } = this;
-              if (!masterWSConn) {
-                log.warn('Sync proccess halted.', 'red');
-                await this.findMaster();
-                this.initMasterConnection();
-                return;
-              }
-              this.syncLocalDB();
-            }).catch(async (err) => {
-              BackLog.executeLogs = true;
-              BackLog.exitOnError = false;
-              log.error(err);
-              await this.failImport(beaconContent.backupFilename, err);
-            });
+              await this.syncLocalDB();
+            } catch (error) {
+              this.syncing = false;
+              log.error(error);
+            }
             return;
           }
         }
@@ -1335,14 +1353,12 @@ class Operator {
   */
   static async doHealthCheck() {
     try {
+      if (this.restoreInProgress || this.restoringSnapshot) return;
       if (this.importFailure || this.snapshotRecoveryRequired) {
-        const beacon = await BackLog.readBeaconFile();
-        // Do not keep replaying the same invalid snapshot or elect a partial DB.
-        // A newer snapshot can recover a connected follower automatically.
-        if (beacon && (!this.importFailure || beacon.backupFilename !== this.importFailure.snapshot)
-          && !this.IamMaster && this.masterWSConn && this.masterWSConn.connected) {
-          this.importFailure = null;
-          await this.syncLocalDB();
+        await this.checkIfBeaconExists();
+        if (!this.importFailure && !this.snapshotRecoveryRequired) {
+          await this.findMaster();
+          this.initMasterConnection();
         }
         return;
       }
@@ -1583,8 +1599,16 @@ class Operator {
   }
 
   static async checkIfBeaconExists() {
-    const beaconContent = await BackLog.readBeaconFile();
-    const savedFailure = await BackLog.getKey('snapshotImportFailure', false);
+    if (this.restoreInProgress || this.restoringSnapshot) return;
+    const beacon = await BackLog.readBeaconFile();
+    let savedFailure;
+    try {
+      savedFailure = await BackLog.getKey('snapshotImportFailure', false, true);
+    } catch (error) {
+      this.status = 'IMPORT_FAILED';
+      this.snapshotRecoveryRequired = true;
+      throw error;
+    }
     if (savedFailure) {
       try {
         const failure = JSON.parse(savedFailure);
@@ -1595,59 +1619,20 @@ class Operator {
       }
       this.snapshotRecoveryRequired = true;
       this.status = 'IMPORT_FAILED';
-      if (!beaconContent || beaconContent.backupFilename === this.importFailure.snapshot) return;
-      // A newer file can repair a partial import after a process restart.
-      this.importFailure = null;
     }
-    if ((BackLog.sequenceNumber === 0 || this.snapshotRecoveryRequired) && beaconContent) {
-      log.info(`beacon file exists, lets try to recover DB... ${JSON.stringify(beaconContent)}`, 'cyan');
-      if (this.snapshotRecoveryRequired || beaconContent.seqNo > BackLog.sequenceNumber) {
-        while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
-          log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
-          await timer.setTimeout(3000);
-        }
-        log.info(`file size: ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}`);
-        while (fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size !== beaconContent.BackupFilesize) {
-          log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
-          await timer.setTimeout(3000);
-        }
-        if (this.snapshotRecoveryRequired) {
-          await BackLog.clearBacklog();
-          await BackLog.clearBuffer();
-        }
-        this.status = 'SYNC';
-        log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
-        BackLog.executeLogs = false;
-        BackLog.exitOnError = true;
-        // restore backlog from snapshot
-        const importer = new SqlImporter({
-          requireResult: true,
-          callback: this.pushToBacklog,
-          serverSocket: false,
-        });
-        importer.onProgress((progress) => {
-          const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 1000);
-          BackLog.compressionTask = percent;
-          log.info(`Importing ${beaconContent.backupFilename} - [${'='.repeat(Math.floor(percent / 50))}>${'-'.repeat(Math.floor((1000 - percent) / 50))}] %${percent / 10}`, 'cyan');
-        });
-        importer.setEncoding('utf8');
-        await importer.import(`./dumps/${beaconContent.backupFilename}.sql`).then(async () => {
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
-          const latestSequenceNumber = await BackLog.getLastSequenceNumber();
-          log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
-          await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
-          await this.clearImportFailure();
-          BackLog.executeLogs = true;
-          BackLog.exitOnError = false;
-        }).catch(async (err) => {
-          log.info(`Error importing backup: ${err}`);
-          BackLog.executeLogs = true;
-          BackLog.exitOnError = false;
-          await this.failImport(beaconContent.backupFilename, err);
-        });
-      }
+    if (!beacon || (this.importFailure && beacon.backupFilename === this.importFailure.snapshot)) return;
+    if (BackLog.sequenceNumber !== 0 && !this.snapshotRecoveryRequired) return;
+    if (!this.snapshotRecoveryRequired && beacon.seqNo <= BackLog.sequenceNumber) return;
+    const file = `./dumps/${beacon.backupFilename}.sql`;
+    // A later health check retries once Syncthing has delivered the complete file.
+    if (!fs.existsSync(file) || fs.statSync(file).size !== beacon.BackupFilesize) {
+      this.status = 'SYNC';
+      this.snapshotRecoveryRequired = true;
+      return;
     }
+    try {
+      await this.restoreSnapshot(beacon.backupFilename, { sequenceNumber: beacon.seqNo });
+    } catch (error) { log.error(error); }
   }
 
   /**
@@ -1655,7 +1640,7 @@ class Operator {
   */
   static async findMaster(resetMasterCandidates = true) {
     try {
-      if (this.importFailure || this.snapshotRecoveryRequired) return null;
+      if (this.restoreInProgress || this.restoringSnapshot) return null;
       if (this.status === 'UNINSTALL') return null;
 
       await this.checkIfBeaconExists();
@@ -1764,6 +1749,7 @@ class Operator {
     } catch (err) {
       log.info('error while finding master');
       log.error(err);
+      if (this.importFailure || this.snapshotRecoveryRequired) return null;
       return this.findMaster(false);
     }
     return null;

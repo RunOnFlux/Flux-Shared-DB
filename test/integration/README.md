@@ -40,8 +40,17 @@ docker compose -p flux-mysql-echo-test -f test/integration/mariadb-compose.yml -
 Run the two backends sequentially because they share ports. CI runs each backend
 in a separate matrix job, including the full unit, HTTP, and browser suites.
 `MARIADB_INTEGRATION=1` remains supported for existing callers.
-Single-read regression checks cover Unicode, binary values, and NULL while the
-backend driver negotiates MariaDB extended metadata.
+Protocol regressions cover Unicode, binary values, NULL, exact BIGINT values,
+JSON, prepared reads, mixed batches, CTEs, EXPLAIN, and multi-result CALL.
+The backend greeting filter disables MariaDB extended metadata without changing
+query/result bytes or depending on mysql2 private internals.
+
+The test also round-trips a real trigger dump, injects an error after a replicated
+restore prefix, verifies that existing and new clients are rejected on every
+node, then retries a valid dump and verifies trigger behavior and cleared markers.
+Replicated restores require all connected replicas to acknowledge the restore
+protocol before any database is reset. Older replicas must be upgraded before
+using this operation; an acknowledgement failure aborts before destructive SQL.
 
 Ports 17306-17308 must be free. The test creates and resets its databases inside
 these disposable containers. Normal `npm test` skips this integration test.

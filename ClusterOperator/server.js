@@ -28,7 +28,6 @@ const config = require('./config');
 const Security = require('./Security');
 const operatorAuth = require('../lib/operatorAuth');
 const { cookieCsrfProtection, sessionCredential, tokenForSession } = require('../lib/uiCsrf');
-const SqlImporter = require('../lib/mysqlimport');
 const { buildDeleteQuery, isPrimaryKeyValue, unpackBacklogWriteResult } = require('../lib/rawQuery');
 // Import the factory function, not the class directly
 const { createClient } = require('./DBClient'); // Assuming DBClient.js exports createClient
@@ -621,39 +620,9 @@ async function startUI() { // Make async to potentially await DB client init if 
         }
 
         try {
-          log.info(`Starting execution of backup file: ${safeFilename}.sql`);
-          BackLog.compressionTask = 0;
-          // removing old db + resetting sequence numbers:
-          log.info('Rolling back DB to sequence 0 before executing backup...');
-          await Operator.rollBack(0);
-          Operator.status = 'IMPORTING';
-          await timer.setTimeout(2000); // Allow time for rollback operations
-
-          const importer = new SqlImporter({
-            requireResult: true,
-            callback: Operator.sendWriteQuery, // Ensure this callback handles query execution correctly
-            serverSocket: Operator.serverSocket, // Pass socket if needed by callback
-          });
-
-          importer.onProgress((progress) => {
-            const percent = Math.floor((progress.bytes_processed / progress.total_bytes) * 10000) / 100;
-            log.info(`Import progress for ${safeFilename}.sql: ${percent}% Completed`, 'cyan');
-            BackLog.compressionTask = percent;
-            // Consider sending progress via WebSocket if needed for UI feedback
-          });
-
-          importer.setEncoding('utf8'); // Or appropriate encoding
-
-          await importer.import(filePath);
-
-          const filesImported = importer.getImported();
-          log.info(`${filesImported.length} SQL file(s) imported successfully (${safeFilename}.sql).`);
-          await Operator.clearImportFailure();
-          Operator.status = 'OK';
+          await Operator.restoreSnapshot(safeFilename, { replicate: true });
           res.send('OK');
-          BackLog.compressionTask = -1;
         } catch (err) {
-          await Operator.failImport(safeFilename, err);
           log.error(`Error during backup execution (${safeFilename}.sql): ${err.message || err}`);
           res.status(500).send({ error: `Failed to execute backup file: ${err.message || err}` });
         }
@@ -1322,6 +1291,11 @@ async function initServer() {
       try {
         if (auth(ip)) {
           log.debug(`Operator node connected: ${ip}`);
+          // A late replica cannot safely join a snapshot halfway through its SQL.
+          if (Operator.restoreInProgress) {
+            socket.disconnect(true);
+            return;
+          }
           // Operator node specific event listeners
           socket.on('disconnect', (reason) => {
             // log.info(`Operator node disconnected: ${ip}, Reason: ${reason}`);
@@ -1331,6 +1305,7 @@ async function initServer() {
             try {
               callback({
                 status: Operator.status,
+                importFailure: Operator.importFailure,
                 sequenceNumber: BackLog.sequenceNumber,
                 firstSequenceNumber: await BackLog.getFirstSequenceNumber(),
                 operatorAuth: {
@@ -1367,6 +1342,10 @@ async function initServer() {
           });
           socket.on('writeQuery', async (query, connId, callback) => {
             // log.info(`writeQuery from Operator ${ip}:${connId}`);
+            if (Operator.status !== 'OK') {
+              callback({ status: 'error', result: 'Database is not ready for writes' });
+              return;
+            }
             try {
               const result = await BackLog.pushQuery(query); // [result, seq, timestamp]
               if (result && result.length >= 3) {

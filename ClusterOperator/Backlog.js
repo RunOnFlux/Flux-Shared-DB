@@ -92,23 +92,6 @@ class BackLog {
     }
   }
 
-  // Retry only confirmed, failed atomic DDL on an internal connection. Retrying
-  // here keeps a single backlog record and never repeats a client-facing write.
-  static async queryInternal(query, fullQuery) {
-    const retryableDDL = /^\s*(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX)\b/i.test(query) && !query.includes(';');
-    for (let attempt = 0; ; attempt += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      const result = await this.UserDBClient.query(query, false, fullQuery);
-      const error = Array.isArray(result) && result[0] === null && result[1] === null ? result[2] : null;
-      const retryableError = error && ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(error.code);
-      if (!retryableDDL || !retryableError || attempt >= 2) return result;
-      log.warn(`Retrying internal DDL after ${error.code}; attempt ${attempt + 2}/3`);
-      // MySQL returned an error, so this is not a retry after an unknown commit.
-      // eslint-disable-next-line no-await-in-loop
-      await timer.setTimeout(250 * (2 ** attempt));
-    }
-  }
-
   /**
   * [pushQuery]
   * @param {string} query [description]
@@ -161,7 +144,7 @@ class BackLog {
             }
           } else {
             if (connId === false) {
-              result = await this.queryInternal(query, fullQuery);
+              result = await this.UserDBClient.query(query, false, fullQuery);
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
@@ -434,6 +417,27 @@ class BackLog {
     log.info('backlog data removed successfully.');
   }
 
+  // Snapshot resets must stop on SQL errors instead of logging and continuing.
+  static async resetForSnapshot() {
+    if (!this.BLClient || !this.UserDBClient) throw new Error('Snapshot database clients are unavailable');
+    const identifier = (value) => `\`${String(value).replace(/`/g, '``')}\``;
+    const run = async (client, sql) => {
+      const result = await client.query(sql);
+      if (Array.isArray(result) && result[0] === null && result[2]) throw result[2];
+      if (result == null) throw new Error('Snapshot reset was not confirmed');
+    };
+    await run(this.BLClient, `DROP DATABASE IF EXISTS ${identifier(config.dbInitDB)}`);
+    await run(this.BLClient, `CREATE DATABASE ${identifier(config.dbInitDB)}`);
+    await run(this.UserDBClient, `USE ${identifier(config.dbInitDB)}`);
+    await run(this.BLClient, `DELETE FROM ${identifier(config.dbBacklogCollection)}`);
+    await run(this.BLClient, `TRUNCATE TABLE ${identifier(config.dbBacklogBuffer)}`);
+    this.sequenceNumber = 0;
+    this.firstSequenceNumber = 0;
+    this.bufferSequenceNumber = 0;
+    this.bufferStartSequenceNumber = 0;
+    this.buffer = [];
+  }
+
   /**
   * [rebuildDatabase]
   */
@@ -598,14 +602,19 @@ class BackLog {
   /**
   * [pushKey]
   */
-  static async pushKey(key, value, encrypt = true) {
+  static async pushKey(key, value, encrypt = true, required = false) {
     const encryptedValue = (encrypt) ? Security.encrypt(value) : value;
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
-      if (config.dbType === 'mysql') {
+      if (required) {
+        if (config.dbType !== 'mysql' || !this.BLClient) throw new Error('Options database is unavailable');
+        const result = await this.BLClient.execute(`INSERT INTO ${config.dbOptions} (k, value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)`, [key, encryptedValue]);
+        if (Array.isArray(result) && result[2]) throw result[2];
+        if (!result || typeof result.affectedRows !== 'number') throw new Error('Options write was not confirmed');
+      } else if (config.dbType === 'mysql') {
         const record = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
         if (record.length) {
           await this.BLClient.execute(`UPDATE ${config.dbOptions} SET value=? WHERE k=?`, [encryptedValue, key]);
@@ -615,6 +624,7 @@ class BackLog {
       }
     } catch (e) {
       log.error(e);
+      if (required) throw e;
     }
     this.buffer = [];
     // log.info('Key pushed.');
@@ -623,20 +633,24 @@ class BackLog {
   /**
   * [getKey]
   */
-  static async getKey(key, decrypt = true) {
+  static async getKey(key, decrypt = true, required = false) {
     if (!this.BLClient) {
       this.BLClient = await dbClient.createClient();
       if (this.BLClient && config.dbType === 'mysql') await this.BLClient.setDB(config.dbBacklog);
     }
     try {
+      if (required && (config.dbType !== 'mysql' || !this.BLClient)) throw new Error('Options database is unavailable');
       if (config.dbType === 'mysql') {
         const records = await this.BLClient.execute(`SELECT * FROM ${config.dbOptions} WHERE k=?`, [key]);
+        if (Array.isArray(records) && records[2] && records[0] === null) throw records[2];
+        if (required && !Array.isArray(records)) throw new Error('Options read was not confirmed');
         if (records.length) {
           return (decrypt) ? Security.encryptComm(Security.decrypt(records[0].value)) : records[0].value;
         }
       }
     } catch (e) {
       log.error(e);
+      if (required) throw e;
     }
     return null;
   }
