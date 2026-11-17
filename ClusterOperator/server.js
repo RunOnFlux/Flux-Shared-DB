@@ -291,6 +291,7 @@ async function startUI() { // Make async to potentially await DB client init if 
       sequenceNumber: BackLog.sequenceNumber,
       masterIP: Operator.getMaster(),
       taskStatus: BackLog.compressionTask,
+      importFailure: Operator.importFailure,
       clusterStatus: Operator.ClusterStatus,
     };
     if (req.query.details === '1') {
@@ -629,6 +630,7 @@ async function startUI() { // Make async to potentially await DB client init if 
           await timer.setTimeout(2000); // Allow time for rollback operations
 
           const importer = new SqlImporter({
+            requireResult: true,
             callback: Operator.sendWriteQuery, // Ensure this callback handles query execution correctly
             serverSocket: Operator.serverSocket, // Pass socket if needed by callback
           });
@@ -646,11 +648,12 @@ async function startUI() { // Make async to potentially await DB client init if 
 
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported successfully (${safeFilename}.sql).`);
+          await Operator.clearImportFailure();
           Operator.status = 'OK';
           res.send('OK');
           BackLog.compressionTask = -1;
         } catch (err) {
-          Operator.status = 'OK';
+          await Operator.failImport(safeFilename, err);
           log.error(`Error during backup execution (${safeFilename}.sql): ${err.message || err}`);
           res.status(500).send({ error: `Failed to execute backup file: ${err.message || err}` });
         }

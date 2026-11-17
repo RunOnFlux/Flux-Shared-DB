@@ -64,6 +64,10 @@ class Operator {
 
   static status = 'INIT';
 
+  static importFailure = null;
+
+  static snapshotRecoveryRequired = false;
+
   static dbConnStatus = 'NOT_CONNECTED';
 
   static serverSocket;
@@ -710,6 +714,7 @@ class Operator {
         this.pushToBacklog('SET FOREIGN_KEY_CHECKS=0');
         // restore backlog from snapshot
         const importer = new SqlImporter({
+          requireResult: true,
           callback: this.pushToBacklog,
           serverSocket: false,
         });
@@ -723,14 +728,16 @@ class Operator {
           this.pushToBacklog('SET FOREIGN_KEY_CHECKS=1');
           const filesImported = importer.getImported();
           log.info(`${filesImported.length} SQL file(s) imported to backlog.`);
+          await this.clearImportFailure();
           this.status = 'OK';
           BackLog.compressionTask = -1;
           if (this.IamMaster) {
             const files = await BackLog.listSqlFiles();
             for (let i = 0; i < files.length - 1; i += 1) BackLog.deleteBackupFile(files[i].fileName, true);
           }
-        }).catch((err) => {
+        }).catch(async (err) => {
           log.error(err);
+          await this.failImport(backupFilename, err);
         });
       }
     } catch (e) {
@@ -1015,7 +1022,24 @@ class Operator {
   /**
   * [syncLocalDB]
   */
+  static async failImport(snapshot, error) {
+    this.importFailure = { snapshot, code: error.code || 'IMPORT_FAILED' };
+    this.status = 'IMPORT_FAILED';
+    this.snapshotRecoveryRequired = true;
+    this.syncing = false;
+    BackLog.compressionTask = -2;
+    await BackLog.pushKey('snapshotImportFailure', JSON.stringify(this.importFailure), false);
+    log.error(`Snapshot import failed: ${snapshot} (${this.importFailure.code}); application access remains disabled`);
+  }
+
+  static async clearImportFailure() {
+    await BackLog.pushKey('snapshotImportFailure', null, false);
+    this.importFailure = null;
+    this.snapshotRecoveryRequired = false;
+  }
+
   static async syncLocalDB() {
+    if (this.importFailure) return;
     if (this.syncing) {
       log.info('syncLocalDB already in progress, skipping.', 'yellow');
       return;
@@ -1047,7 +1071,7 @@ class Operator {
         }
         log.info(JSON.stringify(status));
         log.info(`current seq no: ${BackLog.sequenceNumber}`);
-        if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
+        if (this.snapshotRecoveryRequired || ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1)) {
           log.info(`Master node's first SequenceNumber: ${status.firstSequenceNumber}`);
           let beaconContent = await BackLog.readBeaconFile();
           while (!beaconContent) {
@@ -1056,7 +1080,7 @@ class Operator {
             beaconContent = await BackLog.readBeaconFile();
           }
           log.info(`beacon file: ${JSON.stringify(beaconContent)}`);
-          if (beaconContent.seqNo > BackLog.sequenceNumber) {
+          if (this.snapshotRecoveryRequired || beaconContent.seqNo > BackLog.sequenceNumber) {
             while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
               log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
               await timer.setTimeout(3000);
@@ -1076,6 +1100,7 @@ class Operator {
             BackLog.exitOnError = true;
             // restore backlog from snapshot
             const importer = new SqlImporter({
+              requireResult: true,
               callback: this.pushToBacklog,
               serverSocket: false,
             });
@@ -1092,6 +1117,7 @@ class Operator {
               const latestSequenceNumber = await BackLog.getLastSequenceNumber();
               log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
               await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
+              await this.clearImportFailure();
               BackLog.executeLogs = true;
               BackLog.exitOnError = false;
               this.syncing = false;
@@ -1107,15 +1133,7 @@ class Operator {
               BackLog.executeLogs = true;
               BackLog.exitOnError = false;
               log.error(err);
-              this.syncing = false;
-              const { masterWSConn } = this;
-              if (!masterWSConn) {
-                log.warn('Sync proccess halted.', 'red');
-                await this.findMaster();
-                this.initMasterConnection();
-                return;
-              }
-              this.syncLocalDB();
+              await this.failImport(beaconContent.backupFilename, err);
             });
             return;
           }
@@ -1162,7 +1180,7 @@ class Operator {
                   log.info(`wrong seq no from master ${record.seq}`, 'red');
                   status = await fluxAPI.getStatus(this.masterNode, config.containerApiPort, 3000);
                   log.info(`asking for master status: ${JSON.stringify(status)}`, 'red');
-                  if ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1) {
+                  if (this.snapshotRecoveryRequired || ('firstSequenceNumber' in status && status.firstSequenceNumber > BackLog.sequenceNumber + 1)) {
                     log.info('starting over...', 'red');
                     this.syncing = false;
                     this.syncLocalDB();
@@ -1317,6 +1335,17 @@ class Operator {
   */
   static async doHealthCheck() {
     try {
+      if (this.importFailure || this.snapshotRecoveryRequired) {
+        const beacon = await BackLog.readBeaconFile();
+        // Do not keep replaying the same invalid snapshot or elect a partial DB.
+        // A newer snapshot can recover a connected follower automatically.
+        if (beacon && (!this.importFailure || beacon.backupFilename !== this.importFailure.snapshot)
+          && !this.IamMaster && this.masterWSConn && this.masterWSConn.connected) {
+          this.importFailure = null;
+          await this.syncLocalDB();
+        }
+        return;
+      }
       // Restart container if node is stuck in INIT for too long.
       if ((this.status || '').toUpperCase() === 'INIT') {
         if (!this.initStatusSince) this.initStatusSince = Date.now();
@@ -1555,9 +1584,24 @@ class Operator {
 
   static async checkIfBeaconExists() {
     const beaconContent = await BackLog.readBeaconFile();
-    if (BackLog.sequenceNumber === 0 && beaconContent) {
+    const savedFailure = await BackLog.getKey('snapshotImportFailure', false);
+    if (savedFailure) {
+      try {
+        const failure = JSON.parse(savedFailure);
+        if (!failure || typeof failure.snapshot !== 'string' || typeof failure.code !== 'string') throw new Error('Invalid import state');
+        this.importFailure = failure;
+      } catch (_) {
+        this.importFailure = { snapshot: null, code: 'INVALID_IMPORT_STATE' };
+      }
+      this.snapshotRecoveryRequired = true;
+      this.status = 'IMPORT_FAILED';
+      if (!beaconContent || beaconContent.backupFilename === this.importFailure.snapshot) return;
+      // A newer file can repair a partial import after a process restart.
+      this.importFailure = null;
+    }
+    if ((BackLog.sequenceNumber === 0 || this.snapshotRecoveryRequired) && beaconContent) {
       log.info(`beacon file exists, lets try to recover DB... ${JSON.stringify(beaconContent)}`, 'cyan');
-      if (beaconContent.seqNo > BackLog.sequenceNumber) {
+      if (this.snapshotRecoveryRequired || beaconContent.seqNo > BackLog.sequenceNumber) {
         while (!fs.existsSync(`./dumps/${beaconContent.backupFilename}.sql`)) {
           log.info(`Waiting for ${beaconContent.backupFilename}.sql to be created...`);
           await timer.setTimeout(3000);
@@ -1567,12 +1611,17 @@ class Operator {
           log.info(`filesize don't match ${fs.statSync(`./dumps/${beaconContent.backupFilename}.sql`).size}, ${beaconContent.BackupFilesize}`);
           await timer.setTimeout(3000);
         }
+        if (this.snapshotRecoveryRequired) {
+          await BackLog.clearBacklog();
+          await BackLog.clearBuffer();
+        }
         this.status = 'SYNC';
         log.info(`Importing ${beaconContent.backupFilename}, file size: ${beaconContent.BackupFilesize}`, 'cyan');
         BackLog.executeLogs = false;
         BackLog.exitOnError = true;
         // restore backlog from snapshot
         const importer = new SqlImporter({
+          requireResult: true,
           callback: this.pushToBacklog,
           serverSocket: false,
         });
@@ -1588,12 +1637,14 @@ class Operator {
           const latestSequenceNumber = await BackLog.getLastSequenceNumber();
           log.info(`${beaconContent.seqNo}, ${latestSequenceNumber}`);
           await BackLog.shiftBacklogSeqNo(beaconContent.seqNo - latestSequenceNumber);
+          await this.clearImportFailure();
           BackLog.executeLogs = true;
           BackLog.exitOnError = false;
         }).catch(async (err) => {
           log.info(`Error importing backup: ${err}`);
           BackLog.executeLogs = true;
           BackLog.exitOnError = false;
+          await this.failImport(beaconContent.backupFilename, err);
         });
       }
     }
@@ -1604,9 +1655,11 @@ class Operator {
   */
   static async findMaster(resetMasterCandidates = true) {
     try {
+      if (this.importFailure || this.snapshotRecoveryRequired) return null;
       if (this.status === 'UNINSTALL') return null;
 
       await this.checkIfBeaconExists();
+      if (this.importFailure || this.snapshotRecoveryRequired) return null;
 
       this.status = 'INIT';
       this.masterNode = null;

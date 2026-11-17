@@ -83,7 +83,7 @@ async function fixture(t, protection = true, identity = null, peerIP = null) {
     '../lib/mysqlimport': Importer,
     '../lib/uiCsrf': protection ? csrf : { ...csrf, cookieCsrfProtection: (_req, _res, next) => next() },
     './config': { debugUIPort: 0, ssl: false, whiteListedIps: '127.0.0.1' },
-    './Operator': { IamMaster: true, emitUserSession() {}, rollBack: async (seqNo) => actions.push({ rollback: seqNo }) },
+    './Operator': { IamMaster: true, emitUserSession() {}, rollBack: async (seqNo) => actions.push({ rollback: seqNo }), clearImportFailure: async () => {} },
     './Backlog': {},
     './IdService': identity || { verifySession: (session, ip) => session === SESSION && ip === '127.0.0.1' },
   };

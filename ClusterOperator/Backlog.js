@@ -92,6 +92,23 @@ class BackLog {
     }
   }
 
+  // Retry only confirmed, failed atomic DDL on an internal connection. Retrying
+  // here keeps a single backlog record and never repeats a client-facing write.
+  static async queryInternal(query, fullQuery) {
+    const retryableDDL = /^\s*(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX)\b/i.test(query) && !query.includes(';');
+    for (let attempt = 0; ; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await this.UserDBClient.query(query, false, fullQuery);
+      const error = Array.isArray(result) && result[0] === null && result[1] === null ? result[2] : null;
+      const retryableError = error && ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(error.code);
+      if (!retryableDDL || !retryableError || attempt >= 2) return result;
+      log.warn(`Retrying internal DDL after ${error.code}; attempt ${attempt + 2}/3`);
+      // MySQL returned an error, so this is not a retry after an unknown commit.
+      // eslint-disable-next-line no-await-in-loop
+      await timer.setTimeout(250 * (2 ** attempt));
+    }
+  }
+
   /**
   * [pushQuery]
   * @param {string} query [description]
@@ -144,7 +161,7 @@ class BackLog {
             }
           } else {
             if (connId === false) {
-              result = await this.UserDBClient.query(query, false, fullQuery);
+              result = await this.queryInternal(query, fullQuery);
             } else if (connId >= 0) {
               result = await ConnectionPool.getConnectionById(connId).query(query, false, fullQuery);
             }
