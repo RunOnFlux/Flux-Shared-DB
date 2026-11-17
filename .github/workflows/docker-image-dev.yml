@@ -12,9 +12,13 @@ permissions:
 
 jobs:
   test:
-    name: Development tests
+    name: Development tests (${{ matrix.database }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [mariadb, mysql]
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
@@ -40,19 +44,28 @@ jobs:
 
       - name: Start disposable integration databases
         run: |
-          docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml up -d --wait --wait-timeout 120
-          docker pull mysql:8.0
+          if [ "${{ matrix.database }}" = mysql ]; then
+            docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml -f test/integration/mysql-compose.yml up -d --wait --wait-timeout 120
+          else
+            docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml up -d --wait --wait-timeout 120
+          fi
+          docker pull mysql:8.3.0
 
       - name: Run unit, HTTP, database and browser integration tests
         env:
-          MARIADB_INTEGRATION: '1'
-          MYSQL_CLI_IMAGE: mysql:8.0
+          DB_INTEGRATION: ${{ matrix.database }}
+          MYSQL_CLI_IMAGE: mysql:8.3.0
           RUN_UI_BROWSER_TESTS: '1'
         run: npm test
 
       - name: Remove integration databases
         if: always()
-        run: docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml down -v
+        run: |
+          if [ "${{ matrix.database }}" = mysql ]; then
+            docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml -f test/integration/mysql-compose.yml down -v
+          else
+            docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml down -v
+          fi
 
   authorize_publish:
     name: Authorize image publishing

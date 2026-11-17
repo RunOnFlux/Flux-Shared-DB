@@ -153,8 +153,11 @@ async function nodeInstance(port, t) {
   };
 }
 
-test('three MariaDB nodes: follower batches, prepared writes and connection reuse', {
-  skip: process.env.MARIADB_INTEGRATION !== '1', timeout: 60000,
+const databaseEngine = process.env.DB_INTEGRATION || (process.env.MARIADB_INTEGRATION === '1' ? 'mariadb' : '');
+if (databaseEngine && !['mysql', 'mariadb'].includes(databaseEngine)) throw new Error('DB_INTEGRATION must be mysql or mariadb');
+
+test(`three ${databaseEngine || 'database'} nodes: follower batches, prepared writes and connection reuse`, {
+  skip: !databaseEngine, timeout: 60000,
 }, async (t) => {
   const nodes = [];
   const clients = [];
@@ -260,6 +263,13 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
       host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret', multipleStatements: true,
     });
     clients.push(client);
+    // Single reads must translate backend MariaDB metadata to the frontend protocol.
+    const [values] = await client.query(
+      "SELECT 'snow ☃' AS text_value, CAST('bytes' AS BINARY) AS binary_value, NULL AS null_value",
+    );
+    assert.equal(values[0].text_value, 'snow ☃');
+    assert.deepEqual(values[0].binary_value, Buffer.from('bytes'));
+    assert.equal(values[0].null_value, null);
     const errors = [];
     client.on('error', (error) => errors.push(error));
     const database = `follower_case_${index}`;

@@ -820,13 +820,11 @@ class Operator {
                 this.operator.sessionQueries[id] = undefined;
               }
               await this.sendWriteQuery(queryItem[0], id, query);
-            } else if (queryItem[1] === 's') {
-              // eslint-disable-next-line prefer-destructuring
-              this.operator.sessionQueries[id] = queryItem[0];
-              await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
             } else {
-              // forward it to the local DB
-              await ConnectionPool.getConnectionById(id).query(queryItem[0], true);
+              // Encode result metadata for the frontend's negotiated protocol.
+              // mysql2 now requests MariaDB extended metadata on backend links;
+              // forwarding those bytes to a MySQL frontend corrupts its columns.
+              await Operator.handleQueryBatch.call(this, [queryItem], query, id);
             }
           }
 

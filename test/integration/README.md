@@ -1,6 +1,6 @@
-# MariaDB Follower Regression
+# MySQL and MariaDB Follower Regression
 
-This opt-in test uses three disposable MariaDB 11.4 containers, real mysql2
+This opt-in test uses three disposable MariaDB 11.4 or MySQL 8.3.0 containers, real mysql2
 and MariaDB clients, and Socket.IO over TCP. Each node loads the production Operator,
 Backlog, DBClient, SQL analyzer, and MySQL emulator. The master transport mirrors
 the echo-before-acknowledgement ordering in `ClusterOperator/server.js`.
@@ -25,9 +25,23 @@ Run from the repository root:
 
 ```sh
 docker compose -p flux-mariadb-echo-test -f test/integration/mariadb-compose.yml up -d --wait
-MARIADB_INTEGRATION=1 node test/integration/follower.test.js
+DB_INTEGRATION=mariadb node test/integration/follower.test.js
 docker compose -p flux-mariadb-echo-test -f test/integration/mariadb-compose.yml down -v
 ```
+
+For the MySQL backend, run the same test with the MySQL Compose override:
+
+```sh
+docker compose -p flux-mysql-echo-test -f test/integration/mariadb-compose.yml -f test/integration/mysql-compose.yml up -d --wait
+DB_INTEGRATION=mysql MYSQL_CLI_IMAGE=mysql:8.3.0 node test/integration/follower.test.js
+docker compose -p flux-mysql-echo-test -f test/integration/mariadb-compose.yml -f test/integration/mysql-compose.yml down -v
+```
+
+Run the two backends sequentially because they share ports. CI runs each backend
+in a separate matrix job, including the full unit, HTTP, and browser suites.
+`MARIADB_INTEGRATION=1` remains supported for existing callers.
+Single-read regression checks cover Unicode, binary values, and NULL while the
+backend driver negotiates MariaDB extended metadata.
 
 Ports 17306-17308 must be free. The test creates and resets its databases inside
 these disposable containers. Normal `npm test` skips this integration test.
@@ -37,7 +51,7 @@ native authentication (including rejection of an incorrect password), set
 `MYSQL_CLI_IMAGE` to a locally available image containing the `mysql` binary:
 
 ```sh
-MARIADB_INTEGRATION=1 MYSQL_CLI_IMAGE=mysql:8.0 node test/integration/follower.test.js
+MARIADB_INTEGRATION=1 MYSQL_CLI_IMAGE=mysql:8.3.0 node test/integration/follower.test.js
 ```
 
 Pull the client image before running this optional check. The CLI containers use
