@@ -67,6 +67,17 @@ jobs:
             docker compose -p shared-db-dev-tests -f test/integration/mariadb-compose.yml down -v
           fi
 
+  test_status:
+    name: Development tests
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both database suites to pass
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        run: test "$TEST_RESULT" = success
+
   authorize_publish:
     name: Authorize image publishing
     if: github.event_name == 'push'
