@@ -20,6 +20,9 @@ const socketClient = require('socket.io-client');
 const { identify } = require('sql-query-identifier');
 const constants = require('../../lib/mysqlConstants');
 const operatorAuth = require('../../lib/operatorAuth');
+const backendStream = require('../../lib/mysqlBackendStream');
+const Importer = require('../../lib/mysqlimport');
+const mysqldump = require('../../lib/mysqldump');
 
 function load(relativePath, dependencies) {
   const filename = path.join(__dirname, '../..', relativePath);
@@ -48,12 +51,16 @@ async function nodeInstance(port, t) {
     whiteListedIps: '127.0.0.1',
     dbBacklog: 'flux_backlog',
     dbBacklogCollection: 'backlog',
+    dbBacklogBuffer: 'backlog_buffer',
+    dbOptions: 'options',
+    dbInitDB: 'restore_case',
     containerDataPath: '',
   };
   const messages = [];
   const log = Object.fromEntries(['info', 'debug', 'warn', 'error'].map((level) => [level, (message) => messages.push(String(message))]));
   const factory = load('ClusterOperator/DBClient.js', {
     'mysql2/promise': mysql,
+    '../lib/mysqlBackendStream': backendStream,
     net,
     './config': config,
     './Security': { getKey: () => 'secret' },
@@ -73,6 +80,10 @@ async function nodeInstance(port, t) {
   await user.connection.query('CREATE DATABASE IF NOT EXISTS flux_backlog');
   await user.connection.query('CREATE TABLE IF NOT EXISTS flux_backlog.backlog (seq BIGINT PRIMARY KEY, query LONGTEXT, timestamp BIGINT)');
   await user.connection.query('TRUNCATE TABLE flux_backlog.backlog');
+  await user.connection.query('CREATE TABLE IF NOT EXISTS flux_backlog.options (k VARCHAR(64) PRIMARY KEY, value TEXT)');
+  await user.connection.query('TRUNCATE TABLE flux_backlog.options');
+  await user.connection.query('CREATE TABLE IF NOT EXISTS flux_backlog.backlog_buffer (seq BIGINT PRIMARY KEY, query LONGTEXT, timestamp BIGINT)');
+  await user.connection.query('CREATE DATABASE IF NOT EXISTS restore_case');
   const backlogConn = await connection();
   await backlogConn.connection.query('USE flux_backlog');
   const poolConnections = [];
@@ -105,6 +116,9 @@ async function nodeInstance(port, t) {
       clientOptions: (getSessionId, _settings, role) => operatorAuth.clientOptions(getSessionId, config, role),
     },
     './Backlog': backlog,
+    fs,
+    'timers/promises': timer,
+    '../lib/mysqlimport': Importer,
     './config': config,
     '../lib/log': log,
     '../lib/ConnectionPool': pool,
@@ -153,8 +167,11 @@ async function nodeInstance(port, t) {
   };
 }
 
-test('three MariaDB nodes: follower batches, prepared writes and connection reuse', {
-  skip: process.env.MARIADB_INTEGRATION !== '1', timeout: 60000,
+const databaseEngine = process.env.DB_INTEGRATION || (process.env.MARIADB_INTEGRATION === '1' ? 'mariadb' : '');
+if (databaseEngine && !['mysql', 'mariadb'].includes(databaseEngine)) throw new Error('DB_INTEGRATION must be mysql or mariadb');
+
+test(`three ${databaseEngine || 'database'} nodes: raw values, follower replication and snapshot recovery`, {
+  skip: !databaseEngine, timeout: 60000,
 }, async (t) => {
   const nodes = [];
   const clients = [];
@@ -255,11 +272,33 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
       throw new Error(`${error.message}\nOperator logs:\n${follower.messages.slice(-12).join('\n')}`);
     });
     await mariaClient.ping();
+    const mariaRows = await mariaClient.query('SELECT CAST(9007199254740993 AS UNSIGNED) AS n');
+    assert.equal(mariaRows[0].n, 9007199254740993n);
     await mariaClient.end();
     const client = await mysql.createConnection({
-      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret', multipleStatements: true,
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret', multipleStatements: true, supportBigNumbers: true, bigNumberStrings: true,
     });
     clients.push(client);
+    // Raw reads must preserve values with standard backend metadata on either engine.
+    const [values] = await client.query(
+      "SELECT 'snow ☃' AS text_value, CAST('bytes' AS BINARY) AS binary_value, NULL AS null_value",
+    );
+    assert.equal(values[0].text_value, 'snow ☃');
+    assert.deepEqual(values[0].binary_value, Buffer.from('bytes'));
+    assert.equal(values[0].null_value, null);
+    const [precise] = await client.query("SELECT CAST(9007199254740993 AS UNSIGNED) AS n, JSON_OBJECT('answer', 42) AS j");
+    assert.equal(precise[0].n, '9007199254740993');
+    assert.deepEqual(typeof precise[0].j === 'string' ? JSON.parse(precise[0].j) : precise[0].j, { answer: 42 });
+    const [preparedValues] = await client.execute("SELECT CAST(9007199254740993 AS UNSIGNED) AS n, JSON_OBJECT('answer', 42) AS j");
+    assert.equal(preparedValues[0].n, '9007199254740993');
+    assert.deepEqual(typeof preparedValues[0].j === 'string' ? JSON.parse(preparedValues[0].j) : preparedValues[0].j, { answer: 42 });
+    const [batchValues] = await client.query("SELECT CAST(9007199254740993 AS UNSIGNED) AS n; SELECT JSON_OBJECT('answer',42) AS j");
+    assert.equal(batchValues[0][0].n, '9007199254740993');
+    assert.deepEqual(typeof batchValues[1][0].j === 'string' ? JSON.parse(batchValues[1][0].j) : batchValues[1][0].j, { answer: 42 });
+    const [cte] = await client.query('WITH x AS (SELECT 42 AS n) SELECT n FROM x');
+    assert.equal(cte[0].n, 42);
+    const [plan] = await client.query('EXPLAIN SELECT 1');
+    assert.ok(plan.length);
     const errors = [];
     client.on('error', (error) => errors.push(error));
     const database = `follower_case_${index}`;
@@ -271,7 +310,7 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     await timer.setTimeout(100);
     await client.ping();
     const [rows] = await client.query('SELECT COUNT(*) AS count FROM t0');
-    assert.equal(rows[0].count, 1);
+    assert.equal(rows[0].count, '1');
     await client.execute('INSERT INTO t0 VALUES (2)');
     await client.ping();
     await assert.rejects(client.query('INSERT INTO t0 VALUES (2); INSERT INTO t0 VALUES (3)'), { errno: 1062 });
@@ -279,6 +318,13 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     await client.ping();
     assert.equal(errors.length, 0);
     assert.equal(follower.operator.pendingLocalWrites.size, 0);
+    for (const node of nodes) {
+      await node.user.connection.query(`DROP PROCEDURE IF EXISTS ${database}.metadata_p`);
+      await node.user.connection.query(`CREATE PROCEDURE ${database}.metadata_p() BEGIN SELECT 7 AS n; SELECT 8 AS n; END`);
+    }
+    const [procedure] = await client.query(`CALL ${database}.metadata_p()`);
+    assert.equal(String(procedure[0][0].n), '7');
+    assert.equal(String(procedure[1][0].n), '8');
     for (const node of nodes) {
       // Non-originating replicas are asynchronous; poll the observable data.
       let replicated = false;
@@ -291,4 +337,54 @@ test('three MariaDB nodes: follower batches, prepared writes and connection reus
     }
   }
   assert.ok(sequence >= 30);
+  // Round-trip the production dumper's trigger syntax, then fail after a real
+  // replicated prefix and prove that both existing and new clients are fenced.
+  await master.user.connection.query('USE restore_case');
+  await master.user.connection.query('DROP TABLE IF EXISTS trigger_items');
+  await master.user.connection.query('CREATE TABLE trigger_items (id INT)');
+  await master.user.connection.query('CREATE TRIGGER restore_trigger BEFORE INSERT ON trigger_items FOR EACH ROW BEGIN SET NEW.id=NEW.id+1; END');
+  await master.user.connection.query('INSERT INTO trigger_items VALUES (4)');
+  const snapshot = `integration_restore_${process.pid}_${crypto.randomBytes(4).toString('hex')}`;
+  const snapshotFile = path.join(__dirname, '../../dumps', `${snapshot}.sql`);
+  t.after(() => fs.rmSync(snapshotFile, { force: true }));
+  await mysqldump({
+    connection: {
+      host: '127.0.0.1', port: 17306, user: 'root', password: 'secret', database: 'restore_case',
+    },
+    dump: { schema: { table: { dropIfExist: true } } },
+    dumpToFile: snapshotFile,
+  });
+  const validDump = fs.readFileSync(snapshotFile, 'utf8');
+  assert.match(validDump, /DELIMITER ;;/);
+  master.operator.IamMaster = true;
+  master.operator.masterNode = '127.0.0.1';
+  master.operator.serverSocket = transport;
+  fs.appendFileSync(snapshotFile, '\nINSERT INTO missing_restore_table VALUES(1);\n');
+  await assert.rejects(master.operator.restoreSnapshot(snapshot, { replicate: true }), { code: 'ER_NO_SUCH_TABLE' });
+  for (const node of nodes) {
+    assert.equal(node.operator.status, 'IMPORT_FAILED', node.messages.slice(-10).join('\n'));
+    assert.ok(await node.backlog.getKey('snapshotImportFailure', false, true));
+  }
+  for (const client of clients) {
+    await assert.rejects(client.query('SELECT 1'), { errno: 1047 });
+    await assert.rejects(client.execute('SELECT 1'));
+  }
+  for (const follower of followers) {
+    await assert.rejects(mysql.createConnection({
+      host: '127.0.0.1', port: follower.port, user: 'root', password: 'secret',
+    }), { errno: 1045 });
+  }
+  fs.writeFileSync(snapshotFile, validDump);
+  await master.operator.restoreSnapshot(snapshot, { replicate: true });
+  for (const node of nodes) {
+    assert.equal(node.operator.status, 'OK');
+    assert.equal(await node.backlog.getKey('snapshotImportFailure', false, true), null);
+    const [triggers] = await node.user.connection.query('SHOW TRIGGERS FROM restore_case');
+    assert.equal(triggers.length, 1);
+    const [records] = await node.user.connection.query('SELECT id FROM restore_case.trigger_items');
+    assert.equal(records[0].id, 5);
+    await node.user.connection.query('INSERT INTO restore_case.trigger_items VALUES (9)');
+    const [inserted] = await node.user.connection.query('SELECT id FROM restore_case.trigger_items WHERE id=10');
+    assert.equal(inserted.length, 1);
+  }
 });

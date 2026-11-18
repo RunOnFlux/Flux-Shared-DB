@@ -1,0 +1,18 @@
+# Override the MariaDB fixture to exercise the bundled MySQL server version.
+x-mysql: &mysql
+  image: mysql:8.3.0
+  environment:
+    MYSQL_ROOT_PASSWORD: secret
+    MYSQL_ROOT_HOST: '%'
+  healthcheck:
+    test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-psecret']
+    interval: 2s
+    timeout: 2s
+    retries: 60
+services:
+  master:
+    <<: *mysql
+  follower1:
+    <<: *mysql
+  follower2:
+    <<: *mysql

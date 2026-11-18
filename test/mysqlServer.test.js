@@ -383,7 +383,7 @@ test('operator requires the configured username even for whitelisted and applica
   const config = { dbUser: 'root', whiteListedIps: '192.0.2.10', authMasterOnly: false };
   const { operator } = fixture({}, { './config': config });
   const context = {
-    status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: ['192.0.2.10'],
+    status: 'OK', operator: { status: 'OK', ghosted: false, IamMaster: false }, appIPList: ['192.0.2.10'],
   };
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
   assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
@@ -391,6 +391,9 @@ test('operator requires the configured username even for whitelisted and applica
   assert.equal(operator.handleAuthorize.call(context, { username: 'attacker', remoteIP: '192.0.2.10' }), false);
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), true);
   assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '203.0.113.10' }), false);
+  context.operator.status = 'IMPORT_FAILED';
+  assert.equal(context.status, 'OK');
+  assert.equal(operator.handleAuthorize.call(context, { username: 'root', remoteIP: '192.0.2.10' }), false);
 });
 
 test('master DB admission requires an admitted replication peer, not raw connections or discovery', () => {
@@ -398,7 +401,10 @@ test('master DB admission requires an admitted replication peer, not raw connect
   const { operator } = fixture({}, { './config': config });
   const sockets = new Map();
   const context = {
-    status: 'OK', operator: { ghosted: false, IamMaster: true, serverSocket: { engine: { clientsCount: 99 }, sockets: { sockets } } },
+    status: 'OK',
+    operator: {
+      status: 'OK', ghosted: false, IamMaster: true, serverSocket: { engine: { clientsCount: 99 }, sockets: { sockets } },
+    },
   };
   const params = { username: 'root', remoteIP: '127.0.0.1' };
   assert.equal(operator.handleAuthorize.call(context, params), false);
@@ -421,7 +427,7 @@ test('automatic local-network authorization accepts only valid RFC1918 IPv4 addr
   function authorize(remoteIP, username = 'root') {
     // Match production: every connection gets its own server context.
     return operator.handleAuthorize.call({
-      status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [], authorizedApp: null,
+      status: 'OK', operator: { status: 'OK', ghosted: false, IamMaster: false }, appIPList: [], authorizedApp: null,
     }, { remoteIP, username });
   }
   for (const ip of [
@@ -442,7 +448,11 @@ test('automatic local-network authorization accepts only valid RFC1918 IPv4 addr
   config.authMasterOnly = true;
   assert.equal(authorize('172.17.0.2'), false);
   const masterContext = {
-    status: 'OK', operator: { ghosted: false, IamMaster: true, serverSocket: { sockets: { sockets: new Map([['replica', { connected: true, data: { operatorAuthenticated: true, operatorReplica: true } }]]) } } }, appIPList: [],
+    status: 'OK',
+    operator: {
+      status: 'OK', ghosted: false, IamMaster: true, serverSocket: { sockets: { sockets: new Map([['replica', { connected: true, data: { operatorAuthenticated: true, operatorReplica: true } }]]) } },
+    },
+    appIPList: [],
   };
   assert.equal(operator.handleAuthorize.call(masterContext, { username: 'root', remoteIP: '172.17.0.2' }), true);
   masterContext.operator.ghosted = true;
@@ -453,7 +463,7 @@ test('public 172 addresses require explicit whitelist or discovered application 
   const ip = '172.32.10.20';
   const config = { dbUser: 'root', whiteListedIps: '', authMasterOnly: false };
   const { operator } = fixture({}, { './config': config });
-  const context = { status: 'OK', operator: { ghosted: false, IamMaster: false }, appIPList: [] };
+  const context = { status: 'OK', operator: { status: 'OK', ghosted: false, IamMaster: false }, appIPList: [] };
   const params = { username: 'root', remoteIP: ip };
   assert.equal(operator.handleAuthorize.call(context, params), false);
   config.whiteListedIps = ip;
@@ -546,13 +556,14 @@ test('unavailable prepared query paths return errors instead of success', async 
   }
 });
 
-test('command exceptions and skipped queries include connection context', async () => {
+test('command exceptions include context and live restore status rejects established clients', async () => {
   const { server, logs } = fixture();
   await receive(server, Buffer.from([constants.COM_QUERY]));
   assert.ok(logs.some(({ message }) => /COM_QUERY.*command failed.*TypeError/.test(message)));
-  server.status = 'SYNC';
+  server.operator.status = 'IMPORT_FAILED';
   await receive(server, Buffer.from([constants.COM_QUERY]));
-  assert.ok(logs.some(({ level, message }) => level === 'warn' && /query skipped: operator status=SYNC/.test(message)));
+  assert.equal(server.status, 'OK');
+  assert.equal(server.socket.writes.at(-1)[4], 0xff);
 });
 
 test('prepared write failures from master and replica retain the database error', async () => {
